@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CAN UI</title>
+    <link rel="stylesheet" href="/static/css/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>CAN UI</h1>
+      <div class="init-form">
+        <select id="device">
+          <option value="PCAN">PCAN</option>
+          <option value="CANalyzer">CANalyzer</option>
+          <option value="CANoe">CANoe</option>
+          <option value="CANape">CANape</option>
+        </select>
+        <label>Channel <input id="channel" type="number" value="0" min="0" /></label>
+        <label>CAN FD <input id="is_fd" type="checkbox" /></label>
+        <label>Padding <input id="padding" type="text" value="00" size="3" /></label>
+        <label>DBC <input id="dbc_path" type="text" placeholder="path/to/file.dbc" size="28" /></label>
+        <button id="btn-init">Init</button>
+        <span id="init-status"></span>
+      </div>
+      <nav>
+        <button class="tab-btn active" data-tab="trace">Trace</button>
+        <button class="tab-btn" data-tab="messages">Messages</button>
+        <button class="tab-btn" data-tab="stim">Stimulation</button>
+        <button class="tab-btn" data-tab="diag">Diagnostics</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="tab-trace" class="tab active">
+        <div class="toolbar">
+          <button id="btn-trace-start">Start Trace</button>
+          <button id="btn-trace-stop">Stop Trace</button>
+          <label>Filter ID <input id="trace-filter" type="text" placeholder="e.g. 7E0 or 0x7E0" /></label>
+          <label><input id="decode-toggle" type="checkbox" checked /> Decode</label>
+        </div>
+        <table id="trace-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>ID</th>
+              <th>DLC</th>
+              <th>Data</th>
+              <th>Decoded</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="tab-messages" class="tab">
+        <div class="split">
+          <div class="left">
+            <div class="toolbar">
+              <button id="btn-load-dbc">Load DBC Messages</button>
+              <input id="msg-search" type="text" placeholder="Search message" />
+            </div>
+            <ul id="msg-list"></ul>
+          </div>
+          <div class="right">
+            <div id="msg-details">
+              <h3 id="msg-title">Select a message</h3>
+              <div class="toolbar">
+                <label>Period (ms) <input id="msg-period" type="number" value="100" /></label>
+                <label>Duration (ms) <input id="msg-duration" type="number" placeholder="(optional)" /></label>
+                <button id="btn-start-periodic">Start</button>
+                <button id="btn-stop-periodic">Stop</button>
+              </div>
+              <form id="signals-form"></form>
+              <button id="btn-update-signals">Update Signals</button>
+              <div id="msg-meta"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-stim" class="tab">
+        <div class="toolbar">
+          <select id="stim-node-select"></select>
+          <button id="btn-stim-add">Add Node</button>
+          <span id="stim-status"></span>
+        </div>
+        <div id="stim-nodes-container"></div>
+      </section>
+
+      <section id="tab-diag" class="tab">
+        <div class="toolbar">
+          <label>ECU ID <input id="ecu-id" type="text" value="7E0" /></label>
+          <label>Tester ID <input id="tester-id" type="text" value="7E8" /></label>
+          <button id="btn-diag-config">Configure</button>
+        </div>
+        <div class="toolbar">
+          <input id="diag-raw" type="text" placeholder="UDS request hex e.g. 22 F1 00" size="40" />
+          <label>Timeout (ms) <input id="diag-timeout" type="number" value="500" /></label>
+          <button id="btn-diag-send">Send</button>
+        </div>
+        <div class="toolbar">
+          <label>Tester Present every <input id="tp-interval" type="number" value="2000" /> ms</label>
+          <button id="btn-tp-start">Start</button>
+          <button id="btn-tp-stop">Stop</button>
+        </div>
+        <pre id="diag-output"></pre>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/static/js/app.js"></script>
+  </body>
+  </html>
