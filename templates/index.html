@@ -108,7 +108,15 @@
       </section>
     </main>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+      // Khởi tạo kết nối — cùng host/port với Flask-SocketIO
+      const socket = io({
+        transports: ['websocket'],  // tránh fallback polling
+        // nếu server không cùng origin: io("http://localhost:5000", { transports: ['websocket'] })
+        // nếu chạy sau reverse proxy: thêm path nếu cần: path: '/socket.io'
+      });
+    </script>
     <script src="/static/js/app.js"></script>
   </body>
   </html>
