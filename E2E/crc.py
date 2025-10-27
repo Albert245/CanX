@@ -4,7 +4,7 @@ Description: This lib provide crc calulate functions
 Last update: 22-Jan-2025
     - First Initial
 '''
-# from E2E.CRC.crc_cy import crc16_canfd_cy
+from E2E.CRC.crc_cy import crc16_canfd_cy
  
 CRC_17_POLY = 0x1685B
 CRC_17_INIT = 0x1FFFF
