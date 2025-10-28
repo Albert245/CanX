@@ -343,7 +343,7 @@ class CANInterface:
                 if (time.time() - start_time) > timeout:
                     break
                 msg = self.reader.get_from_default()
-                if msg and msg.arbitration_id == int(message_id,16):
+                if msg:
                     print(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
                     return HexArr2StrArr(msg.data)
             return None

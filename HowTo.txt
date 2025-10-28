@@ -1,0 +1,3 @@
+Generate crc_cy if you need to use crc calculation 
+- Run:
+python setup.py build_ext --inplace

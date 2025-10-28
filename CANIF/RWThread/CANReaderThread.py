@@ -89,7 +89,7 @@ class CANReaderThread(threading.Thread):
         self.cleanup_thread = threading.Thread(target=self.cleanup_old_queues)
         self.cleanup_thread.start()
         while self.running.is_set():
-            msg = self.bus.recv(timeout=1)
+            msg = self.bus.recv(timeout=10)
             if msg is None:
                 continue
             msg_id = msg.arbitration_id
