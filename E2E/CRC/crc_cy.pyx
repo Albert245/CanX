@@ -2,10 +2,7 @@
 # distutils: language = C
  
 cimport cython
- 
-@cython.boundscheck(False)
-@cython.wraparound(False)
- 
+
 cdef unsigned short CRC_16_INIT = 0xFFFF
 cdef unsigned short CRC_16_POLY = 0x1021
 cdef unsigned short CRC_16_FINAL_XOR = 0x0

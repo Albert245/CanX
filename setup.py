@@ -1,13 +1,22 @@
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
 
-ext_modules = cythonize([
-    Extension(
-        name="E2E.CRC.crc_cy",                 # <<< quan trọng
-        sources=["E2E/CRC/crc_cy.pyx"],
-        language="c",
-    )
-], compiler_directives={"language_level": "3"})
+ext_modules = cythonize(
+    [
+        Extension(
+            name="E2E.CRC.crc_cy",
+            sources=["E2E/CRC/crc_cy.pyx"],
+            language="c",
+        )
+    ],
+    compiler_directives={
+        "language_level": 3,
+        "boundscheck": False,
+        "wraparound": False,
+        "nonecheck": False,
+        "cdivision": True,
+    },
+)
 
 setup(
     name="CanX",
