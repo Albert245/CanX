@@ -80,20 +80,35 @@ class CANInterface:
                 timeout : int (ms)
                 ret : ['62','F1','00']
         """
- 
-        start_time = time.time()
-        timeout = timeout/1000      # Convert ms to seconds
         if not self.bus:
             print("ERROR: CANInterface - CAN bus is not initialized.")
             return None
+        if not self.reader:
+            print("ERROR: CANInterface - CAN reader thread is not running.")
+            return None
+        timeout_sec = timeout / 1000.0
+        deadline = time.monotonic() + timeout_sec
+        if isinstance(message_id, str):
+            try:
+                msg_key = int(message_id, 16)
+            except ValueError:
+                print(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
+                return None
+        else:
+            try:
+                msg_key = int(message_id)
+            except (TypeError, ValueError):
+                print(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
+                return None
         try:
             while True:
-                if (time.time() - start_time) > timeout:
+                if time.monotonic() > deadline:
                     break
-                msg = self.reader.get_from_id(msg_id=message_id)
+                msg = self.reader.get_from_id(msg_id=msg_key)
                 if msg :
                     print(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
                     return HexArr2StrArr(msg.data)
+                time.sleep(0.001)
             return None
         except Exception as e:
             print(f"Error reading CAN message: {e}")
@@ -311,41 +326,56 @@ class CANInterface:
     def Tranceiver_status(self):
         return self.scheduler.get_status()
    
-    def subscribe_id_queue(msg_id, callbacks = None):
+    def subscribe_id_queue(self, msg_id, callback = None):
         """
-        Subcribe a message id queue, its will appear in its unique queue, not effect to the default read's queue.
-        Args:   msg_id (str) = "7bb" : message id
-                size (int) : Size of the queue
+        Subscribe to a message ID queue so the frame is buffered separately from the default queue.
+        Args:   msg_id (str|int) : message id
+                callback (callable|None): optional callback invoked on reception.
         """
-        self.reader.subscribe(msg_id, callbacks)
- 
-    def unsubscribe_id_queue(msg_id):
+        if not self.reader:
+            print("ERROR: CANInterface - CAN reader thread is not initialized.")
+            return
+        try:
+            self.reader.subscribe(msg_id, callback)
+        except ValueError as exc:
+            print(f"ERROR: CANInterface - {exc}")
+
+    def unsubscribe_id_queue(self, msg_id):
         """
-        UnSubcribe a message id queue.
-        Args:   msg_id (str) = "7bb" : message id
+        Unsubscribe a message id queue.
+        Args:   msg_id (str|int) : message id
         """
-        self.reader.unsubscribe(msg_id)
+        if not self.reader:
+            print("ERROR: CANInterface - CAN reader thread is not initialized.")
+            return
+        try:
+            self.reader.unsubscribe(msg_id)
+        except ValueError as exc:
+            print(f"ERROR: CANInterface - {exc}")
    
     def read_all(self, timeout = 1000):
         """
-        Read funtion: Read messages on CAN bus by default (any message)
-        param:  message_id : str (Eg: 6bb)
-                timeout : int (ms)
-                ret : ['62','F1','00']
+        Read function: Read any message on CAN bus from the default queue.
+        param:  timeout : int (ms)
+                ret : ['62','F1','00'] or None if timeout
         """
-        start_time = time.time()
-        timeout = timeout/1000      # Convert ms to seconds
         if not self.bus:
             print("ERROR: CANInterface - CAN bus is not initialized.")
             return None
+        if not self.reader:
+            print("ERROR: CANInterface - CAN reader thread is not running.")
+            return None
+        timeout_sec = timeout / 1000.0
+        deadline = time.monotonic() + timeout_sec
         try:
             while True:
-                if (time.time() - start_time) > timeout:
+                if time.monotonic() > deadline:
                     break
                 msg = self.reader.get_from_default()
                 if msg:
                     print(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
                     return HexArr2StrArr(msg.data)
+                time.sleep(0.001)
             return None
         except Exception as e:
             print(f"Error reading CAN message: {e}")

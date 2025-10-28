@@ -121,7 +121,7 @@ def add_padding(input_arr:list, padding):
     Add padding for a frame CAN-FD
     """
     Data_size = calculateLength_dlc(input_arr)
-    outdata = input_arr
+    outdata = list(input_arr)
     outdata.extend([int(padding,16)]*(Data_size-len(input_arr)))
     return outdata
  
