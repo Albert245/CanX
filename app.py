@@ -394,10 +394,23 @@ def api_diag_configure():
     if not state.canif:
         return jsonify({"ok": False, "error": "CAN not initialized"}), 400
     payload = request.get_json(force=True, silent=True) or {}
-    ecu_id = str(payload.get("ecu_id", "7E0"))
-    tester_id = str(payload.get("tester_id", "7E8"))
-    state.diag = ComDiag(canif=state.canif, ecu_id=ecu_id, tester_id=tester_id)
-    return jsonify({"ok": True})
+    ecu_raw = payload.get("ecu_id", "7E0")
+    tester_raw = payload.get("tester_id", "7E8")
+    dll_raw = payload.get("dll")
+    ecu_id = str(ecu_raw).strip().upper() if ecu_raw is not None else "7E0"
+    tester_id = str(tester_raw).strip().upper() if tester_raw is not None else "7E8"
+    if not ecu_id:
+        ecu_id = "7E0"
+    if not tester_id:
+        tester_id = "7E8"
+    dll_path = str(dll_raw).strip() if dll_raw else None
+    if state.diag:
+        try:
+            state.diag.shutdown()
+        except Exception:
+            pass
+    state.diag = ComDiag(canif=state.canif, ecu_id=ecu_id, tester_id=tester_id, dll=dll_path)
+    return jsonify({"ok": True, "ecu_id": ecu_id, "tester_id": tester_id, "dll": dll_path})
 
 
 @app.route("/api/diag/send", methods=["POST"])
@@ -407,11 +420,39 @@ def api_diag_send():
     payload = request.get_json(force=True, silent=True) or {}
     data = str(payload.get("data", "")).strip()
     timeout = int(payload.get("timeout", 500))
+    ecu_raw = payload.get("ecu_id")
+    ecu_id = (
+        str(ecu_raw).strip().upper()
+        if ecu_raw not in (None, "")
+        else state.diag.ecu_id
+    )
+    label = payload.get("label")
     try:
-        recv = state.diag.send_and_received(data, ecu_id=state.diag.ecu_id, timeout=timeout)
-        return jsonify({"ok": True, "response": recv})
+        recv = state.diag.send_and_received(data, ecu_id=ecu_id, timeout=timeout)
+        return jsonify({"ok": True, "response": recv, "ecu_id": ecu_id, "request": data, "label": label})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
+
+
+@app.route("/api/diag/unlock", methods=["POST"])
+def api_diag_unlock():
+    if not state.diag:
+        return jsonify({"ok": False, "error": "Diagnostics not configured"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    dll_raw = payload.get("dll")
+    if dll_raw:
+        state.diag.set_dll(str(dll_raw).strip())
+    if not state.diag.dll:
+        return jsonify({"ok": False, "error": "Security DLL not configured"}), 400
+    ecu_raw = payload.get("ecu_id")
+    ecu_id = (str(ecu_raw).strip().upper() if ecu_raw is not None else state.diag.ecu_id) or state.diag.ecu_id
+    try:
+        unlocked = state.diag.unlock_security(ecu_id=ecu_id)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    if unlocked:
+        return jsonify({"ok": True, "ecu_id": ecu_id})
+    return jsonify({"ok": False, "error": "Unlock failed"}), 400
 
 
 @app.route("/api/diag/tester_present", methods=["POST"])
