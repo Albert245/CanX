@@ -2,7 +2,7 @@
  * @fileoverview Entry point for the CanX web UI. Sets up the shared Socket.IO
  * connection, coordinates tab navigation, and bootstraps feature modules.
  */
-
+import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
 import { initTrace } from './trace.js';
 import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
