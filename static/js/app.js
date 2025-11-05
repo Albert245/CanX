@@ -549,16 +549,82 @@
   const diagConfig = $("#btn-diag-config");
   if (diagConfig) diagConfig.addEventListener("click", async () => {
     const payload = { ecu_id: $("#ecu-id").value.trim(), tester_id: $("#tester-id").value.trim() };
-    await fetch("/api/diag/configure", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const dllInput = $("#diag-dll");
+    if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
+    const output = $("#diag-output");
+    const status = $("#diag-unlock-status");
+    if (status) {
+      status.textContent = "";
+      status.style.color = "#9aa0a6";
+    }
+    try {
+      const res = await fetch("/api/diag/configure", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const js = await res.json().catch(() => ({ ok: false }));
+      if (output) {
+        if (js.ok) {
+          const dllInfo = js.dll ? ` (DLL: ${js.dll})` : "";
+          output.textContent = `Diagnostics configured for ${js.ecu_id || payload.ecu_id}/${js.tester_id || payload.tester_id}${dllInfo}`;
+        } else {
+          output.textContent = js.error || "ERR";
+        }
+      }
+    } catch (err) {
+      if (output) output.textContent = err.message || "ERR";
+    }
   });
 
   const diagSend = $("#btn-diag-send");
   if (diagSend) diagSend.addEventListener("click", async () => {
     const payload = { data: $("#diag-raw").value.trim(), timeout: Number($("#diag-timeout").value || 500) };
-    const res = await fetch("/api/diag/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const js = await res.json().catch(() => ({ ok: false }));
-    const output = $("#diag-output");
-    if (output) output.textContent = js.ok ? JSON.stringify(js.response) : (js.error || "ERR");
+    try {
+      const res = await fetch("/api/diag/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const js = await res.json().catch(() => ({ ok: false }));
+      const output = $("#diag-output");
+      if (output) {
+        if (js.ok) {
+          const resp = js.response;
+          output.textContent = Array.isArray(resp) ? resp.join(" ") : (resp ? String(resp) : "");
+        } else {
+          output.textContent = js.error || "ERR";
+        }
+      }
+    } catch (err) {
+      const output = $("#diag-output");
+      if (output) output.textContent = err.message || "ERR";
+    }
+  });
+
+  const diagUnlock = $("#btn-diag-unlock");
+  if (diagUnlock) diagUnlock.addEventListener("click", async () => {
+    const status = $("#diag-unlock-status");
+    if (status) {
+      status.textContent = "Unlocking...";
+      status.style.color = "#9aa0a6";
+    }
+    const payload = {};
+    const ecuInput = $("#diag-unlock-ecu");
+    if (ecuInput && ecuInput.value.trim()) payload.ecu_id = ecuInput.value.trim();
+    const dllInput = $("#diag-dll");
+    if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
+    try {
+      const res = await fetch("/api/diag/unlock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const js = await res.json().catch(() => ({ ok: false }));
+      if (status) {
+        if (js.ok) {
+          const ecu = js.ecu_id ? ` ${js.ecu_id}` : "";
+          status.textContent = `Security unlocked${ecu}`.trim();
+          status.style.color = "#4caf50";
+        } else {
+          status.textContent = js.error || "Unlock failed";
+          status.style.color = "#f88";
+        }
+      }
+    } catch (err) {
+      if (status) {
+        status.textContent = err.message || "Unlock failed";
+        status.style.color = "#f88";
+      }
+    }
   });
 
   const tpStart = $("#btn-tp-start");

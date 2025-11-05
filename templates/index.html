@@ -92,12 +92,18 @@
         <div class="toolbar">
           <label>ECU ID <input id="ecu-id" type="text" value="7E0" /></label>
           <label>Tester ID <input id="tester-id" type="text" value="7E8" /></label>
+          <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
           <button id="btn-diag-config">Configure</button>
         </div>
         <div class="toolbar">
           <input id="diag-raw" type="text" placeholder="UDS request hex e.g. 22 F1 00" size="40" />
           <label>Timeout (ms) <input id="diag-timeout" type="number" value="500" /></label>
           <button id="btn-diag-send">Send</button>
+        </div>
+        <div class="toolbar">
+          <label>Unlock ECU ID <input id="diag-unlock-ecu" type="text" placeholder="(defaults to ECU ID)" /></label>
+          <button id="btn-diag-unlock">Unlock Security</button>
+          <span id="diag-unlock-status"></span>
         </div>
         <div class="toolbar">
           <label>Tester Present every <input id="tp-interval" type="number" value="2000" /> ms</label>
