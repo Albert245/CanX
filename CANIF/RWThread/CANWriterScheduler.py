@@ -38,7 +38,6 @@ class MessageTask:
         self.running = False
         self.stop_event.set()
         self.pause_event.set()
-        # logger.info(f"[STOP] message id: {hex(self.msg_id)} stopped")
         self.thread.join()
    
     def pause(self):
@@ -59,9 +58,6 @@ class MessageTask:
    
     def _send_loop(self):
         while self.running:
-           
-            # start = time.perf_counter()
-            # now = start
             now = time.perf_counter()
             self.pause_event.wait()
             if self.stop_event.is_set():
@@ -89,16 +85,11 @@ class MessageTask:
                 if self.stop_event.wait(timeout = (self.next_periodic_time-now)):
                     break
             self.pause_event.wait()
-            # temp = 0
             with self.lock:
-                # temp = time.perf_counter_ns()
                 payload = self.get_payload()
             self._send(payload)
             self.next_periodic_time += self.period
-            # self.avr_time[0] = self.avr_time[0] + 1
-            # self.avr_time[2] = (time.perf_counter() - start)
-            # self.avr_time[3] = (time.perf_counter_ns() - temp)
-            # self.avr_time[1] = self.avr_time[1] + self.avr_time[2]
+
  
     def _send(self,payload: List[int]):
         msg = can.Message(arbitration_id=self.msg_id, data=payload, is_extended_id=self.is_extended_id, is_fd=self.is_fd)
@@ -108,9 +99,6 @@ class MessageTask:
                 self.on_sent(msg)
         except Exception as e:
             logger.error(f"[ERROR] Send {hex(self.msg_id)}: {e}")
- 
-    # def Get_avr(self):
-    #     return [hex(self.msg_id), (self.avr_time[1]/100)/self.avr_time[0], self.avr_time[2]/100, self.avr_time[3]/1000000000]
  
 class SmartCanMessageScheduler:
     def __init__(self, bus: can.Bus):
@@ -169,7 +157,6 @@ class SmartCanMessageScheduler:
         self.tasks.clear()
         for task in tasks:
             task.stop()
-            print(task.Get_avr())
  
     def get_status(self) -> Dict[int, str]:
         status = {}
