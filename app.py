@@ -420,9 +420,16 @@ def api_diag_send():
     payload = request.get_json(force=True, silent=True) or {}
     data = str(payload.get("data", "")).strip()
     timeout = int(payload.get("timeout", 500))
+    ecu_raw = payload.get("ecu_id")
+    ecu_id = (
+        str(ecu_raw).strip().upper()
+        if ecu_raw not in (None, "")
+        else state.diag.ecu_id
+    )
+    label = payload.get("label")
     try:
-        recv = state.diag.send_and_received(data, ecu_id=state.diag.ecu_id, timeout=timeout)
-        return jsonify({"ok": True, "response": recv})
+        recv = state.diag.send_and_received(data, ecu_id=ecu_id, timeout=timeout)
+        return jsonify({"ok": True, "response": recv, "ecu_id": ecu_id, "request": data, "label": label})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
