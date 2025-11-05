@@ -90,68 +90,21 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 #tab-diag { display: flex; flex-direction: column; gap: 12px; }
 
-.diag-section {
-  display: flex;
-  flex-wrap: wrap;
+.diag-toolbar {
   gap: 12px;
-  align-items: flex-end;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
+  flex-wrap: wrap;
 }
 
-.diag-field {
+.diag-toolbar label {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 160px;
-  flex: 1 1 160px;
 }
 
-.diag-field-wide { flex: 2 1 280px; }
-
-.diag-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.diag-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.diag-panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 12px;
-}
-
-.diag-panel {
+.diag-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.diag-panel-header h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.diag-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+  gap: 6px;
 }
 
 .diag-custom {
