@@ -36,6 +36,7 @@
         <div class="toolbar">
           <button id="btn-trace-start">Start Trace</button>
           <button id="btn-trace-stop">Stop Trace</button>
+          <button id="btn-trace-clear">Clear Trace</button>
           <label>Filter ID <input id="trace-filter" type="text" placeholder="e.g. 7E0 or 0x7E0" /></label>
           <label><input id="decode-toggle" type="checkbox" checked /> Decode</label>
         </div>
@@ -135,14 +136,6 @@
     </main>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script>
-      // Khởi tạo kết nối — cùng host/port với Flask-SocketIO
-      const socket = io({
-        transports: ['websocket'],  // tránh fallback polling
-        // nếu server không cùng origin: io("http://localhost:5000", { transports: ['websocket'] })
-        // nếu chạy sau reverse proxy: thêm path nếu cần: path: '/socket.io'
-      });
-    </script>
-    <script src="/static/js/app.js"></script>
+    <script type="module" src="/static/js/main.js"></script>
   </body>
   </html>
