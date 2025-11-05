@@ -89,96 +89,45 @@
       </section>
 
       <section id="tab-diag" class="tab">
-        <div class="diag-section">
-          <div class="diag-field">
-            <span class="diag-label">ECU ID</span>
-            <input id="ecu-id" type="text" value="7E0" />
-          </div>
-          <div class="diag-field">
-            <span class="diag-label">Tester ID</span>
-            <input id="tester-id" type="text" value="7E8" />
-          </div>
-          <div class="diag-field diag-field-wide">
-            <span class="diag-label">Security DLL</span>
-            <input id="diag-dll" type="text" placeholder="path/to/security.dll" />
-          </div>
-          <div class="diag-actions">
-            <button id="btn-diag-config">Configure</button>
-          </div>
+        <div class="toolbar diag-toolbar">
+          <label>ECU ID <input id="ecu-id" type="text" value="7E0" /></label>
+          <label>Tester ID <input id="tester-id" type="text" value="7E8" /></label>
+          <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
+          <button id="btn-diag-config">Configure</button>
         </div>
 
-        <div class="diag-panels">
-          <div class="diag-panel" data-group="functional">
-            <div class="diag-panel-header">
-              <h3>Functional Request</h3>
-            </div>
-            <div class="diag-field diag-field-wide">
-              <span class="diag-label">Request (HEX)</span>
-              <input id="diag-functional-raw" type="text" placeholder="e.g. 10 01" />
-            </div>
-            <div class="diag-columns">
-              <div class="diag-field">
-                <span class="diag-label">Target ID</span>
-                <input id="diag-functional-id" type="text" value="7DF" />
-              </div>
-              <div class="diag-field">
-                <span class="diag-label">Timeout (ms)</span>
-                <input id="diag-functional-timeout" type="number" value="500" />
-              </div>
-            </div>
-            <div class="diag-actions">
-              <button id="btn-functional-send">Send</button>
-              <button id="btn-functional-add" class="diag-add-btn">Add</button>
-            </div>
-            <div class="diag-custom" id="functional-custom-buttons"></div>
+        <div class="diag-group">
+          <div class="toolbar diag-toolbar" data-group="functional">
+            <label>Functional Request (HEX) <input id="diag-functional-raw" type="text" placeholder="e.g. 10 01" /></label>
+            <label>Target ID <input id="diag-functional-id" type="text" value="7DF" /></label>
+            <label>Timeout (ms) <input id="diag-functional-timeout" type="number" value="500" /></label>
+            <button id="btn-functional-send">Send</button>
+            <button id="btn-functional-add" class="diag-add-btn">Add</button>
           </div>
-
-          <div class="diag-panel" data-group="physical">
-            <div class="diag-panel-header">
-              <h3>Physical Request</h3>
-            </div>
-            <div class="diag-field diag-field-wide">
-              <span class="diag-label">Request (HEX)</span>
-              <input id="diag-physical-raw" type="text" placeholder="e.g. 22 F1 90" />
-            </div>
-            <div class="diag-columns">
-              <div class="diag-field">
-                <span class="diag-label">Target ID</span>
-                <input id="diag-physical-id" type="text" value="7E0" />
-              </div>
-              <div class="diag-field">
-                <span class="diag-label">Timeout (ms)</span>
-                <input id="diag-physical-timeout" type="number" value="500" />
-              </div>
-            </div>
-            <div class="diag-actions">
-              <button id="btn-physical-send">Send</button>
-              <button id="btn-physical-add" class="diag-add-btn">Add</button>
-            </div>
-            <div class="diag-custom" id="physical-custom-buttons"></div>
-          </div>
+          <div class="diag-custom" id="functional-custom-buttons"></div>
         </div>
 
-        <div class="diag-section">
-          <div class="diag-field">
-            <span class="diag-label">Unlock ECU ID</span>
-            <input id="diag-unlock-ecu" type="text" placeholder="(defaults to ECU ID)" />
+        <div class="diag-group">
+          <div class="toolbar diag-toolbar" data-group="physical">
+            <label>Physical Request (HEX) <input id="diag-physical-raw" type="text" placeholder="e.g. 22 F1 90" /></label>
+            <label>Target ID <input id="diag-physical-id" type="text" value="7E0" /></label>
+            <label>Timeout (ms) <input id="diag-physical-timeout" type="number" value="500" /></label>
+            <button id="btn-physical-send">Send</button>
+            <button id="btn-physical-add" class="diag-add-btn">Add</button>
           </div>
-          <div class="diag-actions">
-            <button id="btn-diag-unlock">Unlock Security</button>
-            <span id="diag-unlock-status"></span>
-          </div>
+          <div class="diag-custom" id="physical-custom-buttons"></div>
         </div>
 
-        <div class="diag-section">
-          <div class="diag-field">
-            <span class="diag-label">Tester Present Interval (ms)</span>
-            <input id="tp-interval" type="number" value="2000" />
-          </div>
-          <div class="diag-actions">
-            <button id="btn-tp-start">Start</button>
-            <button id="btn-tp-stop">Stop</button>
-          </div>
+        <div class="toolbar diag-toolbar">
+          <label>Unlock ECU ID <input id="diag-unlock-ecu" type="text" placeholder="(defaults to ECU ID)" /></label>
+          <button id="btn-diag-unlock">Unlock Security</button>
+          <span id="diag-unlock-status"></span>
+        </div>
+
+        <div class="toolbar diag-toolbar">
+          <label>Tester Present every <input id="tp-interval" type="number" value="2000" /> ms</label>
+          <button id="btn-tp-start">Start</button>
+          <button id="btn-tp-stop">Stop</button>
         </div>
 
         <div class="diag-log" id="diag-log"></div>
