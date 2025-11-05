@@ -1,6 +1,7 @@
 /**
- * @fileoverview Implements Diagnostics tab actions including requests, security
- * unlock, tester present control, and log rendering.
+ * @fileoverview Implements Diagnostics tab actions including requests,
+ * security unlock, tester present control, and log rendering.
+ * Updated to respect active tab context and isolate logs to Diagnostics only.
  */
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
@@ -22,25 +23,35 @@ const diagGroups = {
 
 const normalizeDiagRaw = (raw) => (raw || '').replace(/\s+/g, ' ').trim().toUpperCase();
 
-export function initDiag() {
+/**
+ * Initialize the Diagnostics tab module.
+ * @param {object} options
+ * @param {SocketIOClient.Socket} options.socket
+ * @param {() => string} options.getActiveTab
+ * @param {(tabName: string, handler: Function) => void} options.onTabChange
+ */
+export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const diagLog = $('#diag-log');
+  const diagBuffer = []; // keep a short log history
+  const MAX_LOG_ENTRIES = 500;
 
   const diagLogScroll = () => {
     if (!diagLog) return;
     diagLog.scrollTop = diagLog.scrollHeight;
   };
 
-  const addDiagLogEntry = ({ label, ecuId, request, response, error }) => {
+  const renderDiagEntry = (entry) => {
     if (!diagLog) return;
-    const entry = document.createElement('div');
-    entry.className = 'diag-log-entry';
-    entry.classList.add(error ? 'error' : 'success');
+    const { label, ecuId, request, response, error, time } = entry;
+    const logEntry = document.createElement('div');
+    logEntry.className = 'diag-log-entry';
+    logEntry.classList.add(error ? 'error' : 'success');
 
     const meta = document.createElement('div');
     meta.className = 'diag-log-meta';
     const ts = document.createElement('span');
     ts.className = 'diag-log-time';
-    ts.textContent = new Date().toLocaleTimeString();
+    ts.textContent = (time || new Date()).toLocaleTimeString();
     const title = document.createElement('span');
     title.className = 'diag-log-title';
     title.textContent = label || 'Diagnostics';
@@ -52,32 +63,63 @@ export function initDiag() {
       ecu.textContent = `ECU ${ecuId}`;
       meta.appendChild(ecu);
     }
-    entry.appendChild(meta);
+    logEntry.appendChild(meta);
 
     if (request) {
       const req = document.createElement('pre');
       req.className = 'diag-log-req';
       req.textContent = `REQ: ${request}`;
-      entry.appendChild(req);
+      logEntry.appendChild(req);
     }
 
     if (error) {
       const err = document.createElement('pre');
       err.className = 'diag-log-resp';
       err.textContent = `ERR: ${error}`;
-      entry.appendChild(err);
+      logEntry.appendChild(err);
     } else if (response !== undefined) {
       const resp = document.createElement('pre');
       resp.className = 'diag-log-resp';
       const body = Array.isArray(response) ? response.join(' ') : response || '';
       resp.textContent = body ? `RESP: ${body}` : 'RESP: <no data>';
-      entry.appendChild(resp);
+      logEntry.appendChild(resp);
     }
 
-    diagLog.appendChild(entry);
+    diagLog.appendChild(logEntry);
+  };
+
+  /**
+   * Add a new log entry (buffers if Diagnostics tab is inactive).
+   */
+  const addDiagLogEntry = (data) => {
+    const entry = { ...data, time: new Date() };
+    diagBuffer.push(entry);
+    if (diagBuffer.length > MAX_LOG_ENTRIES) diagBuffer.shift();
+
+    // Only render immediately if Diagnostics tab is active
+    if (typeof getActiveTab === 'function' && getActiveTab() !== 'diag') return;
+    renderDiagEntry(entry);
     diagLogScroll();
   };
 
+  /**
+   * Re-render buffered entries when returning to the Diagnostics tab.
+   */
+  const renderBufferedLogs = () => {
+    if (!diagLog) return;
+    diagLog.innerHTML = '';
+    diagBuffer.forEach(renderDiagEntry);
+    diagLogScroll();
+  };
+
+  // Register tab change hook
+  if (typeof onTabChange === 'function') {
+    onTabChange('diag', renderBufferedLogs);
+  }
+
+  // -------------------------
+  // DIAGNOSTIC CORE FUNCTIONS
+  // -------------------------
   const sendDiagRequest = async ({ group, raw, ecuId, timeout, label }) => {
     const settings = diagGroups[group];
     if (!settings) return;
@@ -131,10 +173,10 @@ export function initDiag() {
     }
   };
 
-  const diagCustomCounters = {
-    functional: 0,
-    physical: 0,
-  };
+  // -------------------------
+  // BUTTON HANDLERS
+  // -------------------------
+  const diagCustomCounters = { functional: 0, physical: 0 };
 
   const createCustomDiagButton = (group) => {
     const settings = diagGroups[group];
@@ -162,13 +204,7 @@ export function initDiag() {
     const preview = normalized.split(' ').slice(0, 3).join(' ');
     btn.textContent = preview ? `${label}: ${preview}` : label;
     btn.addEventListener('click', () => {
-      sendDiagRequest({
-        group,
-        raw: normalized,
-        ecuId,
-        timeout,
-        label,
-      });
+      sendDiagRequest({ group, raw: normalized, ecuId, timeout, label });
     });
     container.appendChild(btn);
   };
@@ -180,11 +216,6 @@ export function initDiag() {
     };
     const dllInput = $('#diag-dll');
     if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
-    const status = $('#diag-unlock-status');
-    if (status) {
-      status.textContent = '';
-      status.style.color = '#9aa0a6';
-    }
     try {
       const res = await fetch('/api/diag/configure', {
         method: 'POST',
@@ -193,46 +224,34 @@ export function initDiag() {
       });
       const js = await res.json().catch(() => ({ ok: false }));
       if (js.ok) {
-        const ecuField = $('#diag-physical-id');
-        if (ecuField && js.ecu_id) {
-          ecuField.value = js.ecu_id;
-        }
         addDiagLogEntry({
           label: 'Diagnostics Configured',
           ecuId: `${js.ecu_id || payload.ecu_id}/${js.tester_id || payload.tester_id}`,
           request: js.dll ? `DLL: ${js.dll}` : undefined,
         });
       } else {
-        addDiagLogEntry({
-          label: 'Diagnostics Config',
-          error: js.error || 'ERR',
-        });
+        addDiagLogEntry({ label: 'Diagnostics Config', error: js.error || 'ERR' });
       }
     } catch (err) {
-      addDiagLogEntry({
-        label: 'Diagnostics Config',
-        error: err.message || 'ERR',
-      });
+      addDiagLogEntry({ label: 'Diagnostics Config', error: err.message || 'ERR' });
     }
   });
 
   $('#btn-functional-send')?.addEventListener('click', () =>
     sendDiagRequest({ group: 'functional' }),
   );
-
   $('#btn-physical-send')?.addEventListener('click', () =>
     sendDiagRequest({ group: 'physical' }),
   );
 
-  $('#btn-functional-add')?.addEventListener('click', () => createCustomDiagButton('functional'));
-  $('#btn-physical-add')?.addEventListener('click', () => createCustomDiagButton('physical'));
+  $('#btn-functional-add')?.addEventListener('click', () =>
+    createCustomDiagButton('functional'),
+  );
+  $('#btn-physical-add')?.addEventListener('click', () =>
+    createCustomDiagButton('physical'),
+  );
 
   $('#btn-diag-unlock')?.addEventListener('click', async () => {
-    const status = $('#diag-unlock-status');
-    if (status) {
-      status.textContent = 'Unlocking...';
-      status.style.color = '#9aa0a6';
-    }
     const payload = {};
     const ecuInput = $('#diag-unlock-ecu');
     if (ecuInput && ecuInput.value.trim()) payload.ecu_id = ecuInput.value.trim();
@@ -245,32 +264,21 @@ export function initDiag() {
         body: JSON.stringify(payload),
       });
       const js = await res.json().catch(() => ({ ok: false }));
-      if (status) {
-        if (js.ok) {
-          const ecu = js.ecu_id ? ` ${js.ecu_id}` : '';
-          status.textContent = `Security unlocked${ecu}`.trim();
-          status.style.color = '#4caf50';
-          addDiagLogEntry({
-            label: 'Security Unlock',
-            ecuId: js.ecu_id,
-            request: payload.dll ? `DLL: ${payload.dll}` : undefined,
-            response: 'Unlocked',
-          });
-        } else {
-          status.textContent = js.error || 'Unlock failed';
-          status.style.color = '#f88';
-          addDiagLogEntry({
-            label: 'Security Unlock',
-            ecuId: payload.ecu_id,
-            error: js.error || 'Unlock failed',
-          });
-        }
+      if (js.ok) {
+        addDiagLogEntry({
+          label: 'Security Unlock',
+          ecuId: js.ecu_id,
+          request: payload.dll ? `DLL: ${payload.dll}` : undefined,
+          response: 'Unlocked',
+        });
+      } else {
+        addDiagLogEntry({
+          label: 'Security Unlock',
+          ecuId: payload.ecu_id,
+          error: js.error || 'Unlock failed',
+        });
       }
     } catch (err) {
-      if (status) {
-        status.textContent = err.message || 'Unlock failed';
-        status.style.color = '#f88';
-      }
       addDiagLogEntry({
         label: 'Security Unlock',
         ecuId: payload.ecu_id,

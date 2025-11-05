@@ -30,8 +30,8 @@ nav { margin-top: 10px; display: flex; gap: 8px; }
 .tab-btn.active { background: var(--panel); border-color: var(--accent); }
 
 main { padding: 12px; }
-.tab { display: none; }
-.tab.active { display: block; }
+.tab { display: none !important; }
+.tab.active { display: block !important; }
 
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 
