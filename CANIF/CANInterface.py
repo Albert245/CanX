@@ -14,6 +14,7 @@ from E2E.DbcAdapter import DBCAdapter
 from typing import Union, Any, Optional
 import ctypes
 import atexit
+import queue
  
 timeBeginPeriod = ctypes.windll.winmm.timeBeginPeriod
 timeEndPeriod = ctypes.windll.winmm.timeEndPeriod
@@ -23,7 +24,27 @@ def enable_high_res_timer():
     atexit.register(disable_high_res_timer)
 def disable_high_res_timer():
     timeEndPeriod(1)
- 
+
+class MockBus:
+    def __init__(self):
+        self.tx_queue = queue.Queue()
+        self.rx_queue = queue.Queue()
+
+    def send(self, msg: can.Message):
+        print(f"[MockBus] Sent: {msg}")
+        # Tự loopback để test
+        self.rx_queue.put(msg)
+
+    def recv(self, timeout=None):
+        try:
+            msg = self.rx_queue.get(timeout=timeout)
+            print(f"[MockBus] Received: {msg}")
+            return msg
+        except queue.Empty:
+            return None
+
+    def shutdown(self):
+        print("[MockBus] Closed.") 
  
 class CANInterface:
     def __init__(self, device,is_fd = False, channel = 0, padding = '00', dbc_path: Optional[str] = None):
@@ -64,6 +85,19 @@ class CANInterface:
             elif self.device == "CANape":
                 # CANoe initialization
                 self.bus = can.Bus(interface='vector', app_name='CANape', channel=self.channel, bitrate=500000, data_bitrate=2000000, fd=self.is_fd)
+                self.reader = CANReaderThread(self.bus)
+                self.scheduler = SmartCanMessageScheduler(self.bus)
+                self.reader.start()
+            elif self.device == "VirtualCAN":
+                print("Using Virtual CAN Bus")
+                self.bus = can.interface.Bus(bustype="virtual")
+                self.reader = CANReaderThread(self.bus)
+                self.scheduler = SmartCanMessageScheduler(self.bus)
+                self.reader.start()
+
+            elif self.device == "MockCAN":
+                print("Using Mock CAN Bus (no hardware)")
+                self.bus = MockBus()
                 self.reader = CANReaderThread(self.bus)
                 self.scheduler = SmartCanMessageScheduler(self.bus)
                 self.reader.start()
