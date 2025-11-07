@@ -3,6 +3,8 @@
  * periodic signal updates.
  */
 
+import { createSignalRow, gatherSignalValues, applySignalUpdates } from './signal-utils.js';
+
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
 export function initMessages({ stimApi } = {}) {
@@ -38,31 +40,31 @@ export function initMessages({ stimApi } = {}) {
       title.textContent = `${message.name} - ${message.id_hex}`;
     }
     const meta = $('#msg-meta');
-    if (meta) {
-      meta.textContent = `DLC: ${message.dlc} | Cycle: ${
-        message.cycle_time ?? '-'
-      } | Extended: ${message.is_extended ? 'yes' : 'no'}`;
-    }
-    const response = await fetch(`/api/dbc/message/${encodeURIComponent(message.name)}`);
+    const response = await fetch(`/api/dbc/message_info/${encodeURIComponent(message.name)}`);
     const json = await response.json().catch(() => ({ ok: false }));
     const form = $('#signals-form');
     if (form) {
       form.innerHTML = '';
-      if (json.ok) {
-        Object.entries(json.signals || {}).forEach(([signalName, value]) => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'sig';
-          const label = document.createElement('label');
-          label.textContent = signalName;
-          const input = document.createElement('input');
-          input.type = 'number';
-          input.name = signalName;
-          input.value = value;
-          wrapper.appendChild(label);
-          wrapper.appendChild(input);
-          form.appendChild(wrapper);
+      if (json.ok && json.message?.signals) {
+        json.message.signals.forEach((signal) => {
+          form.appendChild(createSignalRow(signal, { variant: 'message' }));
         });
+      } else {
+        const errorRow = document.createElement('div');
+        errorRow.className = 'signal-meta';
+        errorRow.textContent = json.error || 'Failed to load message signals';
+        form.appendChild(errorRow);
       }
+    }
+    if (meta) {
+      const info = json.ok ? json.message || {} : {};
+      const parts = [];
+      parts.push(`DLC: ${message.dlc ?? info.dlc ?? '-'}`);
+      const cycleValue = info.cycle_time ?? message.cycle_time;
+      parts.push(`Cycle: ${cycleValue ?? '-'}`);
+      parts.push(`Extended: ${message.is_extended ? 'yes' : 'no'}`);
+      parts.push(`Running: ${info.running ? 'active' : 'inactive'}`);
+      meta.textContent = parts.join(' | ');
     }
     renderMessageList();
   }
@@ -116,22 +118,28 @@ export function initMessages({ stimApi } = {}) {
       period: Number($('#msg-period')?.value || 100),
       duration: Number($('#msg-duration')?.value || 0) || null,
     };
-    await fetch('/api/periodic/start', {
+    const res = await fetch('/api/periodic/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    if (res.ok) {
+      await selectMessage(currentMessage);
+    }
   });
 
   const stopPeriodic = $('#btn-stop-periodic');
   stopPeriodic?.addEventListener('click', async () => {
     if (!currentMessage) return;
     const payload = { message: currentMessage.name };
-    await fetch('/api/periodic/stop', {
+    const res = await fetch('/api/periodic/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    if (res.ok) {
+      await selectMessage(currentMessage);
+    }
   });
 
   const updateSignals = $('#btn-update-signals');
@@ -139,17 +147,22 @@ export function initMessages({ stimApi } = {}) {
     if (!currentMessage) return;
     const form = $('#signals-form');
     if (!form) return;
-    const inputs = Array.from(form.querySelectorAll('input'));
-    const signals = Object.fromEntries(inputs.map((input) => [input.name, Number(input.value)]));
+    const signals = gatherSignalValues(form);
     const payload = {
       message_name: currentMessage.name,
       signals,
     };
-    await fetch('/api/periodic/update', {
+    const res = await fetch('/api/periodic/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    const js = await res.json().catch(() => ({ ok: false }));
+    if (!js.ok) {
+      window.alert(js.error || 'Failed to update signals');
+      return;
+    }
+    applySignalUpdates(form, js.applied || {});
   });
 
   return {};

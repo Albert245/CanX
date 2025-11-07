@@ -72,12 +72,13 @@ class DBCAdapter:
         with self.lock:
             if message_name not in self.signal_queues:
                 raise KeyError(f"Message {message_name} not found in DBC")
- 
+
             for signal in signals:
                 try:
                     signals[signal] = trim(signals[signal], self.message_trim[message_name][signal]["minimum"], self.message_trim[message_name][signal]["maximum"])
                 except Exception as e:
                     print(f"[ERROR] Failed to push signal {signal}: {e}")
+            self.current_signals[message_name].update(signals)
             self.signal_queues[message_name].append(signals)
 
     def get_payload(self, msg_id: str) -> bytes:
