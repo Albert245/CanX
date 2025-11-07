@@ -325,7 +325,7 @@ class CANInterface:
         return Str2HexArr(self.nonDBC_messages[msg_id])
  
     def _Messages(self):
-        return self.dbc.Messages_Obj
+        return self.dbc.Messages_Obj()
    
     def get_msg_att(self,msg_id_or_name):
         return self.dbc.Message_attributes(msg_id_or_name)
