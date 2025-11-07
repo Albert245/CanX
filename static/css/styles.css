@@ -46,9 +46,12 @@ main { padding: 12px; }
 #msg-list li { padding: 6px 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
 #msg-list li:hover, #msg-list li.active { background: #1c2030; }
 
-#signals-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin: 8px 0; }
-#signals-form .sig { display: flex; flex-direction: column; gap: 4px; }
-#signals-form .sig label { color: var(--muted); font-size: 11px; }
+#signals-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0;
+}
 
 pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px solid var(--border); max-height: 50vh; overflow: auto; }
 
@@ -73,19 +76,107 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 .stim-message .stim-meta,
 .stim-summary-meta { font-size: 11px; color: var(--muted); }
 
-.stim-message .stim-status { font-size: 11px; color: var(--muted); }
+.stim-message .stim-status {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 70px;
+  text-align: right;
+}
 
-.stim-signals { border-top: 1px solid var(--border); padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.stim-node-status {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 70px;
+  text-align: right;
+}
 
-.stim-signal { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
+.stim-signals {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
-.stim-signal .sig-name { font-size: 12px; font-weight: 600; }
+.signal-row {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-.stim-signal .sig-inputs { display: flex; gap: 8px; }
+.signal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 
-.stim-signal .sig-inputs label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.signal-name {
+  font-size: 12px;
+  font-weight: 600;
+}
 
-.stim-signal .sig-inputs input { width: 110px; }
+.signal-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.signal-field label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.signal-field input {
+  width: 150px;
+}
+
+.signal-step-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.signal-step-group label {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.signal-step-group .sig-step {
+  width: 80px;
+}
+
+.sig-step-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sig-step-buttons button {
+  width: 32px;
+  padding: 4px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.signal-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .stim-messages { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 
 #tab-diag { display: flex; flex-direction: column; gap: 12px; }
