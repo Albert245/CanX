@@ -109,11 +109,154 @@ def _normalize_physical(signal, value):
     return int(round(numeric))
 
 
+def _infer_physical_bounds(signal, bounds):
+    scale = _signal_attr(signal, "scale")
+    offset = _signal_attr(signal, "offset")
+    if isinstance(scale, Decimal):
+        scale = float(scale)
+    if isinstance(offset, Decimal):
+        offset = float(offset)
+    scale = scale if scale not in (None, 0) else 1
+    offset = offset or 0
+    physical_min = _signal_attr(signal, "minimum")
+    physical_max = _signal_attr(signal, "maximum")
+    if isinstance(physical_min, Decimal):
+        physical_min = float(physical_min)
+    if isinstance(physical_max, Decimal):
+        physical_max = float(physical_max)
+    signed_min = bounds.get("raw_signed_min")
+    signed_max = bounds.get("raw_signed_max")
+    if physical_min is None and signed_min is not None:
+        physical_min = signed_min * scale + offset
+    if physical_max is None and signed_max is not None:
+        physical_max = signed_max * scale + offset
+    return physical_min, physical_max
+
+
+def _signal_bit_length(signal):
+    length = _signal_attr(signal, "length")
+    if length is None:
+        return None
+    try:
+        return int(length)
+    except (TypeError, ValueError):
+        try:
+            return int(str(length), 10)
+        except (TypeError, ValueError):
+            return None
+
+
+def _signal_is_signed(signal):
+    return bool(_signal_attr(signal, "is_signed", False))
+
+
+def _signal_unsigned(raw, bit_length):
+    if raw is None or bit_length is None or bit_length <= 0:
+        return raw
+    try:
+        raw_int = int(raw)
+    except (TypeError, ValueError):
+        return None
+    modulus = 1 << bit_length
+    return raw_int % modulus
+
+
+def _signal_signed(raw_unsigned, bit_length, is_signed):
+    if raw_unsigned is None or bit_length is None or bit_length <= 0:
+        return raw_unsigned
+    if not is_signed:
+        return raw_unsigned
+    modulus = 1 << bit_length
+    half = modulus >> 1
+    try:
+        raw_int = int(raw_unsigned)
+    except (TypeError, ValueError):
+        return None
+    if raw_int >= half:
+        return raw_int - modulus
+    return raw_int
+
+
+def _format_raw_hex(raw_unsigned, bit_length):
+    if raw_unsigned is None:
+        return None
+    try:
+        raw_int = int(raw_unsigned)
+    except (TypeError, ValueError):
+        return None
+    if bit_length is None or bit_length <= 0:
+        return f"0x{raw_int:X}"
+    width = (bit_length + 3) // 4
+    return f"0x{raw_int:0{width}X}"
+
+
+def _signal_bounds(signal):
+    bit_length = _signal_bit_length(signal)
+    is_signed = _signal_is_signed(signal)
+    if bit_length is None or bit_length <= 0:
+        return {
+            "bit_length": None,
+            "is_signed": is_signed,
+            "raw_signed_min": None,
+            "raw_signed_max": None,
+            "raw_unsigned_min": None,
+            "raw_unsigned_max": None,
+        }
+    if is_signed:
+        signed_min = -(1 << (bit_length - 1))
+        signed_max = (1 << (bit_length - 1)) - 1
+    else:
+        signed_min = 0
+        signed_max = (1 << bit_length) - 1
+    unsigned_min = 0
+    unsigned_max = (1 << bit_length) - 1
+    return {
+        "bit_length": bit_length,
+        "is_signed": is_signed,
+        "raw_signed_min": signed_min,
+        "raw_signed_max": signed_max,
+        "raw_unsigned_min": unsigned_min,
+        "raw_unsigned_max": unsigned_max,
+    }
+
+
+def _message_is_running(message):
+    scheduler = getattr(state.canif, "scheduler", None)
+    msg_id = _signal_attr(message, "frame_id")
+    if isinstance(msg_id, Decimal):
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            msg_id = None
+    if msg_id is None:
+        return False
+    try:
+        msg_id_int = int(msg_id)
+    except (TypeError, ValueError):
+        try:
+            msg_id_int = int(str(msg_id), 16)
+        except (TypeError, ValueError):
+            return False
+    try:
+        tasks = getattr(scheduler, "tasks", {}) if scheduler else {}
+        return bool(tasks.get(msg_id_int))
+    except Exception:
+        return False
+
+
 def _json_safe(value):
     if isinstance(value, Decimal):
         return float(value)
     if isinstance(value, dict):
-        return {k: _json_safe(v) for k, v in value.items()}
+        safe_dict = {}
+        for key, val in value.items():
+            if isinstance(key, Decimal):
+                key = float(key)
+            if not isinstance(key, (str, int, float, bool)):
+                key = str(key)
+            safe_key = str(key) if not isinstance(key, str) else key
+            safe_dict[safe_key] = _json_safe(val)
+        return safe_dict
     if isinstance(value, (list, tuple)):
         return [_json_safe(v) for v in value]
     return value
@@ -263,25 +406,40 @@ def api_dbc_message_info(msg_name: str):
     for sig in getattr(message, "signals", []):
         sig_name = _signal_attr(sig, "name")
         physical = curr.get(sig_name) if isinstance(curr, dict) and sig_name in curr else None
-        raw_val = _physical_to_raw(sig, physical)
+        bounds = _signal_bounds(sig)
+        raw_signed = _physical_to_raw(sig, physical)
+        raw_unsigned = _signal_unsigned(raw_signed, bounds["bit_length"])
+        physical_min, physical_max = _infer_physical_bounds(sig, bounds)
         signal_info = {
             "name": sig_name,
             "physical": _json_safe(physical),
-            "raw": _json_safe(raw_val),
+            "raw": _json_safe(raw_signed),
+            "raw_unsigned": _json_safe(raw_unsigned),
+            "raw_hex": _format_raw_hex(raw_unsigned, bounds["bit_length"]),
             "scale": _json_safe(_signal_attr(sig, "scale")),
             "offset": _json_safe(_signal_attr(sig, "offset")),
-            "minimum": _json_safe(_signal_attr(sig, "minimum")),
-            "maximum": _json_safe(_signal_attr(sig, "maximum")),
+            "minimum": _json_safe(physical_min),
+            "maximum": _json_safe(physical_max),
             "unit": _signal_attr(sig, "unit"),
             "choices": _json_safe(_signal_attr(sig, "choices")),
             "is_float": bool(_signal_attr(sig, "is_float", False)),
+            "bit_length": bounds["bit_length"],
+            "is_signed": bounds["is_signed"],
+            "raw_signed_min": _json_safe(bounds["raw_signed_min"]),
+            "raw_signed_max": _json_safe(bounds["raw_signed_max"]),
+            "raw_min": _json_safe(bounds["raw_unsigned_min"]),
+            "raw_max": _json_safe(bounds["raw_unsigned_max"]),
         }
         signals.append(signal_info)
 
-    running = False
+    message_name = _signal_attr(message, "name", msg_name)
+    cycle_time = _signal_attr(message, "cycle_time")
     msg_id = _signal_attr(message, "frame_id")
     if isinstance(msg_id, Decimal):
-        msg_id = int(msg_id)
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            msg_id = None
     msg_id_int = None
     if msg_id is not None:
         try:
@@ -292,14 +450,7 @@ def api_dbc_message_info(msg_name: str):
             except (TypeError, ValueError):
                 msg_id_int = None
 
-    try:
-        if msg_id_int is not None:
-            running = bool(getattr(state.canif.scheduler, "tasks", {}).get(msg_id_int))
-    except Exception:
-        pass
-
-    message_name = _signal_attr(message, "name", msg_name)
-    cycle_time = _signal_attr(message, "cycle_time")
+    running = _message_is_running(message)
 
     return jsonify({
         "ok": True,
@@ -308,6 +459,7 @@ def api_dbc_message_info(msg_name: str):
             "id": msg_id_int if msg_id_int is not None else _json_safe(msg_id),
             "id_hex": Hex(msg_id_int) if msg_id_int is not None else None,
             "cycle_time": _json_safe(cycle_time),
+            "dlc": _json_safe(_signal_attr(message, "length")),
             "signals": signals,
             "running": running,
         },
@@ -368,15 +520,56 @@ def api_periodic_stop():
         return jsonify({"ok": False, "error": str(e)}), 400
 
 
+def _prepare_signal_updates(message, signal_payloads):
+    signal_lookup = {sig.name: sig for sig in getattr(message, "signals", [])}
+    updates = {}
+
+    for sig_name, values in signal_payloads.items():
+        sig = signal_lookup.get(sig_name)
+        if not sig:
+            continue
+        phys_value = None
+        raw_value = None
+        if isinstance(values, dict):
+            phys_value = values.get("physical")
+            raw_value = values.get("raw")
+        else:
+            phys_value = values
+        phys = _coerce_number(phys_value)
+        raw = _coerce_number(raw_value)
+        if phys is None and raw is None:
+            continue
+        if phys is None:
+            phys = _raw_to_physical(sig, raw)
+        normalized = _normalize_physical(sig, phys)
+        if normalized is None:
+            return {}, f"Invalid value for signal {sig_name}"
+        updates[sig_name] = normalized
+
+    return updates, None
+
+
 @app.route("/api/periodic/update", methods=["POST"])
 def api_periodic_update():
     if not state.canif or not state.canif.dbc:
         return jsonify({"ok": False, "error": "DBC not loaded"}), 400
     payload = request.get_json(force=True, silent=True) or {}
     msg_name = payload.get("message_name")
-    signals = payload.get("signals") or {}
+    signal_payloads = payload.get("signals") or {}
+    if not msg_name:
+        return jsonify({"ok": False, "error": "Missing message_name"}), 400
+
     try:
-        state.canif.update_periodic(msg_name, signals)
+        message = state.canif.get_msg_att(msg_name)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    updates, error = _prepare_signal_updates(message, signal_payloads)
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
+
+    try:
+        state.canif.update_periodic(msg_name, updates)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -397,22 +590,9 @@ def api_stim_update():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
-    signal_lookup = {sig.name: sig for sig in getattr(message, "signals", [])}
-    updates = {}
-
-    for sig_name, values in signal_payloads.items():
-        sig = signal_lookup.get(sig_name)
-        if not sig:
-            continue
-        phys_value = values.get("physical") if isinstance(values, dict) else None
-        raw_value = values.get("raw") if isinstance(values, dict) else None
-        phys = _coerce_number(phys_value)
-        raw = _coerce_number(raw_value)
-        if phys is None and raw is None:
-            continue
-        if phys is None:
-            phys = _raw_to_physical(sig, raw)
-        updates[sig_name] = _normalize_physical(sig, phys)
+    updates, error = _prepare_signal_updates(message, signal_payloads)
+    if error:
+        return jsonify({"ok": False, "error": error}), 400
 
     if updates:
         try:
@@ -434,6 +614,57 @@ def api_stim_update():
             return jsonify({"ok": False, "error": f"Failed to start periodic: {e}"}), 400
 
     return jsonify({"ok": True, "running": running, "started": started})
+
+
+def _collect_message_statuses(message_names):
+    statuses = {}
+    if not state.canif or not state.canif.dbc:
+        return statuses
+    for name in message_names:
+        try:
+            msg_obj = state.canif.get_msg_att(name)
+            statuses[name] = _message_is_running(msg_obj)
+        except Exception:
+            statuses[name] = False
+    return statuses
+
+
+@app.route("/api/stim/node/start", methods=["POST"])
+def api_stim_node_start():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    node_name = payload.get("node")
+    role = payload.get("role", "sender")
+    except_msgs = payload.get("except") or []
+    if not node_name:
+        return jsonify({"ok": False, "error": "Missing node"}), 400
+    try:
+        state.canif.start_periodic_by_node(node_name, except_msg=except_msgs, role=role)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    messages = state.canif.get_nodes_in_DBC().get(node_name, [])
+    statuses = _collect_message_statuses(messages)
+    return jsonify({"ok": True, "messages": messages, "statuses": statuses})
+
+
+@app.route("/api/stim/node/stop", methods=["POST"])
+def api_stim_node_stop():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    node_name = payload.get("node")
+    role = payload.get("role", "sender")
+    except_msgs = payload.get("except") or []
+    if not node_name:
+        return jsonify({"ok": False, "error": "Missing node"}), 400
+    try:
+        state.canif.stop_periodic_by_node(node_name, except_msg=except_msgs, role=role)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    messages = state.canif.get_nodes_in_DBC().get(node_name, [])
+    statuses = _collect_message_statuses(messages)
+    return jsonify({"ok": True, "messages": messages, "statuses": statuses})
 
 
 @app.route("/api/diag/configure", methods=["POST"])

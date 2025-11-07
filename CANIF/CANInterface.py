@@ -246,9 +246,35 @@ class CANInterface:
         self._start_periodic_by_message_id(msg_id = msg_id, period = period, duration = duration, is_extended_id = is_extended_id, is_fd = is_fd)
    
     def stop_periodic(self, message_name_or_id):
-        message = self.get_msg_att(message_name_or_id)
-        msg_id = message.frame_id
-        self.stop_periodic(msg_id)
+        if not self.scheduler:
+            return False
+        msg_id = None
+        try:
+            if isinstance(message_name_or_id, int):
+                msg_id = int(message_name_or_id)
+            elif isinstance(message_name_or_id, str):
+                token = message_name_or_id.strip()
+                if token.lower().startswith("0x"):
+                    msg_id = int(token, 16)
+                else:
+                    try:
+                        msg_id = int(token)
+                    except ValueError:
+                        message = self.get_msg_att(message_name_or_id)
+                        msg_id = message.frame_id
+            else:
+                message = self.get_msg_att(message_name_or_id)
+                msg_id = message.frame_id
+        except Exception:
+            message = self.get_msg_att(message_name_or_id)
+            msg_id = getattr(message, "frame_id", None)
+        if msg_id is None:
+            return False
+        try:
+            self.scheduler.stop_message(int(msg_id))
+            return True
+        except Exception:
+            return False
    
     def reset_message(self, message_name):
         self.dbc.reset_message(message_name)

@@ -3,47 +3,9 @@
  * and signal editing helpers.
  */
 
+import { createSignalRow, gatherSignalValues } from './signal-utils.js';
+
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
-
-const parseNumber = (value) => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number' && !Number.isNaN(value)) return value;
-  const str = String(value).trim();
-  if (!str) return null;
-  if (/^0x/i.test(str)) {
-    const parsed = parseInt(str, 16);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-  if (/^0b/i.test(str)) {
-    const parsed = parseInt(str.slice(2), 2);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-  if (/^0o/i.test(str)) {
-    const parsed = parseInt(str.slice(2), 8);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-  const num = Number(str);
-  return Number.isNaN(num) ? null : num;
-};
-
-const trimZeros = (str) => {
-  if (!str.includes('.')) return str;
-  return str.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
-};
-
-const formatPhysical = (value, allowFloat) => {
-  if (!Number.isFinite(value)) return '';
-  if (!allowFloat && Number.isInteger(value)) return String(value);
-  const fixed = value.toFixed(allowFloat ? 6 : 3);
-  return trimZeros(fixed);
-};
-
-const formatRaw = (value, allowFloat) => {
-  if (!Number.isFinite(value)) return '';
-  if (!allowFloat) return String(Math.round(value));
-  const fixed = value.toFixed(6);
-  return trimZeros(fixed);
-};
 
 export function initStim({ onTabChange } = {}) {
   const stimContainer = $('#stim-nodes-container');
@@ -56,6 +18,104 @@ export function initStim({ onTabChange } = {}) {
     if (!stimStatus) return;
     stimStatus.textContent = text || '';
     stimStatus.style.color = isError ? '#f88' : '#9aa0a6';
+  };
+
+  const setMessageRunning = (detail, running) => {
+    if (!detail) return;
+    detail.dataset.running = running ? '1' : '0';
+    const status = detail.querySelector('.stim-status');
+    if (status) {
+      status.textContent = running ? 'active' : 'inactive';
+      status.dataset.state = running ? 'active' : 'inactive';
+    }
+    const toggle = detail.querySelector('.stim-message-toggle');
+    if (toggle) {
+      toggle.textContent = running ? 'Deactivate' : 'Activate';
+    }
+  };
+
+  const updateNodeStatusFromMessages = (nodeDetail) => {
+    if (!nodeDetail) return;
+    const running = Array.from(nodeDetail.querySelectorAll('.stim-message')).some(
+      (msg) => msg.dataset.running === '1',
+    );
+    nodeDetail.dataset.running = running ? '1' : '0';
+    const status = nodeDetail.querySelector('.stim-node-status');
+    if (status) {
+      status.textContent = running ? 'active' : 'inactive';
+      status.dataset.state = running ? 'active' : 'inactive';
+    }
+    const toggle = nodeDetail.querySelector('.stim-node-toggle');
+    if (toggle) {
+      toggle.textContent = running ? 'Deactivate' : 'Activate';
+    }
+  };
+
+  const toggleMessageActivation = async (detail, messageName) => {
+    if (!detail) return;
+    const running = detail.dataset.running === '1';
+    const status = detail.querySelector('.stim-status');
+    if (status) {
+      status.textContent = running ? 'stopping…' : 'starting…';
+    }
+    const endpoint = running ? '/api/periodic/stop' : '/api/periodic/start';
+    const payload = running
+      ? { message: messageName }
+      : { message: messageName, period: null, duration: null };
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const js = await res.json().catch(() => ({ ok: res.ok }));
+      if (!res.ok || (js && js.ok === false)) {
+        const error = js?.error || res.statusText || 'Unable to toggle message';
+        throw new Error(error);
+      }
+      await loadMessageSignals(detail, messageName);
+      updateNodeStatusFromMessages(detail.closest('.stim-node'));
+    } catch (err) {
+      if (status) {
+        status.textContent = `error: ${err.message || 'toggle failed'}`;
+      }
+    }
+  };
+
+  const toggleNodeActivation = async (detail, nodeName) => {
+    if (!detail) return;
+    const running = detail.dataset.running === '1';
+    const status = detail.querySelector('.stim-node-status');
+    if (status) {
+      status.textContent = running ? 'stopping…' : 'starting…';
+    }
+    const endpoint = running ? '/api/stim/node/stop' : '/api/stim/node/start';
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ node: nodeName }),
+      });
+      const js = await res.json().catch(() => ({ ok: res.ok }));
+      if (!res.ok || (js && js.ok === false)) {
+        const error = js?.error || res.statusText || 'Unable to toggle node';
+        throw new Error(error);
+      }
+      const statuses = js?.statuses || {};
+      detail.querySelectorAll('.stim-message').forEach((msgDetail) => {
+        const name = msgDetail.dataset.message;
+        if (Object.prototype.hasOwnProperty.call(statuses, name)) {
+          setMessageRunning(msgDetail, !!statuses[name]);
+        }
+      });
+      updateNodeStatusFromMessages(detail);
+      setStimStatus('');
+    } catch (err) {
+      if (status) {
+        status.textContent = `error: ${err.message || 'toggle failed'}`;
+      }
+      setStimStatus(err.message || 'Unable to toggle node', true);
+    }
   };
 
   const populateNodeSelect = () => {
@@ -83,110 +143,30 @@ export function initStim({ onTabChange } = {}) {
     stimNodesAdded.clear();
   };
 
-  const syncFromRaw = (row, rawInput, physInput) => {
-    const value = rawInput.value.trim();
-    if (!value) return;
-    const raw = parseNumber(value);
-    if (raw === null) return;
-    const scale = parseNumber(row.dataset.scale) ?? 1;
-    const offset = parseNumber(row.dataset.offset) ?? 0;
-    const allowFloat = row.dataset.isFloat === '1';
-    const physical = scale === 0 ? raw : raw * scale + offset;
-    if (Number.isFinite(physical)) {
-      physInput.value = formatPhysical(physical, true);
-    }
-    if (!allowFloat) {
-      rawInput.value = formatRaw(raw, false);
-    }
-  };
-
-  const syncFromPhysical = (row, physInput, rawInput) => {
-    const value = physInput.value.trim();
-    if (!value) return;
-    const physical = parseNumber(value);
-    if (physical === null) return;
-    const scale = parseNumber(row.dataset.scale) ?? 1;
-    const offset = parseNumber(row.dataset.offset) ?? 0;
-    const allowFloat = row.dataset.isFloat === '1';
-    const raw = scale === 0 ? physical : (physical - offset) / scale;
-    if (Number.isFinite(raw)) {
-      rawInput.value = formatRaw(raw, allowFloat);
-    }
-    if (Number.isFinite(physical)) {
-      physInput.value = formatPhysical(physical, true);
-    }
-  };
-
-  const buildSignalRow = (signal) => {
-    const row = document.createElement('div');
-    row.className = 'stim-signal';
-    row.dataset.signal = signal.name;
-    row.dataset.scale = signal.scale ?? 1;
-    row.dataset.offset = signal.offset ?? 0;
-    row.dataset.isFloat = signal.is_float ? '1' : '0';
-
-    const name = document.createElement('div');
-    name.className = 'sig-name';
-    name.textContent = signal.unit ? `${signal.name} (${signal.unit})` : signal.name;
-
-    const inputs = document.createElement('div');
-    inputs.className = 'sig-inputs';
-
-    const rawLabel = document.createElement('label');
-    rawLabel.textContent = 'Raw';
-    const rawInput = document.createElement('input');
-    rawInput.type = 'text';
-    rawInput.className = 'sig-raw';
-    rawInput.value = signal.raw ?? '';
-    rawLabel.appendChild(rawInput);
-
-    const physLabel = document.createElement('label');
-    physLabel.textContent = 'Physical';
-    const physInput = document.createElement('input');
-    physInput.type = 'text';
-    physInput.className = 'sig-physical';
-    physInput.value = signal.physical ?? '';
-    physLabel.appendChild(physInput);
-
-    inputs.appendChild(rawLabel);
-    inputs.appendChild(physLabel);
-
-    rawInput.addEventListener('input', () => syncFromRaw(row, rawInput, physInput));
-    physInput.addEventListener('input', () => syncFromPhysical(row, physInput, rawInput));
-
-    row.appendChild(name);
-    row.appendChild(inputs);
-
-    if (signal.choices && Object.keys(signal.choices).length) {
-      const choices = document.createElement('div');
-      choices.className = 'stim-meta';
-      const mapped = Object.entries(signal.choices).map(([k, v]) => `${k}:${v}`);
-      choices.textContent = `Choices: ${mapped.join(', ')}`;
-      row.appendChild(choices);
-    }
-
-    return row;
-  };
+  const buildSignalRow = (signal) => createSignalRow(signal, { variant: 'stim' });
 
   const loadMessageSignals = async (wrapper, messageName) => {
     const body = wrapper.querySelector('.stim-signals');
     const status = wrapper.querySelector('.stim-status');
     const meta = wrapper.querySelector('.stim-summary-meta');
     if (body) body.innerHTML = '';
-    if (status) status.textContent = 'loading';
+    if (status) status.textContent = 'loading…';
     try {
       const res = await fetch(`/api/dbc/message_info/${encodeURIComponent(messageName)}`);
       const js = await res.json().catch(() => ({ ok: false }));
       if (!js.ok) throw new Error(js.error || 'Failed to load message');
       const msg = js.message;
       if (meta) {
-        const parts = [`ID: ${msg.id_hex}`];
+        const parts = [];
+        if (msg.id_hex) {
+          parts.push(`ID: ${msg.id_hex}`);
+        }
         if (msg.cycle_time !== undefined && msg.cycle_time !== null) {
           parts.push(`Cycle: ${msg.cycle_time}`);
         }
-        meta.textContent = parts.join(' | ');
+        meta.textContent = parts.join(' | ') || '';
       }
-      if (status) status.textContent = msg.running ? 'running' : 'stopped';
+      setMessageRunning(wrapper, !!msg.running);
       if (body) {
         msg.signals.forEach((sig) => {
           body.appendChild(buildSignalRow(sig));
@@ -201,25 +181,10 @@ export function initStim({ onTabChange } = {}) {
       }
       if (status) status.textContent = 'error';
     }
+    updateNodeStatusFromMessages(wrapper.closest('.stim-node'));
   };
 
-  const collectSignalValues = (wrapper) => {
-    const signals = {};
-    wrapper.querySelectorAll('.stim-signal').forEach((row) => {
-      const name = row.dataset.signal;
-      const rawInput = row.querySelector('.sig-raw');
-      const physInput = row.querySelector('.sig-physical');
-      if (!name || !rawInput || !physInput) return;
-      const rawVal = rawInput.value.trim();
-      const physVal = physInput.value.trim();
-      if (!rawVal && !physVal) return;
-      signals[name] = {
-        raw: rawVal || null,
-        physical: physVal || null,
-      };
-    });
-    return signals;
-  };
+  const collectSignalValues = (wrapper) => gatherSignalValues(wrapper);
 
   const handleStimUpdate = async (wrapper, messageName) => {
     const status = wrapper.querySelector('.stim-status');
@@ -247,6 +212,7 @@ export function initStim({ onTabChange } = {}) {
     const detail = document.createElement('details');
     detail.className = 'stim-message';
     detail.dataset.message = messageName;
+    detail.dataset.running = '0';
 
     const summary = document.createElement('summary');
 
@@ -261,8 +227,14 @@ export function initStim({ onTabChange } = {}) {
     updateBtn.type = 'button';
     updateBtn.textContent = 'Update';
 
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'stim-message-toggle';
+    toggleBtn.textContent = 'Activate';
+
     const status = document.createElement('span');
     status.className = 'stim-status';
+    status.textContent = 'inactive';
 
     updateBtn.addEventListener('click', (evt) => {
       evt.preventDefault();
@@ -270,9 +242,16 @@ export function initStim({ onTabChange } = {}) {
       handleStimUpdate(detail, messageName);
     });
 
+    toggleBtn.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      toggleMessageActivation(detail, messageName);
+    });
+
     summary.appendChild(title);
     summary.appendChild(meta);
     summary.appendChild(updateBtn);
+    summary.appendChild(toggleBtn);
     summary.appendChild(status);
 
     const body = document.createElement('div');
@@ -294,12 +273,22 @@ export function initStim({ onTabChange } = {}) {
     const detail = document.createElement('details');
     detail.className = 'stim-node';
     detail.dataset.node = nodeName;
+    detail.dataset.running = '0';
 
     const summary = document.createElement('summary');
 
     const title = document.createElement('span');
     title.className = 'title';
     title.textContent = nodeName;
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'stim-node-toggle';
+    toggleBtn.textContent = 'Activate';
+
+    const status = document.createElement('span');
+    status.className = 'stim-node-status';
+    status.textContent = 'inactive';
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -312,6 +301,8 @@ export function initStim({ onTabChange } = {}) {
     });
 
     summary.appendChild(title);
+    summary.appendChild(toggleBtn);
+    summary.appendChild(status);
     summary.appendChild(removeBtn);
 
     const messageWrap = document.createElement('div');
@@ -322,6 +313,12 @@ export function initStim({ onTabChange } = {}) {
 
     detail.appendChild(summary);
     detail.appendChild(messageWrap);
+
+    toggleBtn.addEventListener('click', (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      toggleNodeActivation(detail, nodeName);
+    });
 
     return detail;
   };
