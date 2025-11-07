@@ -2,6 +2,7 @@ import os
 import time
 import threading
 from typing import Any, Dict
+from decimal import Decimal
 
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -41,6 +42,14 @@ def _coerce_number(value):
             return None
 
 
+def _signal_attr(signal, attr: str, default=None):
+    if hasattr(signal, attr):
+        return getattr(signal, attr)
+    if isinstance(signal, dict):
+        return signal.get(attr, default)
+    return default
+
+
 def _physical_to_raw(signal, physical):
     if physical is None:
         return None
@@ -48,15 +57,20 @@ def _physical_to_raw(signal, physical):
         physical = _coerce_number(physical)
     if physical is None:
         return None
-    scale = signal.scale if signal.scale not in (None, 0) else 1
-    offset = signal.offset or 0
+    scale = _signal_attr(signal, "scale")
+    if isinstance(scale, Decimal):
+        scale = float(scale)
+    scale = scale if scale not in (None, 0) else 1
+    offset = _signal_attr(signal, "offset") or 0
+    if isinstance(offset, Decimal):
+        offset = float(offset)
     if scale == 0:
         return physical
     try:
         raw = (physical - offset) / scale
     except TypeError:
         return None
-    if getattr(signal, "is_float", False):
+    if _signal_attr(signal, "is_float", False):
         return raw
     return int(round(raw))
 
@@ -68,8 +82,13 @@ def _raw_to_physical(signal, raw):
         raw = _coerce_number(raw)
     if raw is None:
         return None
-    scale = signal.scale if signal.scale not in (None, 0) else 1
-    offset = signal.offset or 0
+    scale = _signal_attr(signal, "scale")
+    if isinstance(scale, Decimal):
+        scale = float(scale)
+    scale = scale if scale not in (None, 0) else 1
+    offset = _signal_attr(signal, "offset") or 0
+    if isinstance(offset, Decimal):
+        offset = float(offset)
     try:
         return raw * scale + offset
     except TypeError:
@@ -83,11 +102,21 @@ def _normalize_physical(signal, value):
         numeric = float(value)
     except (TypeError, ValueError):
         return None
-    if getattr(signal, "is_float", False):
+    if _signal_attr(signal, "is_float", False):
         return numeric
     if numeric.is_integer():
         return int(numeric)
     return int(round(numeric))
+
+
+def _json_safe(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
 
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -232,35 +261,53 @@ def api_dbc_message_info(msg_name: str):
 
     signals = []
     for sig in getattr(message, "signals", []):
-        physical = curr.get(sig.name) if isinstance(curr, dict) else None
+        sig_name = _signal_attr(sig, "name")
+        physical = curr.get(sig_name) if isinstance(curr, dict) and sig_name in curr else None
         raw_val = _physical_to_raw(sig, physical)
-        signals.append({
-            "name": sig.name,
-            "physical": physical,
-            "raw": raw_val,
-            "scale": sig.scale,
-            "offset": sig.offset,
-            "minimum": sig.minimum,
-            "maximum": sig.maximum,
-            "unit": sig.unit,
-            "choices": sig.choices,
-            "is_float": getattr(sig, "is_float", False),
-        })
+        signal_info = {
+            "name": sig_name,
+            "physical": _json_safe(physical),
+            "raw": _json_safe(raw_val),
+            "scale": _json_safe(_signal_attr(sig, "scale")),
+            "offset": _json_safe(_signal_attr(sig, "offset")),
+            "minimum": _json_safe(_signal_attr(sig, "minimum")),
+            "maximum": _json_safe(_signal_attr(sig, "maximum")),
+            "unit": _signal_attr(sig, "unit"),
+            "choices": _json_safe(_signal_attr(sig, "choices")),
+            "is_float": bool(_signal_attr(sig, "is_float", False)),
+        }
+        signals.append(signal_info)
 
     running = False
+    msg_id = _signal_attr(message, "frame_id")
+    if isinstance(msg_id, Decimal):
+        msg_id = int(msg_id)
+    msg_id_int = None
+    if msg_id is not None:
+        try:
+            msg_id_int = int(msg_id)
+        except (TypeError, ValueError):
+            try:
+                msg_id_int = int(str(msg_id), 16)
+            except (TypeError, ValueError):
+                msg_id_int = None
+
     try:
-        msg_id = message.frame_id
-        running = bool(getattr(state.canif.scheduler, "tasks", {}).get(msg_id))
+        if msg_id_int is not None:
+            running = bool(getattr(state.canif.scheduler, "tasks", {}).get(msg_id_int))
     except Exception:
         pass
+
+    message_name = _signal_attr(message, "name", msg_name)
+    cycle_time = _signal_attr(message, "cycle_time")
 
     return jsonify({
         "ok": True,
         "message": {
-            "name": message.name,
-            "id": message.frame_id,
-            "id_hex": Hex(message.frame_id),
-            "cycle_time": getattr(message, "cycle_time", None),
+            "name": message_name,
+            "id": msg_id_int if msg_id_int is not None else _json_safe(msg_id),
+            "id_hex": Hex(msg_id_int) if msg_id_int is not None else None,
+            "cycle_time": _json_safe(cycle_time),
             "signals": signals,
             "running": running,
         },
