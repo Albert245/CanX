@@ -695,6 +695,57 @@ def api_stim_node_stop():
     return jsonify({"ok": True, "messages": messages, "statuses": statuses})
 
 
+def _collect_message_statuses(message_names):
+    statuses = {}
+    if not state.canif or not state.canif.dbc:
+        return statuses
+    for name in message_names:
+        try:
+            msg_obj = state.canif.get_msg_att(name)
+            statuses[name] = _message_is_running(msg_obj)
+        except Exception:
+            statuses[name] = False
+    return statuses
+
+
+@app.route("/api/stim/node/start", methods=["POST"])
+def api_stim_node_start():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    node_name = payload.get("node")
+    role = payload.get("role", "sender")
+    except_msgs = payload.get("except") or []
+    if not node_name:
+        return jsonify({"ok": False, "error": "Missing node"}), 400
+    try:
+        state.canif.start_periodic_by_node(node_name, except_msg=except_msgs, role=role)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    messages = state.canif.get_nodes_in_DBC().get(node_name, [])
+    statuses = _collect_message_statuses(messages)
+    return jsonify({"ok": True, "messages": messages, "statuses": statuses})
+
+
+@app.route("/api/stim/node/stop", methods=["POST"])
+def api_stim_node_stop():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    node_name = payload.get("node")
+    role = payload.get("role", "sender")
+    except_msgs = payload.get("except") or []
+    if not node_name:
+        return jsonify({"ok": False, "error": "Missing node"}), 400
+    try:
+        state.canif.stop_periodic_by_node(node_name, except_msg=except_msgs, role=role)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    messages = state.canif.get_nodes_in_DBC().get(node_name, [])
+    statuses = _collect_message_statuses(messages)
+    return jsonify({"ok": True, "messages": messages, "statuses": statuses})
+
+
 @app.route("/api/diag/configure", methods=["POST"])
 def api_diag_configure():
     if not state.canif:
