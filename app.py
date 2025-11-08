@@ -523,6 +523,7 @@ def api_periodic_stop():
 def _prepare_signal_updates(message, signal_payloads):
     signal_lookup = {sig.name: sig for sig in getattr(message, "signals", [])}
     updates = {}
+    applied = {}
 
     for sig_name, values in signal_payloads.items():
         sig = signal_lookup.get(sig_name)
@@ -543,10 +544,37 @@ def _prepare_signal_updates(message, signal_payloads):
             phys = _raw_to_physical(sig, raw)
         normalized = _normalize_physical(sig, phys)
         if normalized is None:
-            return {}, f"Invalid value for signal {sig_name}"
-        updates[sig_name] = normalized
+            return {}, {}, f"Invalid value for signal {sig_name}"
 
-    return updates, None
+        bounds = _signal_bounds(sig)
+        physical_min, physical_max = _infer_physical_bounds(sig, bounds)
+        if physical_min is not None:
+            normalized = max(physical_min, normalized)
+        if physical_max is not None:
+            normalized = min(physical_max, normalized)
+
+        raw_signed = _physical_to_raw(sig, normalized)
+        signed_min = bounds.get("raw_signed_min")
+        signed_max = bounds.get("raw_signed_max")
+        if raw_signed is not None and signed_min is not None and raw_signed < signed_min:
+            raw_signed = signed_min
+        if raw_signed is not None and signed_max is not None and raw_signed > signed_max:
+            raw_signed = signed_max
+
+        raw_unsigned = _signal_unsigned(raw_signed, bounds.get("bit_length"))
+        quantized_physical = _raw_to_physical(sig, raw_unsigned)
+        if quantized_physical is None:
+            quantized_physical = normalized
+
+        updates[sig_name] = quantized_physical
+        applied[sig_name] = {
+            "physical": _json_safe(quantized_physical),
+            "raw": _json_safe(raw_signed),
+            "raw_unsigned": _json_safe(raw_unsigned),
+            "raw_hex": _format_raw_hex(raw_unsigned, bounds.get("bit_length")),
+        }
+
+    return updates, applied, None
 
 
 @app.route("/api/periodic/update", methods=["POST"])
@@ -564,13 +592,13 @@ def api_periodic_update():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
-    updates, error = _prepare_signal_updates(message, signal_payloads)
+    updates, applied, error = _prepare_signal_updates(message, signal_payloads)
     if error:
         return jsonify({"ok": False, "error": error}), 400
 
     try:
         state.canif.update_periodic(msg_name, updates)
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "applied": applied})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
@@ -590,7 +618,7 @@ def api_stim_update():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
-    updates, error = _prepare_signal_updates(message, signal_payloads)
+    updates, applied, error = _prepare_signal_updates(message, signal_payloads)
     if error:
         return jsonify({"ok": False, "error": error}), 400
 
@@ -613,7 +641,58 @@ def api_stim_update():
         except Exception as e:
             return jsonify({"ok": False, "error": f"Failed to start periodic: {e}"}), 400
 
-    return jsonify({"ok": True, "running": running, "started": started})
+    return jsonify({"ok": True, "running": running, "started": started, "applied": applied})
+
+
+def _collect_message_statuses(message_names):
+    statuses = {}
+    if not state.canif or not state.canif.dbc:
+        return statuses
+    for name in message_names:
+        try:
+            msg_obj = state.canif.get_msg_att(name)
+            statuses[name] = _message_is_running(msg_obj)
+        except Exception:
+            statuses[name] = False
+    return statuses
+
+
+@app.route("/api/stim/node/start", methods=["POST"])
+def api_stim_node_start():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    node_name = payload.get("node")
+    role = payload.get("role", "sender")
+    except_msgs = payload.get("except") or []
+    if not node_name:
+        return jsonify({"ok": False, "error": "Missing node"}), 400
+    try:
+        state.canif.start_periodic_by_node(node_name, except_msg=except_msgs, role=role)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    messages = state.canif.get_nodes_in_DBC().get(node_name, [])
+    statuses = _collect_message_statuses(messages)
+    return jsonify({"ok": True, "messages": messages, "statuses": statuses})
+
+
+@app.route("/api/stim/node/stop", methods=["POST"])
+def api_stim_node_stop():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    payload = request.get_json(force=True, silent=True) or {}
+    node_name = payload.get("node")
+    role = payload.get("role", "sender")
+    except_msgs = payload.get("except") or []
+    if not node_name:
+        return jsonify({"ok": False, "error": "Missing node"}), 400
+    try:
+        state.canif.stop_periodic_by_node(node_name, except_msg=except_msgs, role=role)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    messages = state.canif.get_nodes_in_DBC().get(node_name, [])
+    statuses = _collect_message_statuses(messages)
+    return jsonify({"ok": True, "messages": messages, "statuses": statuses})
 
 
 def _collect_message_statuses(message_names):

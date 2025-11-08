@@ -275,12 +275,58 @@ export const gatherSignalValues = (container) => {
     const rawVal = rawInput.value.trim();
     const physVal = physInput.value.trim();
     if (!rawVal && !physVal) return;
+
+    if (rawVal) {
+      handleRawChange(row);
+    } else if (physVal) {
+      handlePhysicalChange(row);
+    }
+
+    const sanitizedRaw = rawInput.value.trim();
+    const sanitizedPhys = physInput.value.trim();
+    if (!sanitizedRaw && !sanitizedPhys) return;
+
     signals[name] = {
-      raw: rawVal || null,
-      physical: physVal || null,
+      raw: sanitizedRaw || null,
+      physical: sanitizedPhys || null,
     };
   });
   return signals;
+};
+
+export const applySignalUpdates = (container, applied = {}) => {
+  if (!container) return;
+  container.querySelectorAll('.signal-row').forEach((row) => {
+    const name = row.dataset.signal;
+    if (!name || !Object.prototype.hasOwnProperty.call(applied, name)) return;
+    const info = applied[name] || {};
+    if (info.raw_unsigned !== undefined && info.raw_unsigned !== null) {
+      setRawValue(row, parseMaybeInt(info.raw_unsigned, null));
+      return;
+    }
+    if (info.raw !== undefined && info.raw !== null) {
+      const parsed = parseMaybeInt(info.raw, null);
+      if (parsed !== null && parsed !== undefined) {
+        setRawValue(row, parsed);
+        return;
+      }
+      const fromHex = parseHex(info.raw);
+      if (fromHex !== null && fromHex !== undefined) {
+        setRawValue(row, fromHex);
+        return;
+      }
+    }
+    if (info.raw_hex) {
+      const parsed = parseHex(info.raw_hex);
+      if (parsed !== null && parsed !== undefined) {
+        setRawValue(row, parsed);
+        return;
+      }
+    }
+    if (info.physical !== undefined && info.physical !== null) {
+      setPhysicalValue(row, parseMaybeFloat(info.physical));
+    }
+  });
 };
 
 const createMetaRow = (signal, cfg) => {

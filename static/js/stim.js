@@ -3,7 +3,7 @@
  * and signal editing helpers.
  */
 
-import { createSignalRow, gatherSignalValues } from './signal-utils.js';
+import { createSignalRow, gatherSignalValues, applySignalUpdates } from './signal-utils.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -188,6 +188,7 @@ export function initStim({ onTabChange } = {}) {
 
   const handleStimUpdate = async (wrapper, messageName) => {
     const status = wrapper.querySelector('.stim-status');
+    const signalsContainer = wrapper.querySelector('.stim-signals');
     if (status) status.textContent = 'updating';
     const signals = collectSignalValues(wrapper);
     const payload = { message_name: messageName, signals };
@@ -202,7 +203,13 @@ export function initStim({ onTabChange } = {}) {
       if (status) {
         status.textContent = js.started ? 'started' : 'updated';
       }
-      await loadMessageSignals(wrapper, messageName);
+      if (signalsContainer) {
+        applySignalUpdates(signalsContainer, js.applied || {});
+      }
+      if (typeof js.running === 'boolean') {
+        setMessageRunning(wrapper, js.running);
+      }
+      updateNodeStatusFromMessages(wrapper.closest('.stim-node'));
     } catch (err) {
       if (status) status.textContent = `error: ${err.message}`;
     }

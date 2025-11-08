@@ -3,7 +3,7 @@
  * periodic signal updates.
  */
 
-import { createSignalRow, gatherSignalValues } from './signal-utils.js';
+import { createSignalRow, gatherSignalValues, applySignalUpdates } from './signal-utils.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -157,9 +157,12 @@ export function initMessages({ stimApi } = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (res.ok) {
-      await selectMessage(currentMessage);
+    const js = await res.json().catch(() => ({ ok: false }));
+    if (!js.ok) {
+      window.alert(js.error || 'Failed to update signals');
+      return;
     }
+    applySignalUpdates(form, js.applied || {});
   });
 
   return {};
