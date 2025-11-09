@@ -21,7 +21,13 @@ h1 { margin: 0 0 8px 0; font-size: 18px; font-weight: 600; }
 
 .init-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 label { font-size: 12px; color: var(--muted); }
-input, select, button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+input, select, button, textarea {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
 
@@ -192,6 +198,19 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 4px;
 }
 
+.diag-toolbar textarea {
+  min-width: 220px;
+  min-height: 60px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.diag-toolbar input[type='number'] {
+  min-width: 80px;
+}
+
 .diag-group {
   display: flex;
   flex-direction: column;
@@ -207,6 +226,23 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 .diag-custom-btn {
   font-size: 12px;
   padding: 6px 10px;
+}
+
+.diag-static {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diag-static-btn {
+  font-size: 12px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.diag-static-btn:hover {
+  background: rgba(79, 140, 255, 0.12);
+  border-color: var(--accent);
 }
 
 .diag-add-btn {
