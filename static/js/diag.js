@@ -21,7 +21,93 @@ const diagGroups = {
   },
 };
 
+const physicalStaticCommands = [
+  { label: 'Default Session', data: '10 01' },
+  { label: 'Extended Session', data: '10 03' },
+  { label: 'Security Access', data: '27 01' },
+  { label: 'Tester Present', data: '3E 00' },
+  { label: 'Clear DTC', data: '14 FF FF' },
+  { label: 'ECU Reset', data: '11 01' },
+  { label: 'Read VIN', data: '22 F1 90' },
+  { label: 'Read SW Version', data: '22 F1 A0' },
+];
+
 const normalizeDiagRaw = (raw) => (raw || '').replace(/\s+/g, ' ').trim().toUpperCase();
+
+const HEX_STRIP_RE = /[^0-9a-fA-F\n]/g;
+const HEX_CHAR_RE = /[0-9A-F]/;
+
+const scheduleFrame = (fn) => {
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(fn);
+  } else {
+    setTimeout(fn, 0);
+  }
+};
+
+const formatHexTextareaValue = (el) => {
+  if (!el || el.__formatting) return;
+  el.__formatting = true;
+
+  const rawValue = el.value;
+  const selectionStart = el.selectionStart ?? rawValue.length;
+  const selectionEnd = el.selectionEnd ?? selectionStart;
+
+  const digitsBeforeStart = rawValue
+    .slice(0, selectionStart)
+    .replace(HEX_STRIP_RE, '')
+    .replace(/\n/g, '').length;
+  const digitsBeforeEnd = rawValue
+    .slice(0, selectionEnd)
+    .replace(HEX_STRIP_RE, '')
+    .replace(/\n/g, '').length;
+
+  const lines = rawValue.split('\n');
+  const formattedLines = lines.map((line) => {
+    const cleaned = line.replace(HEX_STRIP_RE, '');
+    if (!cleaned) return '';
+    const pairs = cleaned.match(/.{1,2}/g) || [];
+    return pairs.join(' ');
+  });
+  const formatted = formattedLines.join('\n').toUpperCase();
+
+  const digitIndexMap = [];
+  for (let i = 0, seen = 0; i < formatted.length; i += 1) {
+    if (HEX_CHAR_RE.test(formatted[i])) {
+      digitIndexMap[seen] = i;
+      seen += 1;
+    }
+  }
+
+  const calcCaret = (digitCount) => {
+    if (digitCount <= 0) return 0;
+    if (digitCount > digitIndexMap.length) return formatted.length;
+    return digitIndexMap[digitCount - 1] + 1;
+  };
+
+  const newStart = calcCaret(digitsBeforeStart);
+  const newEnd = calcCaret(digitsBeforeEnd);
+
+  el.value = formatted;
+
+  if (typeof el.setSelectionRange === 'function') {
+    scheduleFrame(() => {
+      el.setSelectionRange(newStart, newEnd);
+      el.__formatting = false;
+    });
+  } else {
+    el.__formatting = false;
+  }
+};
+
+const attachHexFormatter = (selector) => {
+  const el = $(selector);
+  if (!el) return;
+  const handler = () => formatHexTextareaValue(el);
+  el.addEventListener('input', handler);
+  el.addEventListener('blur', handler);
+  handler();
+};
 
 /**
  * Initialize the Diagnostics tab module.
@@ -34,6 +120,9 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const diagLog = $('#diag-log');
   const diagBuffer = []; // keep a short log history
   const MAX_LOG_ENTRIES = 500;
+
+  attachHexFormatter('#diag-functional-raw');
+  attachHexFormatter('#diag-physical-raw');
 
   const diagLogScroll = () => {
     if (!diagLog) return;
@@ -178,6 +267,20 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   // -------------------------
   const diagCustomCounters = { functional: 0, physical: 0 };
 
+  const staticButtonsContainer = $('#physical-static-buttons');
+  if (staticButtonsContainer) {
+    physicalStaticCommands.forEach(({ label, data }) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'diag-static-btn';
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        sendDiagRequest({ group: 'physical', raw: data, label });
+      });
+      staticButtonsContainer.appendChild(btn);
+    });
+  }
+
   const createCustomDiagButton = (group) => {
     const settings = diagGroups[group];
     if (!settings) return;
@@ -243,6 +346,25 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   $('#btn-physical-send')?.addEventListener('click', () =>
     sendDiagRequest({ group: 'physical' }),
   );
+
+  $('#btn-physical-send-did')?.addEventListener('click', () => {
+    const valueInput = $('#diag-physical-did-value');
+    const baseInput = $('#diag-physical-raw');
+    if (!valueInput || !baseInput) return;
+    const base = normalizeDiagRaw(baseInput.value);
+    if (!base) {
+      addDiagLogEntry({ label: 'Physical DID', error: 'Base request is empty' });
+      return;
+    }
+    const decimal = Number(valueInput.value);
+    if (!Number.isInteger(decimal) || decimal < 0 || decimal > 255) {
+      addDiagLogEntry({ label: 'Physical DID', error: 'Value must be 0-255' });
+      return;
+    }
+    const hexValue = decimal.toString(16).toUpperCase().padStart(2, '0');
+    const request = `${base} ${hexValue}`.trim();
+    sendDiagRequest({ group: 'physical', raw: request, label: 'Physical DID' });
+  });
 
   $('#btn-functional-add')?.addEventListener('click', () =>
     createCustomDiagButton('functional'),

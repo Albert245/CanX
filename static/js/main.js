@@ -65,6 +65,29 @@ const initTabs = () => {
 
 initTabs();
 
+const initDbcPicker = () => {
+  const browseBtn = $('#btn-dbc-browse');
+  const fileInput = $('#dbc-file');
+  const pathInput = $('#dbc_path');
+  if (!browseBtn || !fileInput || !pathInput) return;
+
+  browseBtn.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const derivedPath = file.path || file.webkitRelativePath || file.name || '';
+    if (derivedPath) {
+      pathInput.value = derivedPath;
+      pathInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+};
+
+initDbcPicker();
+
 const socket = io({ transports: ['websocket'] });
 window.socket = socket;
 
