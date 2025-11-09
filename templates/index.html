@@ -21,7 +21,11 @@
         <label>Channel <input id="channel" type="number" value="0" min="0" /></label>
         <label>CAN FD <input id="is_fd" type="checkbox" /></label>
         <label>Padding <input id="padding" type="text" value="00" size="3" /></label>
-        <label>DBC <input id="dbc_path" type="text" placeholder="path/to/file.dbc" size="28" /></label>
+        <div class="dbc-picker">
+          <label>DBC <input id="dbc_path" type="text" placeholder="path/to/file.dbc" size="28" /></label>
+          <button id="btn-dbc-browse" type="button">Browse…</button>
+          <input id="dbc-file" type="file" accept=".dbc" hidden />
+        </div>
         <button id="btn-init">Init</button>
         <span id="init-status"></span>
       </div>
@@ -99,35 +103,40 @@
           <button id="btn-diag-config">Configure</button>
         </div>
 
-        <div class="diag-group">
-          <div class="toolbar diag-toolbar" data-group="functional">
-            <label>Functional Request (HEX)
-              <textarea id="diag-functional-raw" rows="2" wrap="soft" placeholder="e.g. 10 01"></textarea>
-            </label>
-            <label>Target ID <input id="diag-functional-id" type="text" value="7DF" /></label>
-            <label>Timeout (ms) <input id="diag-functional-timeout" type="number" value="500" /></label>
-            <button id="btn-functional-send">Send</button>
-            <button id="btn-functional-add" class="diag-add-btn">Add</button>
+        <div class="diag-columns">
+          <div class="diag-pane" data-group="functional">
+            <div class="toolbar diag-toolbar" data-group="functional">
+              <label>Functional Request (HEX)
+                <textarea id="diag-functional-raw" rows="2" wrap="soft" placeholder="e.g. 10 01"></textarea>
+              </label>
+              <label>Target ID <input id="diag-functional-id" type="text" value="7DF" /></label>
+              <label>Timeout (ms) <input id="diag-functional-timeout" type="number" value="500" /></label>
+              <button id="btn-functional-send">Send</button>
+              <button id="btn-functional-add" class="diag-add-btn">Add</button>
+            </div>
+            <div class="diag-custom" id="functional-custom-buttons"></div>
           </div>
-          <div class="diag-custom" id="functional-custom-buttons"></div>
-        </div>
 
-        <div class="diag-group">
-          <div class="toolbar diag-toolbar" data-group="physical">
-            <label>Physical Request (HEX)
-              <textarea id="diag-physical-raw" rows="2" wrap="soft" placeholder="e.g. 22 F1 90"></textarea>
-            </label>
-            <label>Target ID <input id="diag-physical-id" type="text" value="7E0" /></label>
-            <label>Timeout (ms) <input id="diag-physical-timeout" type="number" value="500" /></label>
-            <button id="btn-physical-send">Send</button>
-            <button id="btn-physical-add" class="diag-add-btn">Add</button>
-            <label>Value (uint8)
-              <input id="diag-physical-did-value" type="number" min="0" max="255" value="0" />
-            </label>
-            <button id="btn-physical-send-did">Send DID Value</button>
+          <div class="diag-pane" data-group="physical">
+            <div class="toolbar diag-toolbar" data-group="physical">
+              <label>Physical Request (HEX)
+                <textarea id="diag-physical-raw" rows="2" wrap="soft" placeholder="e.g. 22 F1 90"></textarea>
+              </label>
+              <label>Target ID <input id="diag-physical-id" type="text" value="7E0" /></label>
+              <label>Timeout (ms) <input id="diag-physical-timeout" type="number" value="500" /></label>
+              <button id="btn-physical-send">Send</button>
+              <button id="btn-physical-add" class="diag-add-btn">Add</button>
+            </div>
+            <div class="diag-quick-actions">
+              <div class="diag-did-row">
+                <label class="diag-inline-label" for="diag-physical-did-value">Value (uint8)</label>
+                <input id="diag-physical-did-value" type="number" min="0" max="255" value="0" />
+                <button id="btn-physical-send-did" type="button">Send DID Value</button>
+              </div>
+              <div class="diag-static" id="physical-static-buttons"></div>
+            </div>
+            <div class="diag-custom" id="physical-custom-buttons"></div>
           </div>
-          <div class="diag-static" id="physical-static-buttons"></div>
-          <div class="diag-custom" id="physical-custom-buttons"></div>
         </div>
 
         <div class="toolbar diag-toolbar">
