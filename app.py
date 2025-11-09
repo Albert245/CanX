@@ -1,5 +1,6 @@
 import os
 import time
+import math
 import threading
 from typing import Any, Dict
 from decimal import Decimal
@@ -57,6 +58,8 @@ def _physical_to_raw(signal, physical):
         physical = _coerce_number(physical)
     if physical is None:
         return None
+    if isinstance(physical, float) and not math.isfinite(physical):
+        return None
     scale = _signal_attr(signal, "scale")
     if isinstance(scale, Decimal):
         scale = float(scale)
@@ -82,6 +85,8 @@ def _raw_to_physical(signal, raw):
         raw = _coerce_number(raw)
     if raw is None:
         return None
+    if isinstance(raw, float) and not math.isfinite(raw):
+        return None
     scale = _signal_attr(signal, "scale")
     if isinstance(scale, Decimal):
         scale = float(scale)
@@ -101,6 +106,8 @@ def _normalize_physical(signal, value):
     try:
         numeric = float(value)
     except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
         return None
     if _signal_attr(signal, "is_float", False):
         return numeric
@@ -153,9 +160,11 @@ def _signal_is_signed(signal):
 def _signal_unsigned(raw, bit_length):
     if raw is None or bit_length is None or bit_length <= 0:
         return raw
+    if isinstance(raw, float) and not math.isfinite(raw):
+        return None
     try:
         raw_int = int(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     modulus = 1 << bit_length
     return raw_int % modulus
@@ -170,7 +179,7 @@ def _signal_signed(raw_unsigned, bit_length, is_signed):
     half = modulus >> 1
     try:
         raw_int = int(raw_unsigned)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     if raw_int >= half:
         return raw_int - modulus
@@ -180,9 +189,11 @@ def _signal_signed(raw_unsigned, bit_length, is_signed):
 def _format_raw_hex(raw_unsigned, bit_length):
     if raw_unsigned is None:
         return None
+    if isinstance(raw_unsigned, float) and not math.isfinite(raw_unsigned):
+        return None
     try:
         raw_int = int(raw_unsigned)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     if bit_length is None or bit_length <= 0:
         return f"0x{raw_int:X}"
@@ -245,6 +256,10 @@ def _message_is_running(message):
 
 
 def _json_safe(value):
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+        return value
     if isinstance(value, Decimal):
         return float(value)
     if isinstance(value, dict):
