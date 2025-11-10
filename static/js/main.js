@@ -65,10 +65,10 @@ const initTabs = () => {
 
 initTabs();
 
-const initDbcPicker = () => {
-  const browseBtn = $('#btn-dbc-browse');
-  const fileInput = $('#dbc-file');
-  const pathInput = $('#dbc_path');
+const initFilePicker = ({ browseBtnId, fileInputId, pathInputId }) => {
+  const browseBtn = $(browseBtnId);
+  const fileInput = $(fileInputId);
+  const pathInput = $(pathInputId);
   if (!browseBtn || !fileInput || !pathInput) return;
 
   browseBtn.addEventListener('click', () => {
@@ -78,7 +78,12 @@ const initDbcPicker = () => {
   fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
     if (!file) return;
-    const derivedPath = file.path || file.webkitRelativePath || file.name || '';
+    const derivedPath =
+      file.path ||
+      file.webkitRelativePath ||
+      fileInput.value ||
+      file.name ||
+      '';
     if (derivedPath) {
       pathInput.value = derivedPath;
       pathInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -86,7 +91,17 @@ const initDbcPicker = () => {
   });
 };
 
-initDbcPicker();
+initFilePicker({
+  browseBtnId: '#btn-dbc-browse',
+  fileInputId: '#dbc-file',
+  pathInputId: '#dbc_path',
+});
+
+initFilePicker({
+  browseBtnId: '#btn-dll-browse',
+  fileInputId: '#diag-dll-file',
+  pathInputId: '#diag-dll',
+});
 
 const socket = io({ transports: ['websocket'] });
 window.socket = socket;

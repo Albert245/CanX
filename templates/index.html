@@ -99,7 +99,11 @@
         <div class="toolbar diag-toolbar">
           <label>ECU ID <input id="ecu-id" type="text" value="7E0" /></label>
           <label>Tester ID <input id="tester-id" type="text" value="7E8" /></label>
-          <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
+          <div class="diag-dll-picker">
+            <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
+            <button id="btn-dll-browse" type="button">Browse…</button>
+            <input id="diag-dll-file" type="file" accept=".dll" hidden />
+          </div>
           <button id="btn-diag-config">Configure</button>
         </div>
 
