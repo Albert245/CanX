@@ -65,6 +65,44 @@ const initTabs = () => {
 
 initTabs();
 
+const initFilePicker = ({ browseBtnId, fileInputId, pathInputId }) => {
+  const browseBtn = $(browseBtnId);
+  const fileInput = $(fileInputId);
+  const pathInput = $(pathInputId);
+  if (!browseBtn || !fileInput || !pathInput) return;
+
+  browseBtn.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const derivedPath =
+      file.path ||
+      file.webkitRelativePath ||
+      fileInput.value ||
+      file.name ||
+      '';
+    if (derivedPath) {
+      pathInput.value = derivedPath;
+      pathInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+};
+
+initFilePicker({
+  browseBtnId: '#btn-dbc-browse',
+  fileInputId: '#dbc-file',
+  pathInputId: '#dbc_path',
+});
+
+initFilePicker({
+  browseBtnId: '#btn-dll-browse',
+  fileInputId: '#diag-dll-file',
+  pathInputId: '#diag-dll',
+});
+
 const socket = io({ transports: ['websocket'] });
 window.socket = socket;
 
