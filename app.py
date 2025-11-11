@@ -310,7 +310,8 @@ def _msg_to_dict(msg) -> Dict[str, Any]:
     decoded = None
     if state.decode_enabled and state.canif and state.canif.dbc:
         try:
-            decoded = state.canif.dbc.decode_message(msg.arbitration_id, msg.data)
+            raw_decoded = state.canif.dbc.decode_message(msg.arbitration_id, msg.data)
+            decoded = _json_safe(raw_decoded)
         except Exception:
             decoded = None
     return {
@@ -483,6 +484,8 @@ def api_dbc_message_info(msg_name: str):
             "is_signed": bounds["is_signed"],
             "raw_signed_min": _json_safe(bounds["raw_signed_min"]),
             "raw_signed_max": _json_safe(bounds["raw_signed_max"]),
+            "raw_unsigned_min": _json_safe(bounds["raw_unsigned_min"]),
+            "raw_unsigned_max": _json_safe(bounds["raw_unsigned_max"]),
             "raw_min": _json_safe(bounds["raw_unsigned_min"]),
             "raw_max": _json_safe(bounds["raw_unsigned_max"]),
         }

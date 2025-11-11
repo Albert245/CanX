@@ -7,6 +7,7 @@ import { initTrace } from './trace.js';
 import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
 import { initDiag } from './diag.js';
+import { initGraphic } from './graphic.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
@@ -166,5 +167,6 @@ const stimApi = initStim({ socket, ...tabContext });
 initTrace({ socket, ...tabContext });
 initMessages({ socket, ...tabContext, stimApi });
 initDiag({ socket, ...tabContext });
+initGraphic({ socket, ...tabContext });
 
 setActiveTab(activeTab);
