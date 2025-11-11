@@ -4,11 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CanX</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}" />
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo.png') }}" />
     <link rel="stylesheet" href="/static/css/styles.css" />
   </head>
   <body>
     <header>
-      <h1>CanX</h1>
+      <div class="header-top">
+        <a class="home-btn" href="/" aria-label="CanX home">
+          <img src="{{ url_for('static', filename='img/logo.png') }}" alt="CanX logo" />
+          <span>CanX</span>
+        </a>
+      </div>
       <div class="init-form">
         <select id="device">
           <option value="PCAN">PCAN</option>

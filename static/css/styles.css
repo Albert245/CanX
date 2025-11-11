@@ -17,7 +17,42 @@ html, body {
 }
 
 header { padding: 12px; border-bottom: 1px solid var(--border); }
-h1 { margin: 0 0 8px 0; font-size: 18px; font-weight: 600; }
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
+
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.home-btn:hover,
+.home-btn:focus-visible {
+  background: rgba(79, 140, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.45);
+  outline: none;
+}
+
+.home-btn img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px;
+}
 
 .init-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .dbc-picker, .diag-dll-picker { display: flex; gap: 8px; align-items: center; }
