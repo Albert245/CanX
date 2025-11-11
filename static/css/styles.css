@@ -30,8 +30,16 @@ input, select, button, textarea {
   border-radius: 6px;
   padding: 6px 8px;
 }
+input.is-uploading {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.35) inset;
+}
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
+button:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
 
 nav { margin-top: 10px; display: flex; gap: 8px; }
 .tab-btn { background: transparent; border: 1px solid var(--border); padding: 6px 10px; }

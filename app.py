@@ -2,11 +2,14 @@ import os
 import time
 import math
 import threading
+import tempfile
+from pathlib import Path
 from typing import Any, Dict
 from decimal import Decimal
 
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
+from werkzeug.utils import secure_filename
 
 # Backend CAN layers
 from CANIF.CANInterface import CANInterface
@@ -280,6 +283,8 @@ def _json_safe(value):
 app = Flask(__name__, static_folder="static", template_folder="templates")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+UPLOAD_ROOT = Path(tempfile.gettempdir()) / "canx_uploads"
+
 
 class AppState:
     def __init__(self) -> None:
@@ -290,6 +295,8 @@ class AppState:
         self.trace_thread: threading.Thread | None = None
         self.trace_running: bool = False
         self.decode_enabled: bool = True
+
+        self.temp_files: set[str] = set()
 
 
 state = AppState()
@@ -337,6 +344,40 @@ def _trace_worker():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/uploads/<string:kind>", methods=["POST"])
+def api_upload_file(kind: str):
+    allowed = {"dbc", "dll"}
+    if kind not in allowed:
+        return jsonify({"ok": False, "error": "Unsupported upload type"}), 400
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"ok": False, "error": "Missing file"}), 400
+
+    filename = secure_filename(file.filename or f"{kind}.bin")
+    suffix = Path(filename).suffix or ""
+
+    try:
+        UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=suffix,
+            prefix=f"canx_{kind}_",
+            dir=str(UPLOAD_ROOT),
+        ) as tmp:
+            file.save(tmp.name)
+            temp_path = str(Path(tmp.name).resolve())
+    except Exception as exc:  # pragma: no cover - defensive path
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+    state.temp_files.add(temp_path)
+    return jsonify({"ok": True, "path": temp_path, "filename": filename})
 
 
 @app.route("/api/init", methods=["POST"])
