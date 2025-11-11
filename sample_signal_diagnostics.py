@@ -1,205 +1,184 @@
-"""Utility script to troubleshoot missing DBC message signals in the UI.
+"""
+Extended DBC diagnostic sample for CanX.
 
-This sample helper mirrors the backend checks the web UI performs when it
-attempts to list the signals for a DBC message.  Running the script pinpoints
-common failure modes (missing file, parse errors, unknown message names, empty
-signal definitions, etc.) so that issues can be resolved before starting the
-Flask app.
+- Fixed DBC path (hardcoded).
+- Iterates through all messages in the DBC.
+- Adds additional test cases simulating JSON serialization and DBC parse failures.
+- Produces both human-readable and JSON reports for regression comparison.
+
+Usage:
+    python diag_dbc_fulltest.py
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
+import traceback
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
-try:  # Lazy import so the script still loads when cantools is absent.
+try:
     import cantools
     from cantools.database import errors as cantools_errors
-except ModuleNotFoundError:  # pragma: no cover - environment dependent
+except ModuleNotFoundError:
     cantools = None
     cantools_errors = None
 
 try:
     from E2E.DbcAdapter import DBCAdapter  # type: ignore
-except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
-    DBCAdapter = None  # type: ignore
+except ModuleNotFoundError as exc:
+    DBCAdapter = None
     _DBC_IMPORT_ERROR = exc
 else:
     _DBC_IMPORT_ERROR = None
 
 
-def _format_message_list(messages: List[str], limit: int = 10) -> str:
-    if not messages:
+# ✅ FIXED path to your DBC file (adjust here)
+DBC_PATH = Path(r"g:\Side_Project\CanX\data\example.dbc")  # <-- chỉnh theo đường dẫn của bạn
+OUTPUT_JSON = Path("dbc_diagnostic_report.json")
+
+
+def safe_json_serialize(obj: Any) -> str:
+    """Try to serialize object safely, catching json.JSONDecodeError, TypeError, etc."""
+    try:
+        return json.dumps(obj, ensure_ascii=False)
+    except Exception as e:
+        return f"<JSON_ERROR: {e}>"
+
+
+def _format_list(items: List[str], limit: int = 8) -> str:
+    if not items:
         return "<none>"
-    if len(messages) <= limit:
-        return ", ".join(messages)
-    head = ", ".join(messages[:limit])
-    return f"{head}, … (+{len(messages) - limit} more)"
+    if len(items) <= limit:
+        return ", ".join(items)
+    return ", ".join(items[:limit]) + f", …(+{len(items)-limit})"
 
 
-def diagnose(dbc_path: Path, message_name: Optional[str] = None) -> Dict[str, object]:
-    """Inspect a DBC file and return potential causes preventing signal listing."""
-
-    findings: Dict[str, object] = {
+def diagnose_all(dbc_path: Path) -> Dict[str, Any]:
+    findings: Dict[str, Any] = {
         "dbc_path": str(dbc_path),
-        "errors": [],
-        "warnings": [],
-        "message_summary": {},
+        "timestamp": datetime.now().isoformat(),
+        "summary": {},
+        "messages": {},
+        "global_errors": [],
     }
 
     if not dbc_path.exists():
-        findings["errors"].append(f"DBC file '{dbc_path}' does not exist.")
+        findings["global_errors"].append(f"DBC '{dbc_path}' not found.")
         return findings
-
     if not dbc_path.is_file():
-        findings["errors"].append(f"DBC path '{dbc_path}' is not a file.")
+        findings["global_errors"].append(f"'{dbc_path}' is not a valid file.")
         return findings
 
-    if cantools is None:
-        findings["errors"].append(
-            "The 'cantools' package is not installed. Install it to parse DBC files "
-            "(pip install cantools)."
-        )
-        return findings
-
-    if DBCAdapter is None:
-        findings["errors"].append(
-            "Failed to import DBCAdapter. Did you install the project dependencies?"
-        )
-        if _DBC_IMPORT_ERROR is not None:
-            findings["errors"].append(str(_DBC_IMPORT_ERROR))
+    if cantools is None or DBCAdapter is None:
+        findings["global_errors"].append("Missing required dependencies: cantools or DBCAdapter.")
         return findings
 
     try:
         adapter = DBCAdapter(str(dbc_path))
-    except FileNotFoundError:
-        findings["errors"].append(f"DBC file '{dbc_path}' could not be found by DBCAdapter.")
-        return findings
-    except PermissionError:
-        findings["errors"].append(f"Permission denied when accessing '{dbc_path}'.")
-        return findings
-    except Exception as exc:  # pragma: no cover - defensive guard
-        parse_errors = []
-        if cantools_errors is not None:
-            for name in dir(cantools_errors):
-                obj = getattr(cantools_errors, name)
-                if isinstance(obj, type) and name.endswith("Error"):
-                    parse_errors.append(obj)
-        if any(isinstance(exc, err) for err in parse_errors):
-            findings["errors"].append(f"Failed to parse DBC: {exc}")
-        else:
-            findings["errors"].append(f"Unexpected error while loading DBC: {exc}")
+        db = adapter.db
+    except Exception as e:
+        findings["global_errors"].append(f"DBC load failed: {e}")
+        tb = traceback.format_exc(limit=2)
+        findings["global_errors"].append(tb)
         return findings
 
-    all_messages = sorted((msg.name for msg in adapter.db.messages))
-    if not all_messages:
-        findings["errors"].append("The DBC file does not define any messages.")
+    messages = sorted(db.messages, key=lambda m: m.name)
+    findings["summary"]["total_messages"] = len(messages)
+    findings["summary"]["example_messages"] = _format_list([m.name for m in messages])
+
+    if not messages:
+        findings["global_errors"].append("No messages defined in this DBC.")
         return findings
 
-    findings["message_summary"] = {
-        "total_messages": len(all_messages),
-        "example_messages": _format_message_list(all_messages),
-    }
-
-    if not message_name:
-        findings["warnings"].append(
-            "No message name provided. Pass --message to inspect a specific message."
-        )
-        return findings
-
-    message = None
-    try:
-        message = adapter.db.get_message_by_name(message_name)
-        findings["message_summary"]["resolved_by"] = "name"
-    except KeyError:
-        # Attempt to interpret the value as a frame id.
+    for msg in messages:
+        mdata: Dict[str, Any] = {
+            "frame_id": hex(msg.frame_id),
+            "signal_count": len(msg.signals),
+            "errors": [],
+            "warnings": [],
+        }
         try:
-            numeric_id = int(str(message_name), 0)
-        except (TypeError, ValueError):
-            findings["errors"].append(
-                f"Message '{message_name}' was not found by name and is not a valid frame id."
-            )
-            return findings
-        try:
-            message = adapter.db.get_message_by_frame_id(numeric_id)
-            findings["message_summary"]["resolved_by"] = "frame_id"
-            findings["message_summary"]["resolved_frame_id"] = numeric_id
-        except KeyError:
-            findings["errors"].append(
-                f"No message found for frame id {hex(numeric_id)} ({numeric_id})."
-            )
-            return findings
+            # 🔸 Check signal definitions
+            if not msg.signals:
+                mdata["errors"].append("Message defines no signals.")
+                findings["messages"][msg.name] = mdata
+                continue
 
-    findings["message_summary"]["name"] = message.name
-    findings["message_summary"]["frame_id"] = hex(message.frame_id)
-    findings["message_summary"]["signal_count"] = len(message.signals)
+            # 🔸 Validate cache consistency
+            cache = adapter.current_signals.get(msg.name, {})
+            missing = [s.name for s in msg.signals if s.name not in cache]
+            if missing:
+                mdata["warnings"].append(f"Missing from cache: {_format_list(missing)}")
 
-    if not message.signals:
-        findings["errors"].append(
-            f"Message '{message.name}' does not declare any signals in the DBC file."
-        )
-        return findings
+            # 🔸 Test JSON serialization safety
+            test_payload = {
+                "frame_id": msg.frame_id,
+                "signals": [s.name for s in msg.signals],
+                "fake_obj": lambda x: x,  # purposely unserializable
+            }
+            js = safe_json_serialize(test_payload)
+            if js.startswith("<JSON_ERROR"):
+                mdata["warnings"].append(f"JSON serialization failed (expected test): {js}")
 
-    missing_from_cache = []
-    cache = adapter.current_signals.get(message.name, {})
-    for signal in message.signals:
-        if signal.name not in cache:
-            missing_from_cache.append(signal.name)
+            # 🔸 Detect duplicate signal names
+            sig_names = [s.name for s in msg.signals]
+            if len(sig_names) != len(set(sig_names)):
+                mdata["warnings"].append("Duplicate signal names detected.")
 
-    if missing_from_cache:
-        findings["warnings"].append(
-            "Signals missing from runtime cache: " + ", ".join(missing_from_cache)
-        )
+            # 🔸 Detect strange types
+            for sig in msg.signals:
+                if not hasattr(sig, "start") or not hasattr(sig, "length"):
+                    mdata["errors"].append(f"Signal '{sig.name}' missing start/length attributes.")
+                    break
 
-    findings["message_summary"]["example_signals"] = _format_message_list(
-        [signal.name for signal in message.signals]
-    )
+            mdata["example_signals"] = _format_list(sig_names)
+
+        except Exception as e:
+            mdata["errors"].append(f"Unhandled exception: {e}")
+            mdata["errors"].append(traceback.format_exc(limit=1))
+
+        findings["messages"][msg.name] = mdata
 
     return findings
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Diagnose why the CanX UI cannot list DBC message signals."
-    )
-    parser.add_argument("dbc", type=Path, help="Path to the DBC file used by the UI.")
-    parser.add_argument(
-        "--message",
-        "-m",
-        help="Message name or frame id to inspect (e.g. EngineData or 0x123).",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit the diagnostics report as JSON for downstream tooling.",
-    )
-
-    args = parser.parse_args(argv)
-
-    findings = diagnose(args.dbc, args.message)
-
-    if args.json:
-        print(json.dumps(findings, indent=2, sort_keys=True))
-    else:
-        print(f"DBC path: {findings['dbc_path']}")
-        if findings["message_summary"]:
-            for key, value in findings["message_summary"].items():
-                print(f"  {key}: {value}")
-        if findings["errors"]:
-            print("\nErrors:")
-            for err in findings["errors"]:
-                print(f"  - {err}")
-        if findings["warnings"]:
-            print("\nWarnings:")
-            for warn in findings["warnings"]:
-                print(f"  - {warn}")
-
-    return 1 if findings["errors"] else 0
+def print_summary(findings: Dict[str, Any]) -> None:
+    print(f"DBC path: {findings['dbc_path']}")
+    print(f"Total messages: {findings['summary'].get('total_messages', 0)}")
+    if findings["global_errors"]:
+        print("\nGlobal Errors:")
+        for e in findings["global_errors"]:
+            print(" -", e)
+    for name, info in findings["messages"].items():
+        errs = len(info["errors"])
+        warns = len(info["warnings"])
+        print(f"\n[{name}] ({len(info['errors'])} errors, {len(info['warnings'])} warnings)")
+        if errs:
+            for e in info["errors"]:
+                print("  ❌", e)
+        if warns:
+            for w in info["warnings"]:
+                print("  ⚠️ ", w)
 
 
-if __name__ == "__main__":  # pragma: no cover - CLI entry point
+def main() -> int:
+    print("=== CanX DBC Diagnostic Runner ===")
+    findings = diagnose_all(DBC_PATH)
+    print_summary(findings)
+
+    # Write to file for review
+    try:
+        with OUTPUT_JSON.open("w", encoding="utf-8") as f:
+            json.dump(findings, f, indent=2, ensure_ascii=False)
+        print(f"\nReport written to: {OUTPUT_JSON.resolve()}")
+    except Exception as e:
+        print(f"⚠️ Could not write report: {e}")
+
+    return 1 if findings.get("global_errors") else 0
+
+
+if __name__ == "__main__":
     sys.exit(main())
-
