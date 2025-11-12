@@ -1,6 +1,54 @@
-import { Chart, registerables } from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.esm.js';
+let ChartConstructor = null;
+let chartLoadFailed = false;
+let chartModulePromise = null;
 
-Chart.register(...registerables);
+const loadChartLibrary = () => {
+  if (ChartConstructor || chartLoadFailed) {
+    return ChartConstructor ? Promise.resolve(ChartConstructor) : Promise.resolve(null);
+  }
+  if (!chartModulePromise) {
+    chartModulePromise = (async () => {
+      if (window.Chart && typeof window.Chart.register === 'function') {
+        try {
+          const registerables = window.Chart.registerables || [];
+          if (Array.isArray(registerables) && registerables.length) {
+            window.Chart.register(...registerables);
+          }
+        } catch (err) {
+          console.warn('Failed to register Chart.js components from global', err);
+        }
+        return window.Chart;
+      }
+      try {
+        const module = await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.esm.js');
+        if (module?.Chart) {
+          try {
+            const registerables = module.registerables || [];
+            if (Array.isArray(registerables) && registerables.length) {
+              module.Chart.register(...registerables);
+            }
+          } catch (err) {
+            console.warn('Failed to register Chart.js components', err);
+          }
+          return module.Chart;
+        }
+      } catch (err) {
+        console.error('Failed to load Chart.js module', err);
+      }
+      chartLoadFailed = true;
+      return null;
+    })().then((Chart) => {
+      if (Chart) {
+        ChartConstructor = Chart;
+        chartLoadFailed = false;
+      } else {
+        chartLoadFailed = true;
+      }
+      return Chart;
+    });
+  }
+  return chartModulePromise;
+};
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
@@ -118,11 +166,26 @@ export function initGraphic({ socket, onTabChange }) {
   let separateCharts = new Map();
   let separateNeedsRebuild = true;
   let baseTimestamp = null;
+  let chartUnavailableNotified = false;
+
+  loadChartLibrary();
 
   const setStatus = (message, tone = 'info') => {
     if (!statusEl) return;
     statusEl.textContent = message || '';
     statusEl.dataset.tone = tone;
+  };
+
+  const requireChart = () => {
+    if (ChartConstructor) {
+      return true;
+    }
+    loadChartLibrary();
+    if (!chartUnavailableNotified && chartLoadFailed) {
+      chartUnavailableNotified = true;
+      setStatus('Unable to load chart rendering library. Graphs are unavailable.', 'error');
+    }
+    return false;
   };
 
   const ensureSignalIndex = async (force = false) => {
@@ -310,6 +373,19 @@ export function initGraphic({ socket, onTabChange }) {
 
   const rebuildCombinedChart = () => {
     if (!combinedCanvas) return;
+    if (!requireChart()) {
+      if (combinedChart) {
+        try {
+          combinedChart.destroy();
+        } catch (err) {
+          console.warn('Failed to destroy combined chart', err);
+        }
+        combinedChart = null;
+      }
+      combinedNeedsRebuild = true;
+      combinedDirty = false;
+      return;
+    }
     if (combinedChart) {
       combinedChart.destroy();
     }
@@ -355,7 +431,13 @@ export function initGraphic({ socket, onTabChange }) {
       datasets.push(dataset);
       combinedDatasets.set(watcher.key, dataset);
     });
-    combinedChart = new Chart(combinedCanvas.getContext('2d'), {
+    if (!datasets.length) {
+      combinedChart = null;
+      combinedNeedsRebuild = false;
+      combinedDirty = false;
+      return;
+    }
+    combinedChart = new ChartConstructor(combinedCanvas.getContext('2d'), {
       type: 'line',
       data: { datasets },
       options: {
@@ -398,6 +480,7 @@ export function initGraphic({ socket, onTabChange }) {
 
   const rebuildSeparateCharts = () => {
     if (!separateContainer) return;
+    const chartAvailable = requireChart();
     separateContainer.innerHTML = '';
     separateCharts.forEach(({ chart }) => {
       try {
@@ -420,50 +503,60 @@ export function initGraphic({ socket, onTabChange }) {
       const canvas = document.createElement('canvas');
       card.appendChild(title);
       if (meta.textContent) card.appendChild(meta);
-      card.appendChild(canvas);
-      separateContainer.appendChild(card);
-      const chart = new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        data: {
-          labels: watcher.data.map((point) => point.x.toFixed(1)),
-          datasets: [
-            {
-              label: watcher.signalName,
-              data: watcher.data.map((point) => point.y),
-              borderColor: watcher.color,
-              backgroundColor: colorWithAlpha(watcher.color, 0.25),
-              borderWidth: 2,
-              tension: 0.2,
-              pointRadius: 0,
-              hidden: !watcher.enabled,
+      if (chartAvailable) {
+        card.appendChild(canvas);
+        separateContainer.appendChild(card);
+        const context = canvas.getContext('2d');
+        const chart = new ChartConstructor(context, {
+          type: 'line',
+          data: {
+            labels: watcher.data.map((point) => point.x.toFixed(1)),
+            datasets: [
+              {
+                label: watcher.signalName,
+                data: watcher.data.map((point) => point.y),
+                borderColor: watcher.color,
+                backgroundColor: colorWithAlpha(watcher.color, 0.25),
+                borderWidth: 2,
+                tension: 0.2,
+                pointRadius: 0,
+                hidden: !watcher.enabled,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+              x: {
+                title: { display: true, text: 'Time (s)', color: '#9aa0a6' },
+                ticks: { color: '#9aa0a6' },
+                grid: { color: '#2a2f3a' },
+              },
+              y: {
+                min: watcher.minValue,
+                max: watcher.maxValue,
+                ticks: { color: '#9aa0a6' },
+                grid: { color: '#2a2f3a' },
+              },
             },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: false,
-          scales: {
-            x: {
-              title: { display: true, text: 'Time (s)', color: '#9aa0a6' },
-              ticks: { color: '#9aa0a6' },
-              grid: { color: '#2a2f3a' },
-            },
-            y: {
-              min: watcher.minValue,
-              max: watcher.maxValue,
-              ticks: { color: '#9aa0a6' },
-              grid: { color: '#2a2f3a' },
+            plugins: {
+              legend: { display: false },
             },
           },
-          plugins: {
-            legend: { display: false },
-          },
-        },
-      });
-      separateCharts.set(watcher.key, { chart, card });
+        });
+        separateCharts.set(watcher.key, { chart, card });
+      } else {
+        const message = document.createElement('div');
+        message.className = 'graphic-chart-unavailable';
+        message.textContent = 'Chart rendering unavailable.';
+        card.appendChild(message);
+        separateContainer.appendChild(card);
+        separateCharts.set(watcher.key, { chart: null, card });
+      }
     });
-    separateNeedsRebuild = false;
+    separateNeedsRebuild = !chartAvailable;
   };
 
   const ensureSeparateCharts = () => {
@@ -478,6 +571,10 @@ export function initGraphic({ socket, onTabChange }) {
     if (!entry) return;
     const watcher = watchers.get(key);
     if (!watcher) return;
+    if (!entry.chart) {
+      entry.card.classList.toggle('is-disabled', !watcher.enabled);
+      return;
+    }
     entry.chart.data.labels = watcher.data.map((point) => point.x.toFixed(1));
     entry.chart.data.datasets[0].data = watcher.data.map((point) => point.y);
     entry.chart.data.datasets[0].hidden = !watcher.enabled;
@@ -674,6 +771,22 @@ export function initGraphic({ socket, onTabChange }) {
       updatedKeys.forEach((key) => updateSeparateChart(key));
     }
   };
+
+  loadChartLibrary().then((Chart) => {
+    if (!Chart) return;
+    if (chartUnavailableNotified) {
+      setStatus('Chart rendering library loaded. Graphs are available.', 'success');
+    }
+    chartUnavailableNotified = false;
+    combinedNeedsRebuild = true;
+    separateNeedsRebuild = true;
+    if (activeMode === 'combined') {
+      rebuildCombinedChart();
+      flushCombinedUpdates();
+    } else if (activeMode === 'separate') {
+      rebuildSeparateCharts();
+    }
+  });
 
   socket.on('trace', handleTrace);
 
