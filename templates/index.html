@@ -41,6 +41,7 @@
         <button class="tab-btn" data-tab="messages">Messages</button>
         <button class="tab-btn" data-tab="stim">Stimulation</button>
         <button class="tab-btn" data-tab="diag">Diagnostics</button>
+        <button class="tab-btn" data-tab="graphic">Graphic</button>
       </nav>
     </header>
 
@@ -164,9 +165,47 @@
 
         <div class="diag-log" id="diag-log"></div>
       </section>
+
+      <section id="tab-graphic" class="tab">
+        <div class="graphic-wrapper">
+          <div class="graphic-sidebar">
+            <div class="toolbar">
+              <button id="btn-graphic-refresh" type="button">Reload DBC Signals</button>
+              <input
+                id="graphic-search"
+                type="text"
+                placeholder="Search signal or message"
+                autocomplete="off"
+              />
+            </div>
+            <ul id="graphic-results" class="graphic-result-list"></ul>
+          </div>
+          <div class="graphic-main">
+            <div class="graphic-main-header">
+              <h3>Selected Signals</h3>
+              <div class="graphic-mode-toggle" role="radiogroup" aria-label="Graph style">
+                <label>
+                  <input type="radio" name="graphic-mode" value="combined" checked />
+                  Combined
+                </label>
+                <label>
+                  <input type="radio" name="graphic-mode" value="separate" />
+                  Separate
+                </label>
+              </div>
+            </div>
+            <ul id="graphic-selected" class="graphic-selected-list"></ul>
+            <div id="graphic-status" class="graphic-status" role="status" aria-live="polite"></div>
+            <div class="graphic-canvas" id="graphic-combined-wrapper">
+              <canvas id="graphic-combined-canvas"></canvas>
+            </div>
+            <div id="graphic-separate-container" class="graphic-separate-container"></div>
+          </div>
+        </div>
+      </section>
     </main>
 
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/static/js/main.js"></script>
   </body>
   </html>

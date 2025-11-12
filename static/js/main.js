@@ -2,11 +2,11 @@
  * @fileoverview Entry point for the CanX web UI. Sets up the shared Socket.IO
  * connection, coordinates tab navigation, and bootstraps feature modules.
  */
-import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
 import { initTrace } from './trace.js';
 import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
 import { initDiag } from './diag.js';
+import { initGraphic } from './graphic.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
@@ -154,7 +154,9 @@ initFilePicker({
   uploadUrl: '/api/uploads/dll',
 });
 
-const socket = io({ transports: ['websocket'] });
+const socket = (window.io || (() => {
+  throw new Error('Socket.IO client script not loaded');
+}))({ transports: ['websocket'] });
 window.socket = socket;
 
 const tabContext = {
@@ -166,5 +168,6 @@ const stimApi = initStim({ socket, ...tabContext });
 initTrace({ socket, ...tabContext });
 initMessages({ socket, ...tabContext, stimApi });
 initDiag({ socket, ...tabContext });
+initGraphic({ socket, ...tabContext });
 
 setActiveTab(activeTab);
