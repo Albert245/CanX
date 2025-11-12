@@ -1,6 +1,8 @@
 let ChartConstructor = null;
 let chartLoadFailed = false;
 let chartModulePromise = null;
+let chartUsesFallback = false;
+let chartFallbackNotified = false;
 
 const loadChartLibrary = () => {
   if (ChartConstructor || chartLoadFailed) {
@@ -33,7 +35,16 @@ const loadChartLibrary = () => {
           return module.Chart;
         }
       } catch (err) {
-        console.error('Failed to load Chart.js module', err);
+        console.warn('Failed to load Chart.js module from CDN', err);
+      }
+      try {
+        const fallbackModule = await import('./chartjs-fallback.js');
+        if (fallbackModule?.Chart) {
+          chartUsesFallback = true;
+          return fallbackModule.Chart;
+        }
+      } catch (err) {
+        console.error('Failed to load built-in chart renderer', err);
       }
       chartLoadFailed = true;
       return null;
@@ -178,6 +189,14 @@ export function initGraphic({ socket, onTabChange }) {
 
   const requireChart = () => {
     if (ChartConstructor) {
+      if (chartUsesFallback && !chartFallbackNotified) {
+        chartFallbackNotified = true;
+        if (!statusEl?.textContent) {
+          setStatus('Using built-in chart renderer.', 'info');
+        } else {
+          console.info('Graphic tab is using the built-in chart renderer.');
+        }
+      }
       return true;
     }
     loadChartLibrary();
