@@ -62,6 +62,54 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
   const traceBuffer = [];
   let filterValue = '';
   let decodeEnabled = true;
+  let traceRunning = false;
+
+  const statusEl = $('#trace-status');
+
+  const setTraceStatus = (message, tone = 'info') => {
+    if (!statusEl) return;
+    if (!message) {
+      statusEl.textContent = '';
+      statusEl.hidden = true;
+      statusEl.removeAttribute('data-tone');
+      return;
+    }
+    statusEl.textContent = message;
+    statusEl.hidden = false;
+    statusEl.dataset.tone = tone;
+  };
+
+  const traceToggle = $('#btn-trace-toggle');
+
+  const updateToggleState = () => {
+    if (!traceToggle) return;
+    traceToggle.textContent = traceRunning ? 'Stop Trace' : 'Start Trace';
+    traceToggle.setAttribute('aria-pressed', traceRunning ? 'true' : 'false');
+    traceToggle.classList.toggle('is-active', traceRunning);
+  };
+
+  const setTraceRunning = (running) => {
+    traceRunning = !!running;
+    updateToggleState();
+  };
+
+  const setToggleDisabled = (disabled) => {
+    if (!traceToggle) return;
+    traceToggle.disabled = !!disabled;
+  };
+
+  if (traceToggle) {
+    setToggleDisabled(!socket?.connected);
+    traceToggle.addEventListener('click', () => {
+      if (!socket || typeof socket.emit !== 'function') return;
+      if (!socket.connected) {
+        setTraceStatus('Socket disconnected. Unable to control trace.', 'error');
+        return;
+      }
+      const eventName = traceRunning ? 'stop_trace' : 'start_trace';
+      socket.emit(eventName);
+    });
+  }
 
   const renderAll = () => {
     if (!tbody || getActiveTab() !== 'trace') return;
@@ -99,20 +147,52 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
 
   socket.on('connected', (msg) => {
     decodeEnabled = !!msg?.decode;
+    setTraceRunning(!!msg?.trace_running);
     const toggle = $('#decode-toggle');
     if (toggle) {
       toggle.checked = decodeEnabled;
+    }
+    if (!msg?.info) {
+      setTraceStatus('');
     }
     renderAll();
   });
 
   socket.on('trace', recordMessage);
 
-  const traceStart = $('#btn-trace-start');
-  traceStart?.addEventListener('click', () => socket.emit('start_trace'));
+  socket.on('trace_info', (msg) => {
+    if (msg && Object.prototype.hasOwnProperty.call(msg, 'running')) {
+      setTraceRunning(msg.running);
+    }
+    if (msg?.info) {
+      let tone = 'info';
+      if (msg?.running) {
+        tone = 'success';
+      } else if (/already/i.test(msg.info)) {
+        tone = 'warning';
+      }
+      setTraceStatus(msg.info, tone);
+    }
+  });
 
-  const traceStop = $('#btn-trace-stop');
-  traceStop?.addEventListener('click', () => socket.emit('stop_trace'));
+  socket.on('trace_error', (msg) => {
+    if (msg && Object.prototype.hasOwnProperty.call(msg, 'running')) {
+      setTraceRunning(msg.running);
+    } else {
+      setTraceRunning(false);
+    }
+    setTraceStatus(msg?.error || 'Trace error', 'error');
+  });
+
+  socket.on('connect', () => {
+    setToggleDisabled(false);
+    setTraceStatus('');
+  });
+
+  socket.on('disconnect', () => {
+    setToggleDisabled(true);
+    setTraceStatus('Socket disconnected. Live updates paused.', 'warning');
+  });
 
   const clearButton = $('#btn-trace-clear');
   clearButton?.addEventListener('click', () => {
@@ -134,4 +214,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
   if (typeof onTabChange === 'function') {
     onTabChange('trace', renderAll);
   }
+
+  updateToggleState();
+  setTraceStatus('');
 }

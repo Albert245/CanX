@@ -2,14 +2,94 @@
  * @fileoverview Entry point for the CanX web UI. Sets up the shared Socket.IO
  * connection, coordinates tab navigation, and bootstraps feature modules.
  */
-import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
 import { initTrace } from './trace.js';
 import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
 import { initDiag } from './diag.js';
+import { initGraphic } from './graphic.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
+
+const SOCKET_SOURCES = ['/socket.io/socket.io.js', 'https://cdn.socket.io/4.7.5/socket.io.min.js'];
+
+const setSocketStatus = (message, tone = 'info') => {
+  const el = $('#socket-status');
+  if (!el) return;
+  if (!message) {
+    el.textContent = '';
+    el.hidden = true;
+    el.removeAttribute('data-tone');
+    return;
+  }
+  el.textContent = message;
+  el.hidden = false;
+  el.dataset.tone = tone;
+};
+
+const loadScript = (src) =>
+  new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    if (!src.startsWith('/')) {
+      script.crossOrigin = 'anonymous';
+      script.referrerPolicy = 'no-referrer';
+    }
+    script.addEventListener('load', () => resolve(), { once: true });
+    script.addEventListener(
+      'error',
+      () => reject(new Error(`Failed to load script: ${src}`)),
+      { once: true },
+    );
+    (document.head || document.documentElement).appendChild(script);
+  });
+
+const ensureSocketIo = async () => {
+  if (window.io) return window.io;
+  for (const src of SOCKET_SOURCES) {
+    try {
+      await loadScript(src);
+    } catch (err) {
+      console.warn(err);
+      continue;
+    }
+    if (window.io) {
+      return window.io;
+    }
+  }
+  return null;
+};
+
+const createSocketStub = () => {
+  const warned = new Set();
+  const warn = (method) => {
+    if (warned.has(method)) return;
+    console.warn(
+      `Socket.IO unavailable: ${method}() calls will be ignored until the client library is available.`,
+    );
+    warned.add(method);
+  };
+  return {
+    connected: false,
+    on() {
+      warn('on');
+      return this;
+    },
+    once() {
+      warn('once');
+      return this;
+    },
+    off() {
+      return this;
+    },
+    emit(event) {
+      warn('emit');
+      console.warn(`Socket.IO unavailable: emit('${event || ''}') skipped.`);
+      return this;
+    },
+  };
+};
 
 let activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'trace';
 const tabListeners = new Map();
@@ -154,17 +234,60 @@ initFilePicker({
   uploadUrl: '/api/uploads/dll',
 });
 
-const socket = io({ transports: ['websocket'] });
-window.socket = socket;
+const bootstrap = async () => {
+  let socketIo = null;
+  try {
+    socketIo = await ensureSocketIo();
+  } catch (err) {
+    console.error('Failed to load Socket.IO client script', err);
+  }
 
-const tabContext = {
-  getActiveTab: () => activeTab,
-  onTabChange,
+  let socket = null;
+  let socketReady = false;
+  if (socketIo) {
+    setSocketStatus('Connecting to Socket.IO…', 'info');
+    try {
+      socket = socketIo();
+      socketReady = true;
+    } catch (err) {
+      console.error('Failed to initialize Socket.IO client', err);
+    }
+  }
+
+  if (!socket) {
+    socket = createSocketStub();
+    setSocketStatus('Real-time connection unavailable. Some live features are disabled.', 'error');
+  }
+
+  if (socketReady) {
+    socket.on('connect', () => {
+      setSocketStatus('', 'info');
+    });
+    socket.on('disconnect', () => {
+      setSocketStatus('Socket disconnected. Live updates paused.', 'warning');
+    });
+    socket.on('connect_error', (err) => {
+      setSocketStatus(`Socket error: ${err?.message || 'connection failed'}`, 'error');
+    });
+  }
+
+  window.socket = socket;
+
+  const tabContext = {
+    getActiveTab: () => activeTab,
+    onTabChange,
+  };
+
+  const stimApi = initStim({ socket, ...tabContext });
+  initTrace({ socket, ...tabContext });
+  initMessages({ socket, ...tabContext, stimApi });
+  initDiag({ socket, ...tabContext });
+  initGraphic({ socket, ...tabContext });
+
+  setActiveTab(activeTab);
 };
 
-const stimApi = initStim({ socket, ...tabContext });
-initTrace({ socket, ...tabContext });
-initMessages({ socket, ...tabContext, stimApi });
-initDiag({ socket, ...tabContext });
-
-setActiveTab(activeTab);
+bootstrap().catch((err) => {
+  console.error('Failed to initialize application', err);
+  setSocketStatus(err?.message || 'Application initialization failed.', 'error');
+});
