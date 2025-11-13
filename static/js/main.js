@@ -247,7 +247,7 @@ const bootstrap = async () => {
   if (socketIo) {
     setSocketStatus('Connecting to Socket.IO…', 'info');
     try {
-      socket = socketIo({ transports: ['websocket'] });
+      socket = socketIo();
       socketReady = true;
     } catch (err) {
       console.error('Failed to initialize Socket.IO client', err);

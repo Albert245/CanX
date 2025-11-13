@@ -102,6 +102,10 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     setToggleDisabled(!socket?.connected);
     traceToggle.addEventListener('click', () => {
       if (!socket || typeof socket.emit !== 'function') return;
+      if (!socket.connected) {
+        setTraceStatus('Socket disconnected. Unable to control trace.', 'error');
+        return;
+      }
       const eventName = traceRunning ? 'stop_trace' : 'start_trace';
       socket.emit(eventName);
     });
