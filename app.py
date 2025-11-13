@@ -840,26 +840,29 @@ def api_diag_tester_present():
 
 @socketio.on("connect")
 def on_connect():
-    emit("connected", {"ok": True, "decode": state.decode_enabled})
+    emit(
+        "connected",
+        {"ok": True, "decode": state.decode_enabled, "trace_running": state.trace_running},
+    )
 
 
 @socketio.on("start_trace")
 def on_start_trace(_msg=None):
     if not state.canif:
-        emit("trace_error", {"error": "CAN not initialized"})
+        emit("trace_error", {"error": "CAN not initialized", "running": state.trace_running})
         return
     if state.trace_running:
-        emit("trace_info", {"info": "Trace already running"})
+        emit("trace_info", {"info": "Trace already running", "running": True})
         return
     state.trace_running = True
     state.trace_thread = socketio.start_background_task(_trace_worker)
-    emit("trace_info", {"info": "Trace started"})
+    emit("trace_info", {"info": "Trace started", "running": True})
 
 
 @socketio.on("stop_trace")
 def on_stop_trace(_msg=None):
     state.trace_running = False
-    emit("trace_info", {"info": "Trace stopped"})
+    emit("trace_info", {"info": "Trace stopped", "running": False})
 
 
 def main():
