@@ -1,6 +1,6 @@
 /**
- * @fileoverview Manages the Trace tab including Socket.IO message handling,
- * buffering, filtering, decode toggling, and table rendering utilities.
+ * @fileoverview Manages the Log tab including Socket.IO message handling,
+ * buffering, filtering, and table rendering utilities.
  */
 
 const MAX_TRACE_ENTRIES = 1000;
@@ -11,18 +11,22 @@ const $ = (selector, ctx = document) => ctx.querySelector(selector);
  * @param {TraceEntry} entry
  * @returns {HTMLTableRowElement}
  */
-const buildTraceRow = (entry, decodeEnabled) => {
+const buildTraceRow = (entry) => {
   const row = document.createElement('tr');
-  const timestamp = new Date((entry.ts || Date.now() / 1000) * 1000).toLocaleTimeString();
-  const decodedText = decodeEnabled && entry.decoded
-    ? (typeof entry.decoded === 'string' ? entry.decoded : JSON.stringify(entry.decoded))
+  const timeValue = Number.isFinite(entry.relativeTime)
+    ? entry.relativeTime.toFixed(6)
     : '';
+  const direction = (entry.direction || '').toUpperCase();
+  const frameType = entry.frameType || (entry.isFd ? 'CAN FD' : 'CAN');
+  const frameName = entry.frameName || '';
   row.innerHTML = `
-    <td>${timestamp}</td>
+    <td>${timeValue}</td>
+    <td>${direction}</td>
+    <td>${frameType}</td>
     <td>${entry.id ?? ''}</td>
+    <td>${frameName}</td>
     <td>${entry.dlc ?? ''}</td>
     <td>${entry.data ?? ''}</td>
-    <td>${decodedText}</td>
   `;
   return row;
 };
@@ -32,13 +36,29 @@ const buildTraceRow = (entry, decodeEnabled) => {
  * @param {object} msg
  * @returns {TraceEntry}
  */
-const normalizeTraceMessage = (msg) => ({
-  ts: msg?.ts ?? Date.now() / 1000,
-  id: msg?.id ?? '',
-  dlc: msg?.dlc ?? '',
-  data: msg?.data ?? '',
-  decoded: msg?.decoded ?? null,
-});
+const normalizeTraceMessage = (msg = {}) => {
+  const tsRaw = Number(msg?.ts);
+  const ts = Number.isFinite(tsRaw) ? tsRaw : Date.now() / 1000;
+  const isFd = Boolean(msg?.is_fd);
+  const frameType = typeof msg?.frame_type === 'string'
+    ? msg.frame_type
+    : isFd
+      ? 'CAN FD'
+      : 'CAN';
+  const direction = typeof msg?.direction === 'string' ? msg.direction.toUpperCase() : 'RX';
+  const frameName = typeof msg?.frame_name === 'string' ? msg.frame_name : null;
+  return {
+    ts,
+    id: msg?.id ?? '',
+    dlc: msg?.dlc ?? '',
+    data: msg?.data ?? '',
+    direction,
+    frameType,
+    isFd,
+    frameName,
+    decoded: msg?.decoded ?? null,
+  };
+};
 
 /**
  * Determines if an entry matches the active filter.
@@ -61,8 +81,9 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
   const tbody = $('#trace-table tbody');
   const traceBuffer = [];
   let filterValue = '';
-  let decodeEnabled = true;
   let traceRunning = false;
+  let logStartMonotonic = null;
+  let pendingStartMonotonic = null;
 
   const statusEl = $('#trace-status');
 
@@ -83,13 +104,27 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
 
   const updateToggleState = () => {
     if (!traceToggle) return;
-    traceToggle.textContent = traceRunning ? 'Stop Trace' : 'Start Trace';
+    traceToggle.textContent = traceRunning ? 'Stop Log' : 'Start Log';
     traceToggle.setAttribute('aria-pressed', traceRunning ? 'true' : 'false');
     traceToggle.classList.toggle('is-active', traceRunning);
   };
 
   const setTraceRunning = (running) => {
-    traceRunning = !!running;
+    const nextState = !!running;
+    if (traceRunning !== nextState) {
+      if (nextState) {
+        logStartMonotonic = pendingStartMonotonic ?? performance.now() / 1000;
+        pendingStartMonotonic = null;
+        traceBuffer.length = 0;
+        if (tbody) {
+          tbody.innerHTML = '';
+        }
+      } else {
+        logStartMonotonic = null;
+        pendingStartMonotonic = null;
+      }
+    }
+    traceRunning = nextState;
     updateToggleState();
   };
 
@@ -103,8 +138,11 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     traceToggle.addEventListener('click', () => {
       if (!socket || typeof socket.emit !== 'function') return;
       if (!socket.connected) {
-        setTraceStatus('Socket disconnected. Unable to control trace.', 'error');
+        setTraceStatus('Socket disconnected. Unable to control log.', 'error');
         return;
+      }
+      if (!traceRunning) {
+        pendingStartMonotonic = performance.now() / 1000;
       }
       const eventName = traceRunning ? 'stop_trace' : 'start_trace';
       socket.emit(eventName);
@@ -117,24 +155,29 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     for (let i = traceBuffer.length - 1; i >= 0; i -= 1) {
       const entry = traceBuffer[i];
       if (!matchesFilter(entry, filterValue)) continue;
-      tbody.appendChild(buildTraceRow(entry, decodeEnabled));
+      tbody.appendChild(buildTraceRow(entry));
     }
   };
 
   const appendEntry = (entry) => {
     if (!tbody || getActiveTab() !== 'trace') return;
     if (!matchesFilter(entry, filterValue)) return;
-    const row = buildTraceRow(entry, decodeEnabled);
+    const row = buildTraceRow(entry);
     tbody.insertBefore(row, tbody.firstChild);
   };
 
   const recordMessage = (msg) => {
-    traceBuffer.push(normalizeTraceMessage(msg));
+    const entry = normalizeTraceMessage(msg);
+    const now = performance.now() / 1000;
+    entry.receivedAt = now;
+    const base = logStartMonotonic ?? pendingStartMonotonic;
+    entry.relativeTime = base != null ? Math.max(0, now - base) : 0;
+    traceBuffer.push(entry);
     if (traceBuffer.length > MAX_TRACE_ENTRIES) {
       traceBuffer.splice(0, traceBuffer.length - MAX_TRACE_ENTRIES);
     }
     if (getActiveTab() === 'trace') {
-      appendEntry(traceBuffer[traceBuffer.length - 1]);
+      appendEntry(entry);
     }
   };
 
@@ -146,12 +189,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
   };
 
   socket.on('connected', (msg) => {
-    decodeEnabled = !!msg?.decode;
     setTraceRunning(!!msg?.trace_running);
-    const toggle = $('#decode-toggle');
-    if (toggle) {
-      toggle.checked = decodeEnabled;
-    }
     if (!msg?.info) {
       setTraceStatus('');
     }
@@ -181,7 +219,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     } else {
       setTraceRunning(false);
     }
-    setTraceStatus(msg?.error || 'Trace error', 'error');
+    setTraceStatus(msg?.error || 'Log error', 'error');
   });
 
   socket.on('connect', () => {
@@ -202,12 +240,6 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
   const traceFilter = $('#trace-filter');
   traceFilter?.addEventListener('input', (event) => {
     filterValue = String(event.target.value || '').trim().toLowerCase();
-    renderAll();
-  });
-
-  const decodeToggle = $('#decode-toggle');
-  decodeToggle?.addEventListener('change', (event) => {
-    decodeEnabled = event.target.checked;
     renderAll();
   });
 

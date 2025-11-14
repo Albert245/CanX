@@ -348,7 +348,7 @@ class AppState:
 state = AppState()
 
 
-def _msg_to_dict(msg) -> Dict[str, Any]:
+def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
     try:
         data_str = HexArr2Str(msg.data)
     except Exception:
@@ -360,15 +360,42 @@ def _msg_to_dict(msg) -> Dict[str, Any]:
             decoded = _json_safe(raw_decoded)
         except Exception:
             decoded = None
+    direction_label = "TX" if str(direction).lower() == "tx" else "RX"
+    is_fd = bool(getattr(msg, "is_fd", False))
+    frame_name: str | None = None
+    dbc = getattr(state.canif, "dbc", None)
+    if dbc:
+        try:
+            cached_msg = dbc.message_cache.get(msg.arbitration_id)
+        except Exception:
+            cached_msg = None
+        target_msg = cached_msg
+        if target_msg is None:
+            try:
+                target_msg = dbc.db.get_message_by_frame_id(msg.arbitration_id)
+            except Exception:
+                target_msg = None
+        if target_msg is not None:
+            frame_name = getattr(target_msg, "name", None)
     return {
         "ts": time.time(),
         "id": Hex(msg.arbitration_id),
         "dlc": len(msg.data) if getattr(msg, "data", None) is not None else 0,
         "data": data_str,
         "is_extended": bool(getattr(msg, "is_extended_id", False)),
-        "is_fd": bool(getattr(msg, "is_fd", False)),
+        "is_fd": is_fd,
+        "frame_type": "CAN FD" if is_fd else "CAN",
+        "direction": direction_label,
+        "frame_name": frame_name,
         "decoded": decoded,
     }
+
+
+def _emit_trace_message(msg, *, direction: str = "rx") -> None:
+    try:
+        socketio.emit("trace", _msg_to_dict(msg, direction=direction))
+    except Exception:
+        pass
 
 
 def _trace_worker():
@@ -382,7 +409,7 @@ def _trace_worker():
             socketio.sleep(0.01)
             continue
         try:
-            socketio.emit("trace", _msg_to_dict(msg))
+            _emit_trace_message(msg, direction="rx")
         except Exception:
             # Ignore emit failures to keep loop healthy
             pass
@@ -444,6 +471,7 @@ def api_init():
             pass
 
     state.canif = CANInterface(device=device, is_fd=is_fd, channel=channel, padding=padding, dbc_path=dbc_path)
+    state.canif.set_tx_hook(lambda message: _emit_trace_message(message, direction="tx"))
     state.canif.initialize_bus()
     state.cantp = CANTP(CanIF=state.canif, padding=padding)
     state.diag = None
@@ -905,17 +933,17 @@ def on_start_trace(_msg=None):
         emit("trace_error", {"error": "CAN not initialized", "running": state.trace_running})
         return
     if state.trace_running:
-        emit("trace_info", {"info": "Trace already running", "running": True})
+        emit("trace_info", {"info": "Log already running", "running": True})
         return
     state.trace_running = True
     state.trace_thread = socketio.start_background_task(_trace_worker)
-    emit("trace_info", {"info": "Trace started", "running": True})
+    emit("trace_info", {"info": "Log started", "running": True})
 
 
 @socketio.on("stop_trace")
 def on_stop_trace(_msg=None):
     state.trace_running = False
-    emit("trace_info", {"info": "Trace stopped", "running": False})
+    emit("trace_info", {"info": "Log stopped", "running": False})
 
 
 def main():

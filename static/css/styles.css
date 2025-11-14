@@ -134,7 +134,16 @@ main { padding: 12px; }
 }
 
 #trace-table { width: 100%; border-collapse: collapse; }
-#trace-table th, #trace-table td { border-bottom: 1px solid var(--border); padding: 6px 8px; font-size: 12px; }
+#trace-table th,
+#trace-table td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+#trace-table th {
+  background: rgba(255, 255, 255, 0.03);
+  text-align: left;
+}
 #trace-table tbody tr:hover { background: #1c2030; }
 
 .split { display: grid; grid-template-columns: 320px 1fr; gap: 12px; }
