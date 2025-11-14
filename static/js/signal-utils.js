@@ -49,11 +49,55 @@ const parseHex = (value) => {
   if (!raw) return null;
   const negative = raw.startsWith('-');
   const token = negative ? raw.slice(1) : raw;
-  const prefixed = token.toLowerCase().startsWith('0x') ? token : `0x${token}`;
-  const parsed = Number.parseInt(prefixed, 16);
+  let parsed;
+  if (/^0x/i.test(token)) {
+    parsed = Number.parseInt(token, 16);
+  } else if (/^0b/i.test(token)) {
+    parsed = Number.parseInt(token, 2);
+  } else if (/^0o/i.test(token)) {
+    parsed = Number.parseInt(token, 8);
+  } else if (/^[0-9A-Fa-f]+$/.test(token) && /[A-Fa-f]/.test(token)) {
+    parsed = Number.parseInt(token, 16);
+  } else {
+    parsed = Number.parseInt(token, 10);
+  }
   if (Number.isNaN(parsed)) return null;
   return negative ? -parsed : parsed;
 };
+
+function buildEnumDropdown(choices, currentValue) {
+  const select = document.createElement('select');
+  select.classList.add('signal-enum');
+
+  const rawOpt = document.createElement('option');
+  rawOpt.value = '__raw__';
+  rawOpt.textContent = 'Raw value';
+  rawOpt.title = 'Raw value';
+  select.appendChild(rawOpt);
+
+  const values = Object.keys(choices)
+    .map((k) => Number.parseInt(k, 10))
+    .filter((v) => Number.isInteger(v))
+    .sort((a, b) => a - b);
+
+  for (const val of values) {
+    const opt = document.createElement('option');
+    opt.value = String(val);
+    const label = choices[val];
+    opt.textContent = `${val} → ${label}`;
+    const hexValue = formatHexValue(val, 8);
+    opt.title = `Name: ${label} Value: ${hexValue} (${val}) Source: DBC ENUM`;
+    select.appendChild(opt);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(choices, currentValue)) {
+    select.value = String(currentValue);
+  } else {
+    select.value = '__raw__';
+  }
+
+  return select;
+}
 
 const clamp = (value, min, max) => {
   if (value === null || value === undefined || Number.isNaN(value)) return value;
@@ -175,6 +219,9 @@ const setRawValue = (row, rawUnsigned) => {
   const physical = rawToPhysical(value, cfg);
   rawInput.value = formatHexValue(value, cfg.bitLength);
   physInput.value = formatPhysicalValue(physical, cfg.allowFloat);
+  if (typeof row.__syncEnumSelection === 'function') {
+    row.__syncEnumSelection(value);
+  }
 };
 
 const setPhysicalValue = (row, physicalValue) => {
@@ -191,11 +238,17 @@ const setPhysicalValue = (row, physicalValue) => {
   if (rawUnsigned === null || rawUnsigned === undefined) {
     physInput.value = formatPhysicalValue(value, cfg.allowFloat);
     rawInput.value = '';
+    if (typeof row.__syncEnumSelection === 'function') {
+      row.__syncEnumSelection(null);
+    }
     return;
   }
   const quantizedPhysical = rawToPhysical(rawUnsigned, cfg);
   rawInput.value = formatHexValue(rawUnsigned, cfg.bitLength);
   physInput.value = formatPhysicalValue(quantizedPhysical, cfg.allowFloat);
+  if (typeof row.__syncEnumSelection === 'function') {
+    row.__syncEnumSelection(rawUnsigned);
+  }
 };
 
 const handleRawChange = (row) => {
@@ -386,7 +439,28 @@ export const createSignalRow = (signal, { variant } = {}) => {
   const rawInput = document.createElement('input');
   rawInput.type = 'text';
   rawInput.className = 'sig-raw';
-  rawLabel.appendChild(rawInput);
+  const rawControls = document.createElement('div');
+  rawControls.className = 'signal-raw-controls';
+  rawControls.appendChild(rawInput);
+
+  let enumDropdown = null;
+  let enumChoices = null;
+  if (signal.choices && typeof signal.choices === 'object') {
+    const normalized = {};
+    for (const [key, val] of Object.entries(signal.choices)) {
+      const parsed = parseHex(key);
+      if (!Number.isInteger(parsed)) continue;
+      normalized[parsed] = String(val);
+    }
+    if (Object.keys(normalized).length) {
+      enumChoices = normalized;
+      const initialEnumValue = parseHex(signal.raw_unsigned);
+      enumDropdown = buildEnumDropdown(enumChoices, initialEnumValue);
+      rawControls.appendChild(enumDropdown);
+    }
+  }
+
+  rawLabel.appendChild(rawControls);
   rawField.appendChild(rawLabel);
 
   const stepField = document.createElement('div');
@@ -431,15 +505,13 @@ export const createSignalRow = (signal, { variant } = {}) => {
   const cfg = getSignalConfig(row);
   row.appendChild(createMetaRow(signal, cfg));
 
-  if (signal.choices && Object.keys(signal.choices).length) {
-    const choices = document.createElement('div');
-    choices.className = 'signal-meta';
-    const mapped = Object.entries(signal.choices).map(([k, v]) => `${k}: ${v}`);
-    choices.textContent = `Choices: ${mapped.join(', ')}`;
-    row.appendChild(choices);
-  }
-
-  const initialRaw = parseMaybeInt(signal.raw_unsigned, null);
+  const initialRaw = (() => {
+    const parsed = parseHex(signal.raw_unsigned);
+    if (parsed !== null && parsed !== undefined) {
+      return parsed;
+    }
+    return parseMaybeInt(signal.raw_unsigned, null);
+  })();
   const initialPhysical = parseMaybeFloat(signal.physical, null);
   if (initialRaw !== null) {
     setRawValue(row, initialRaw);
@@ -463,6 +535,59 @@ export const createSignalRow = (signal, { variant } = {}) => {
     evt.preventDefault();
     adjustByStep(row, -1);
   });
+
+  if (enumDropdown && enumChoices) {
+    const updateEnumTooltip = () => {
+      if (enumDropdown.value === '__raw__') {
+        enumDropdown.title = 'Raw value';
+        return;
+      }
+      const parsed = Number.parseInt(enumDropdown.value, 10);
+      if (Number.isNaN(parsed)) {
+        enumDropdown.title = 'Raw value';
+        return;
+      }
+      const label = enumChoices[parsed];
+      const hexLabel = formatHexValue(parsed, 8);
+      enumDropdown.title = `Name: ${label} Value: ${hexLabel} (${parsed}) Source: DBC ENUM`;
+    };
+
+    const syncEnumSelection = (rawValue) => {
+      const numeric = Number.isFinite(rawValue) ? Math.round(rawValue) : null;
+      if (numeric !== null && Object.prototype.hasOwnProperty.call(enumChoices, numeric)) {
+        enumDropdown.value = String(numeric);
+      } else {
+        enumDropdown.value = '__raw__';
+      }
+      updateEnumTooltip();
+    };
+
+    row.__syncEnumSelection = syncEnumSelection;
+
+    rawInput.addEventListener('input', () => {
+      const rawVal = parseHex(rawInput.value);
+      if (rawVal === null || rawVal === undefined) {
+        syncEnumSelection(null);
+      } else {
+        syncEnumSelection(rawVal);
+      }
+    });
+
+    enumDropdown.addEventListener('change', () => {
+      if (enumDropdown.value === '__raw__') {
+        updateEnumTooltip();
+        return;
+      }
+      const parsed = Number.parseInt(enumDropdown.value, 10);
+      if (!Number.isNaN(parsed)) {
+        setRawValue(row, parsed);
+      }
+      updateEnumTooltip();
+    });
+
+    const currentRawValue = parseHex(rawInput.value);
+    syncEnumSelection(currentRawValue);
+  }
 
   return row;
 };

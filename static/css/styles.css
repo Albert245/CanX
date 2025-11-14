@@ -237,6 +237,22 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   width: 150px;
 }
 
+.signal-raw-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.signal-raw-controls .sig-raw {
+  width: 120px;
+}
+
+.signal-enum {
+  min-width: 160px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
 .signal-step-group {
   display: flex;
   align-items: center;
