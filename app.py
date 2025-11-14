@@ -245,20 +245,43 @@ def _resolve_signal_details(message, decoded):
         name = _signal_attr(signal, "name")
         if not name:
             continue
-        physical_value = decoded.get(name)
-        named_value = None
-        if isinstance(physical_value, NamedSignalValue):
-            named_value = physical_value.name
-            physical_numeric = getattr(physical_value, "value", None)
-        else:
-            physical_numeric = physical_value
-        bit_length = _signal_bit_length(signal)
-        raw_signed = _physical_to_raw(signal, physical_numeric)
-        raw_unsigned = _signal_unsigned(raw_signed, bit_length)
-        raw_hex = _format_raw_hex(raw_unsigned, bit_length) if raw_unsigned is not None else None
+
+        value = decoded.get(name)
         choices = normalize_choices(getattr(signal, "choices", {}))
-        if raw_unsigned is not None and raw_unsigned in choices:
+
+        named_value = None
+        physical_numeric = None
+        raw_unsigned = None
+
+        if isinstance(value, NamedSignalValue):
+            named_value = value.name
+            raw_unsigned = getattr(value, "value", None)
+            physical_numeric = _raw_to_physical(signal, raw_unsigned)
+        else:
+            physical_numeric = _normalize_physical(signal, value)
+
+        if raw_unsigned is None and physical_numeric is not None:
+            raw_unsigned = _physical_to_raw(signal, physical_numeric)
+
+        if raw_unsigned is None and isinstance(value, str):
+            for candidate_raw, candidate_name in choices.items():
+                if str(candidate_name) == value:
+                    raw_unsigned = candidate_raw
+                    break
+            if named_value is None:
+                named_value = value
+
+        bit_length = _signal_bit_length(signal)
+        raw_unsigned = _signal_unsigned(raw_unsigned, bit_length)
+
+        if raw_unsigned is not None and physical_numeric is None:
+            physical_numeric = _raw_to_physical(signal, raw_unsigned)
+
+        raw_hex = _format_raw_hex(raw_unsigned, bit_length) if raw_unsigned is not None else None
+
+        if named_value is None and raw_unsigned is not None and raw_unsigned in choices:
             named_value = choices[raw_unsigned]
+
         details.append(
             _json_safe(
                 {

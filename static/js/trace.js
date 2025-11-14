@@ -157,6 +157,18 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     }
     const table = document.createElement('table');
     table.classList.add('trace-detail-table');
+    const colgroup = document.createElement('colgroup');
+    const cols = [
+      { className: 'trace-detail-col-signal' },
+      { className: 'trace-detail-col-physical' },
+      { className: 'trace-detail-col-raw' },
+      { className: 'trace-detail-col-named' },
+    ];
+    for (const spec of cols) {
+      const col = document.createElement('col');
+      col.className = spec.className;
+      colgroup.appendChild(col);
+    }
     const thead = document.createElement('thead');
     thead.innerHTML = '<tr><th>Signal</th><th>Physical</th><th>Raw (Hex)</th><th>Named</th></tr>';
     const tbodyEl = document.createElement('tbody');
@@ -173,7 +185,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
       row.append(nameCell, physicalCell, rawCell, namedCell);
       tbodyEl.appendChild(row);
     }
-    table.append(thead, tbodyEl);
+    table.append(colgroup, thead, tbodyEl);
     cell.appendChild(table);
   };
 
@@ -245,33 +257,6 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
       signalCell,
       valueCell,
     );
-
-    const record = {
-      id,
-      row,
-      cells: {
-        delta: deltaCell,
-        direction: directionCell,
-        frameType: frameTypeCell,
-        id: idCell,
-        frameName: nameCell,
-        dlc: dlcCell,
-        data: dataCell,
-      },
-      signalSelect: select,
-      signalValue: valueSpan,
-      lastTs: null,
-      lastEntry: null,
-      decoded: null,
-      matches: true,
-    };
-
-    select.addEventListener('change', () => refreshSignalValue(record));
-
-    frames.set(id, record);
-    renderAll();
-    return record;
-  };
 
   const ensureRecord = (id) => {
     if (frames.has(id)) {

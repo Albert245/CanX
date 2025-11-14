@@ -219,12 +219,23 @@ main { padding: 12px; }
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
 }
+
+.trace-detail-col-signal { width: 32%; }
+.trace-detail-col-physical { width: 18%; }
+.trace-detail-col-raw { width: 30%; }
+.trace-detail-col-named { width: 20%; }
 
 .trace-detail-table th,
 .trace-detail-table td {
   border: 1px solid var(--border);
   padding: 4px 6px;
+  overflow-wrap: anywhere;
+}
+
+.trace-detail-table td:nth-child(3) {
+  font-family: "Roboto Mono", "Fira Code", "Source Code Pro", monospace;
 }
 
 .trace-detail-table th {
