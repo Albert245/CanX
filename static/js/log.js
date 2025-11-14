@@ -6,6 +6,13 @@
 const MAX_LOG_ENTRIES = 1000;
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
+const monotonicSeconds = () => {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now() / 1000;
+  }
+  return Date.now() / 1000;
+};
+
 /**
  * Creates a table row for a log message entry.
  * @param {LogEntry} entry
@@ -113,7 +120,7 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
     const nextState = !!running;
     if (logRunning !== nextState) {
       if (nextState) {
-        logStartMonotonic = pendingStartMonotonic ?? performance.now() / 1000;
+        logStartMonotonic = pendingStartMonotonic ?? monotonicSeconds();
         pendingStartMonotonic = null;
         logBuffer.length = 0;
         if (tbody) {
@@ -136,7 +143,7 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
         return;
       }
       if (!logRunning) {
-        pendingStartMonotonic = performance.now() / 1000;
+        pendingStartMonotonic = monotonicSeconds();
       }
       const eventName = logRunning ? 'stop_trace' : 'start_trace';
       socket.emit(eventName);
@@ -162,7 +169,7 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
 
   const recordMessage = (msg) => {
     const entry = normalizeLogMessage(msg);
-    const now = performance.now() / 1000;
+    const now = monotonicSeconds();
     entry.receivedAt = now;
     const base = logStartMonotonic ?? pendingStartMonotonic;
     entry.relativeTime = base != null ? Math.max(0, now - base) : 0;
