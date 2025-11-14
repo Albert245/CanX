@@ -213,6 +213,64 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
       tbody.appendChild(record.row);
       tbody.appendChild(record.detailRow);
     }
+    const row = document.createElement('tr');
+    row.dataset.frameId = id;
+
+    const deltaCell = document.createElement('td');
+    const directionCell = document.createElement('td');
+    const frameTypeCell = document.createElement('td');
+    const idCell = document.createElement('td');
+    const nameCell = document.createElement('td');
+    const dlcCell = document.createElement('td');
+    const dataCell = document.createElement('td');
+    const signalCell = document.createElement('td');
+    const valueCell = document.createElement('td');
+
+    const select = document.createElement('select');
+    select.classList.add('trace-signal-select');
+    const valueSpan = document.createElement('span');
+    valueSpan.classList.add('trace-signal-value');
+
+    signalCell.appendChild(select);
+    valueCell.appendChild(valueSpan);
+
+    row.append(
+      deltaCell,
+      directionCell,
+      frameTypeCell,
+      idCell,
+      nameCell,
+      dlcCell,
+      dataCell,
+      signalCell,
+      valueCell,
+    );
+
+    const record = {
+      id,
+      row,
+      cells: {
+        delta: deltaCell,
+        direction: directionCell,
+        frameType: frameTypeCell,
+        id: idCell,
+        frameName: nameCell,
+        dlc: dlcCell,
+        data: dataCell,
+      },
+      signalSelect: select,
+      signalValue: valueSpan,
+      lastTs: null,
+      lastEntry: null,
+      decoded: null,
+      matches: true,
+    };
+
+    select.addEventListener('change', () => refreshSignalValue(record));
+
+    frames.set(id, record);
+    renderAll();
+    return record;
   };
 
   const ensureRecord = (id) => {
@@ -318,6 +376,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     if (tbody) {
       tbody.innerHTML = '';
     }
+    renderAll();
   };
 
   filterInput?.addEventListener('input', (event) => {
