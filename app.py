@@ -272,8 +272,6 @@ def normalize_choices(choices: dict) -> dict:
             int_key = int(key)
         except Exception:
             continue
-        if not (0 <= int_key <= 255):
-            continue
         if isinstance(value, NamedSignalValue):
             fixed[int_key] = value.name
             continue
@@ -392,6 +390,8 @@ def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
 
 
 def _emit_trace_message(msg, *, direction: str = "rx") -> None:
+    if not state.trace_running:
+        return
     try:
         socketio.emit("trace", _msg_to_dict(msg, direction=direction))
     except Exception:
