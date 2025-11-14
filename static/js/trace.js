@@ -1,72 +1,87 @@
 /**
- * @fileoverview Manages the Trace tab including Socket.IO message handling,
- * buffering, filtering, decode toggling, and table rendering utilities.
+ * @fileoverview Provides the Trace tab with an aggregated view of CAN traffic,
+ * collapsing frames by ID and surfacing per-signal decode controls.
  */
 
-const MAX_TRACE_ENTRIES = 1000;
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
 /**
- * Creates a table row for a trace message entry.
- * @param {TraceEntry} entry
- * @returns {HTMLTableRowElement}
- */
-const buildTraceRow = (entry, decodeEnabled) => {
-  const row = document.createElement('tr');
-  const timestamp = new Date((entry.ts || Date.now() / 1000) * 1000).toLocaleTimeString();
-  const decodedText = decodeEnabled && entry.decoded
-    ? (typeof entry.decoded === 'string' ? entry.decoded : JSON.stringify(entry.decoded))
-    : '';
-  row.innerHTML = `
-    <td>${timestamp}</td>
-    <td>${entry.id ?? ''}</td>
-    <td>${entry.dlc ?? ''}</td>
-    <td>${entry.data ?? ''}</td>
-    <td>${decodedText}</td>
-  `;
-  return row;
-};
-
-/**
- * Normalizes an incoming trace payload from the server.
+ * Normalizes a trace payload from the server.
  * @param {object} msg
  * @returns {TraceEntry}
  */
-const normalizeTraceMessage = (msg) => ({
-  ts: msg?.ts ?? Date.now() / 1000,
-  id: msg?.id ?? '',
-  dlc: msg?.dlc ?? '',
-  data: msg?.data ?? '',
-  decoded: msg?.decoded ?? null,
-});
-
-/**
- * Determines if an entry matches the active filter.
- * @param {TraceEntry} entry
- * @param {string} filter
- * @returns {boolean}
- */
-const matchesFilter = (entry, filter) => {
-  if (!filter) return true;
-  const cleanFilter = filter.replace(/^0x/i, '');
-  const id = String(entry.id || '').toLowerCase().replace(/^0x/i, '');
-  return id.includes(cleanFilter);
+const normalizeTraceMessage = (msg = {}) => {
+  const tsRaw = Number(msg?.ts);
+  const ts = Number.isFinite(tsRaw) ? tsRaw : Date.now() / 1000;
+  const isFd = Boolean(msg?.is_fd);
+  const frameType = typeof msg?.frame_type === 'string'
+    ? msg.frame_type
+    : isFd
+      ? 'CAN FD'
+      : 'CAN';
+  const direction = typeof msg?.direction === 'string' ? msg.direction.toUpperCase() : 'RX';
+  const frameName = typeof msg?.frame_name === 'string' ? msg.frame_name : null;
+  return {
+    ts,
+    id: msg?.id ?? '',
+    dlc: msg?.dlc ?? '',
+    data: msg?.data ?? '',
+    direction,
+    frameType,
+    isFd,
+    frameName,
+    decoded: msg?.decoded ?? null,
+  };
 };
 
 /**
  * @typedef {ReturnType<typeof normalizeTraceMessage>} TraceEntry
  */
 
+const matchesFilter = (entry, filterValue) => {
+  if (!filterValue) return true;
+  const cleanFilter = filterValue.replace(/^0x/i, '');
+  const id = String(entry.id || '').toLowerCase().replace(/^0x/i, '');
+  return id.includes(cleanFilter);
+};
+
+const toNumericId = (id) => {
+  if (typeof id === 'number' && Number.isFinite(id)) return id;
+  const text = String(id ?? '').trim();
+  if (!text) return Number.POSITIVE_INFINITY;
+  const base = text.startsWith('0x') || text.startsWith('0X') ? 16 : 10;
+  const value = Number.parseInt(text, base);
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+};
+
+const formatDelta = (delta) => {
+  if (!Number.isFinite(delta)) return '—';
+  return delta.toFixed(6);
+};
+
+const formatSignalValue = (value) => {
+  if (value == null) return '';
+  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'string') return value;
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  try {
+    return JSON.stringify(value);
+  } catch (_err) {
+    return String(value);
+  }
+};
+
 export function initTrace({ socket, getActiveTab, onTabChange }) {
   const tbody = $('#trace-table tbody');
-  const traceBuffer = [];
-  let filterValue = '';
-  let decodeEnabled = true;
-  let traceRunning = false;
-
   const statusEl = $('#trace-status');
+  const filterInput = $('#trace-filter');
+  const clearButton = $('#btn-trace-clear');
 
-  const setTraceStatus = (message, tone = 'info') => {
+  const frames = new Map();
+  let filterValue = '';
+  let logRunning = false;
+
+  const setStatus = (message, tone = 'info') => {
     if (!statusEl) return;
     if (!message) {
       statusEl.textContent = '';
@@ -79,90 +94,197 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     statusEl.dataset.tone = tone;
   };
 
-  const traceToggle = $('#btn-trace-toggle');
-
-  const updateToggleState = () => {
-    if (!traceToggle) return;
-    traceToggle.textContent = traceRunning ? 'Stop Trace' : 'Start Trace';
-    traceToggle.setAttribute('aria-pressed', traceRunning ? 'true' : 'false');
-    traceToggle.classList.toggle('is-active', traceRunning);
-  };
-
-  const setTraceRunning = (running) => {
-    traceRunning = !!running;
-    updateToggleState();
-  };
-
-  const setToggleDisabled = (disabled) => {
-    if (!traceToggle) return;
-    traceToggle.disabled = !!disabled;
-  };
-
-  if (traceToggle) {
-    setToggleDisabled(!socket?.connected);
-    traceToggle.addEventListener('click', () => {
-      if (!socket || typeof socket.emit !== 'function') return;
-      if (!socket.connected) {
-        setTraceStatus('Socket disconnected. Unable to control trace.', 'error');
-        return;
-      }
-      const eventName = traceRunning ? 'stop_trace' : 'start_trace';
-      socket.emit(eventName);
-    });
-  }
-
   const renderAll = () => {
-    if (!tbody || getActiveTab() !== 'trace') return;
+    if (!tbody) return;
+    const records = Array.from(frames.values());
+    records.sort((a, b) => {
+      const diff = toNumericId(a.id) - toNumericId(b.id);
+      if (diff !== 0) return diff;
+      return String(a.id).localeCompare(String(b.id));
+    });
     tbody.innerHTML = '';
-    for (let i = traceBuffer.length - 1; i >= 0; i -= 1) {
-      const entry = traceBuffer[i];
-      if (!matchesFilter(entry, filterValue)) continue;
-      tbody.appendChild(buildTraceRow(entry, decodeEnabled));
+    for (const record of records) {
+      record.row.hidden = !record.matches;
+      tbody.appendChild(record.row);
     }
   };
 
-  const appendEntry = (entry) => {
-    if (!tbody || getActiveTab() !== 'trace') return;
-    if (!matchesFilter(entry, filterValue)) return;
-    const row = buildTraceRow(entry, decodeEnabled);
-    tbody.insertBefore(row, tbody.firstChild);
+  const updateVisibility = (record) => {
+    const entry = record.lastEntry || { id: record.id };
+    record.matches = matchesFilter(entry, filterValue);
+    record.row.hidden = !record.matches;
   };
 
-  const recordMessage = (msg) => {
-    traceBuffer.push(normalizeTraceMessage(msg));
-    if (traceBuffer.length > MAX_TRACE_ENTRIES) {
-      traceBuffer.splice(0, traceBuffer.length - MAX_TRACE_ENTRIES);
+  const refreshSignalValue = (record) => {
+    const select = record.signalSelect;
+    const valueEl = record.signalValue;
+    const key = select?.value;
+    if (!select || !valueEl) return;
+    if (!key) {
+      valueEl.textContent = '';
+      return;
     }
-    if (getActiveTab() === 'trace') {
-      appendEntry(traceBuffer[traceBuffer.length - 1]);
+    const decoded = record.decoded && typeof record.decoded === 'object' ? record.decoded : null;
+    if (!decoded || !Object.prototype.hasOwnProperty.call(decoded, key)) {
+      valueEl.textContent = '';
+      return;
     }
+    valueEl.textContent = formatSignalValue(decoded[key]);
+  };
+
+  const refreshSignalOptions = (record) => {
+    const select = record.signalSelect;
+    if (!select) return;
+    const decoded = record.decoded && typeof record.decoded === 'object' ? record.decoded : null;
+    const entries = decoded ? Object.entries(decoded) : [];
+    const sorted = entries
+      .filter(([name]) => typeof name === 'string' && name.trim().length > 0)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const previous = select.value;
+    select.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = sorted.length ? 'Select signal' : 'No decoded signals';
+    placeholder.disabled = sorted.length === 0;
+    select.appendChild(placeholder);
+
+    for (const [name] of sorted) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    }
+
+    if (sorted.length === 0) {
+      select.value = '';
+      select.disabled = true;
+    } else {
+      select.disabled = false;
+      if (previous && sorted.some(([name]) => name === previous)) {
+        select.value = previous;
+      } else {
+        select.value = sorted[0][0];
+      }
+    }
+    refreshSignalValue(record);
+  };
+
+  const ensureRecord = (id) => {
+    if (frames.has(id)) {
+      return frames.get(id);
+    }
+    const row = document.createElement('tr');
+    row.dataset.frameId = id;
+
+    const deltaCell = document.createElement('td');
+    const directionCell = document.createElement('td');
+    const frameTypeCell = document.createElement('td');
+    const idCell = document.createElement('td');
+    const nameCell = document.createElement('td');
+    const dlcCell = document.createElement('td');
+    const dataCell = document.createElement('td');
+    const signalCell = document.createElement('td');
+    const valueCell = document.createElement('td');
+
+    const select = document.createElement('select');
+    select.classList.add('trace-signal-select');
+    const valueSpan = document.createElement('span');
+    valueSpan.classList.add('trace-signal-value');
+
+    signalCell.appendChild(select);
+    valueCell.appendChild(valueSpan);
+
+    row.append(
+      deltaCell,
+      directionCell,
+      frameTypeCell,
+      idCell,
+      nameCell,
+      dlcCell,
+      dataCell,
+      signalCell,
+      valueCell,
+    );
+
+    const record = {
+      id,
+      row,
+      cells: {
+        delta: deltaCell,
+        direction: directionCell,
+        frameType: frameTypeCell,
+        id: idCell,
+        frameName: nameCell,
+        dlc: dlcCell,
+        data: dataCell,
+      },
+      signalSelect: select,
+      signalValue: valueSpan,
+      lastTs: null,
+      lastEntry: null,
+      decoded: null,
+      matches: true,
+    };
+
+    select.addEventListener('change', () => refreshSignalValue(record));
+
+    frames.set(id, record);
+    renderAll();
+    return record;
+  };
+
+  const updateRecord = (entry) => {
+    const record = ensureRecord(entry.id ?? '');
+    const previousTs = record.lastTs;
+    record.lastTs = entry.ts;
+    record.lastEntry = entry;
+    const delta = previousTs != null ? Math.max(0, entry.ts - previousTs) : NaN;
+    record.cells.delta.textContent = formatDelta(delta);
+    record.cells.direction.textContent = entry.direction || '';
+    record.cells.frameType.textContent = entry.frameType || (entry.isFd ? 'CAN FD' : 'CAN');
+    record.cells.id.textContent = entry.id ?? '';
+    record.cells.frameName.textContent = entry.frameName || '';
+    record.cells.dlc.textContent = entry.dlc ?? '';
+    record.cells.data.textContent = entry.data ?? '';
+    record.decoded = entry.decoded && typeof entry.decoded === 'object' ? entry.decoded : null;
+    refreshSignalOptions(record);
+    updateVisibility(record);
+  };
+
+  const handleTraceMessage = (msg) => {
+    const entry = normalizeTraceMessage(msg);
+    updateRecord(entry);
   };
 
   const clearTrace = () => {
-    traceBuffer.length = 0;
+    frames.clear();
     if (tbody) {
       tbody.innerHTML = '';
     }
+    renderAll();
   };
 
-  socket.on('connected', (msg) => {
-    decodeEnabled = !!msg?.decode;
-    setTraceRunning(!!msg?.trace_running);
-    const toggle = $('#decode-toggle');
-    if (toggle) {
-      toggle.checked = decodeEnabled;
-    }
-    if (!msg?.info) {
-      setTraceStatus('');
-    }
-    renderAll();
+  filterInput?.addEventListener('input', (event) => {
+    filterValue = String(event.target.value || '').trim().toLowerCase();
+    frames.forEach((record) => {
+      updateVisibility(record);
+    });
   });
 
-  socket.on('trace', recordMessage);
+  clearButton?.addEventListener('click', () => {
+    clearTrace();
+  });
+
+  socket.on('trace', handleTraceMessage);
 
   socket.on('trace_info', (msg) => {
     if (msg && Object.prototype.hasOwnProperty.call(msg, 'running')) {
-      setTraceRunning(msg.running);
+      const running = !!msg.running;
+      if (running && !logRunning) {
+        clearTrace();
+      }
+      logRunning = running;
     }
     if (msg?.info) {
       let tone = 'info';
@@ -171,50 +293,32 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
       } else if (/already/i.test(msg.info)) {
         tone = 'warning';
       }
-      setTraceStatus(msg.info, tone);
+      setStatus(msg.info, tone);
     }
   });
 
   socket.on('trace_error', (msg) => {
     if (msg && Object.prototype.hasOwnProperty.call(msg, 'running')) {
-      setTraceRunning(msg.running);
-    } else {
-      setTraceRunning(false);
+      logRunning = !!msg.running;
     }
-    setTraceStatus(msg?.error || 'Trace error', 'error');
+    setStatus(msg?.error || 'Trace error', 'error');
   });
 
-  socket.on('connect', () => {
-    setToggleDisabled(false);
-    setTraceStatus('');
+  socket.on('connected', (msg) => {
+    logRunning = !!msg?.trace_running;
+    if (!msg?.info) {
+      setStatus('');
+    }
+    renderAll();
   });
 
   socket.on('disconnect', () => {
-    setToggleDisabled(true);
-    setTraceStatus('Socket disconnected. Live updates paused.', 'warning');
-  });
-
-  const clearButton = $('#btn-trace-clear');
-  clearButton?.addEventListener('click', () => {
-    clearTrace();
-  });
-
-  const traceFilter = $('#trace-filter');
-  traceFilter?.addEventListener('input', (event) => {
-    filterValue = String(event.target.value || '').trim().toLowerCase();
-    renderAll();
-  });
-
-  const decodeToggle = $('#decode-toggle');
-  decodeToggle?.addEventListener('change', (event) => {
-    decodeEnabled = event.target.checked;
-    renderAll();
+    setStatus('Socket disconnected. Live updates paused.', 'warning');
   });
 
   if (typeof onTabChange === 'function') {
     onTabChange('trace', renderAll);
   }
 
-  updateToggleState();
-  setTraceStatus('');
+  setStatus('');
 }

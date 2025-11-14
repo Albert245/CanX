@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import math
@@ -16,6 +17,7 @@ from CANIF.CANInterface import CANInterface
 from CANTP.CANTP import CANTP
 from COMDIAG.ComDia import ComDiag
 from COMMON.Cast import Hex, HexArr2Str
+from cantools.database.can.signal import NamedSignalValue
 
 
 def _coerce_number(value):
@@ -258,7 +260,51 @@ def _message_is_running(message):
         return False
 
 
+def normalize_choices(choices: dict) -> dict:
+    """Convert NamedSignalValue → string and filter invalid enum entries."""
+
+    if not isinstance(choices, dict):
+        return {}
+
+    fixed: Dict[int, object] = {}
+    for key, value in choices.items():
+        try:
+            int_key = int(key)
+        except Exception:
+            continue
+        if not (0 <= int_key <= 255):
+            continue
+        if isinstance(value, NamedSignalValue):
+            fixed[int_key] = value.name
+            continue
+        if isinstance(value, str):
+            fixed[int_key] = value
+            continue
+        try:
+            json.dumps(value)
+        except Exception:
+            continue
+        fixed[int_key] = value
+    return fixed
+
+
+def normalize_for_json(obj):
+    if isinstance(obj, NamedSignalValue):
+        return obj.name
+    if isinstance(obj, dict):
+        return {k: normalize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [normalize_for_json(v) for v in obj]
+    if hasattr(obj, "name") and hasattr(obj, "value"):
+        try:
+            return obj.name
+        except Exception:
+            return str(obj)
+    return obj
+
+
 def _json_safe(value):
+    value = normalize_for_json(value)
     if isinstance(value, float):
         if not math.isfinite(value):
             return None
@@ -302,7 +348,7 @@ class AppState:
 state = AppState()
 
 
-def _msg_to_dict(msg) -> Dict[str, Any]:
+def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
     try:
         data_str = HexArr2Str(msg.data)
     except Exception:
@@ -314,15 +360,42 @@ def _msg_to_dict(msg) -> Dict[str, Any]:
             decoded = _json_safe(raw_decoded)
         except Exception:
             decoded = None
+    direction_label = "TX" if str(direction).lower() == "tx" else "RX"
+    is_fd = bool(getattr(msg, "is_fd", False))
+    frame_name: str | None = None
+    dbc = getattr(state.canif, "dbc", None)
+    if dbc:
+        try:
+            cached_msg = dbc.message_cache.get(msg.arbitration_id)
+        except Exception:
+            cached_msg = None
+        target_msg = cached_msg
+        if target_msg is None:
+            try:
+                target_msg = dbc.db.get_message_by_frame_id(msg.arbitration_id)
+            except Exception:
+                target_msg = None
+        if target_msg is not None:
+            frame_name = getattr(target_msg, "name", None)
     return {
         "ts": time.time(),
         "id": Hex(msg.arbitration_id),
         "dlc": len(msg.data) if getattr(msg, "data", None) is not None else 0,
         "data": data_str,
         "is_extended": bool(getattr(msg, "is_extended_id", False)),
-        "is_fd": bool(getattr(msg, "is_fd", False)),
+        "is_fd": is_fd,
+        "frame_type": "CAN FD" if is_fd else "CAN",
+        "direction": direction_label,
+        "frame_name": frame_name,
         "decoded": decoded,
     }
+
+
+def _emit_trace_message(msg, *, direction: str = "rx") -> None:
+    try:
+        socketio.emit("trace", _msg_to_dict(msg, direction=direction))
+    except Exception:
+        pass
 
 
 def _trace_worker():
@@ -336,7 +409,7 @@ def _trace_worker():
             socketio.sleep(0.01)
             continue
         try:
-            socketio.emit("trace", _msg_to_dict(msg))
+            _emit_trace_message(msg, direction="rx")
         except Exception:
             # Ignore emit failures to keep loop healthy
             pass
@@ -398,6 +471,7 @@ def api_init():
             pass
 
     state.canif = CANInterface(device=device, is_fd=is_fd, channel=channel, padding=padding, dbc_path=dbc_path)
+    state.canif.set_tx_hook(lambda message: _emit_trace_message(message, direction="tx"))
     state.canif.initialize_bus()
     state.cantp = CANTP(CanIF=state.canif, padding=padding)
     state.diag = None
@@ -467,19 +541,24 @@ def api_dbc_message_info(msg_name: str):
         raw_signed = _physical_to_raw(sig, physical)
         raw_unsigned = _signal_unsigned(raw_signed, bounds["bit_length"])
         physical_min, physical_max = _infer_physical_bounds(sig, bounds)
+        scale_attr = _signal_attr(sig, "scale")
+        offset_attr = _signal_attr(sig, "offset")
+        choices = normalize_choices(_signal_attr(sig, "choices") or {})
         signal_info = {
             "name": sig_name,
+            "start": _json_safe(_signal_attr(sig, "start")),
+            "length": _json_safe(_signal_attr(sig, "length")),
             "physical": _json_safe(physical),
             "raw": _json_safe(raw_signed),
             "raw_unsigned": _json_safe(raw_unsigned),
             "raw_hex": _format_raw_hex(raw_unsigned, bounds["bit_length"]),
-            "scale": _json_safe(_signal_attr(sig, "scale")),
-            "offset": _json_safe(_signal_attr(sig, "offset")),
+            "scale": _json_safe(scale_attr),
+            "offset": _json_safe(offset_attr),
             "minimum": _json_safe(physical_min),
             "maximum": _json_safe(physical_max),
             "unit": _signal_attr(sig, "unit"),
-            "choices": _json_safe(_signal_attr(sig, "choices")),
-            "is_float": bool(_signal_attr(sig, "is_float", False)),
+            "choices": choices,
+            "is_float": bool(_signal_attr(sig, "is_float", False) or isinstance(scale_attr, float)),
             "bit_length": bounds["bit_length"],
             "is_signed": bounds["is_signed"],
             "raw_signed_min": _json_safe(bounds["raw_signed_min"]),
@@ -511,7 +590,7 @@ def api_dbc_message_info(msg_name: str):
 
     running = _message_is_running(message)
 
-    return jsonify({
+    payload = {
         "ok": True,
         "message": {
             "name": message_name,
@@ -522,7 +601,9 @@ def api_dbc_message_info(msg_name: str):
             "signals": signals,
             "running": running,
         },
-    })
+    }
+
+    return jsonify(normalize_for_json(payload))
 
 
 @app.route("/api/send/raw", methods=["POST"])
@@ -852,17 +933,17 @@ def on_start_trace(_msg=None):
         emit("trace_error", {"error": "CAN not initialized", "running": state.trace_running})
         return
     if state.trace_running:
-        emit("trace_info", {"info": "Trace already running", "running": True})
+        emit("trace_info", {"info": "Log already running", "running": True})
         return
     state.trace_running = True
     state.trace_thread = socketio.start_background_task(_trace_worker)
-    emit("trace_info", {"info": "Trace started", "running": True})
+    emit("trace_info", {"info": "Log started", "running": True})
 
 
 @socketio.on("stop_trace")
 def on_stop_trace(_msg=None):
     state.trace_running = False
-    emit("trace_info", {"info": "Trace stopped", "running": False})
+    emit("trace_info", {"info": "Log stopped", "running": False})
 
 
 def main():
