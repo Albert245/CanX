@@ -236,6 +236,38 @@ def _signal_bounds(signal):
     }
 
 
+def _resolve_signal_details(message, decoded):
+    if not message or not isinstance(decoded, dict):
+        return []
+    details = []
+    signals = getattr(message, "signals", [])
+    for signal in signals:
+        name = _signal_attr(signal, "name")
+        if not name:
+            continue
+        physical_value = decoded.get(name)
+        bit_length = _signal_bit_length(signal)
+        raw_signed = _physical_to_raw(signal, physical_value)
+        raw_unsigned = _signal_unsigned(raw_signed, bit_length)
+        raw_hex = _format_raw_hex(raw_unsigned, bit_length) if raw_unsigned is not None else None
+        named_value = None
+        choices = normalize_choices(getattr(signal, "choices", {}))
+        if raw_unsigned is not None and raw_unsigned in choices:
+            named_value = choices[raw_unsigned]
+        details.append(
+            _json_safe(
+                {
+                    "name": name,
+                    "physical_value": physical_value,
+                    "raw_value": raw_unsigned,
+                    "raw_hex_value": raw_hex,
+                    "named_value": named_value,
+                }
+            )
+        )
+    return details
+
+
 def _message_is_running(message):
     scheduler = getattr(state.canif, "scheduler", None)
     msg_id = _signal_attr(message, "frame_id")
@@ -362,6 +394,7 @@ def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
     is_fd = bool(getattr(msg, "is_fd", False))
     frame_name: str | None = None
     dbc = getattr(state.canif, "dbc", None)
+    signal_details = []
     if dbc:
         try:
             cached_msg = dbc.message_cache.get(msg.arbitration_id)
@@ -375,6 +408,7 @@ def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
                 target_msg = None
         if target_msg is not None:
             frame_name = getattr(target_msg, "name", None)
+            signal_details = _resolve_signal_details(target_msg, decoded if isinstance(decoded, dict) else None)
     return {
         "ts": time.time(),
         "id": Hex(msg.arbitration_id),
@@ -386,6 +420,7 @@ def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
         "direction": direction_label,
         "frame_name": frame_name,
         "decoded": decoded,
+        "signals": signal_details,
     }
 
 

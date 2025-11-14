@@ -151,16 +151,36 @@ main { padding: 12px; }
 #log-table tbody tr:hover,
 #trace-table tbody tr:hover { background: #1c2030; }
 
-.trace-signal-select {
-  width: 100%;
-  min-width: 140px;
+.trace-summary-row { cursor: pointer; }
+
+.trace-summary-row[aria-expanded='true'] { background: rgba(122, 199, 255, 0.08); }
+
+.trace-detail-row td {
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  padding: 8px;
 }
 
-.trace-signal-value {
-  display: inline-block;
-  min-width: 80px;
-  font-family: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+.trace-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.trace-detail-table th,
+.trace-detail-table td {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+}
+
+.trace-detail-table th {
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+
+.trace-detail-empty {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .split { display: grid; grid-template-columns: 320px 1fr; gap: 12px; }

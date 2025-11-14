@@ -1,9 +1,28 @@
 /**
  * @fileoverview Provides the Trace tab with an aggregated view of CAN traffic,
- * collapsing frames by ID and surfacing per-signal decode controls.
+ * collapsing frames by ID and surfacing per-frame signal details on demand.
  */
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
+
+const normalizeSignalDetail = (detail = {}) => {
+  const name = typeof detail?.name === 'string' ? detail.name : '';
+  const physical = detail?.physical_value ?? detail?.physicalValue ?? detail?.physical;
+  const rawValue = detail?.raw_value ?? detail?.rawValue ?? detail?.raw;
+  const rawHex = typeof detail?.raw_hex_value === 'string'
+    ? detail.raw_hex_value
+    : typeof detail?.rawHexValue === 'string'
+      ? detail.rawHexValue
+      : null;
+  const named = detail?.named_value ?? detail?.namedValue ?? detail?.choice;
+  return {
+    name,
+    physical,
+    rawValue,
+    rawHex,
+    named,
+  };
+};
 
 /**
  * Normalizes a trace payload from the server.
@@ -21,6 +40,9 @@ const normalizeTraceMessage = (msg = {}) => {
       : 'CAN';
   const direction = typeof msg?.direction === 'string' ? msg.direction.toUpperCase() : 'RX';
   const frameName = typeof msg?.frame_name === 'string' ? msg.frame_name : null;
+  const signals = Array.isArray(msg?.signals)
+    ? msg.signals.map((detail) => normalizeSignalDetail(detail)).filter((detail) => detail.name)
+    : [];
   return {
     ts,
     id: msg?.id ?? '',
@@ -31,6 +53,7 @@ const normalizeTraceMessage = (msg = {}) => {
     isFd,
     frameName,
     decoded: msg?.decoded ?? null,
+    signals,
   };
 };
 
@@ -59,6 +82,8 @@ const formatDelta = (delta) => {
   return delta.toFixed(6);
 };
 
+const trimTrailingZeros = (input) => String(input).replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+
 const formatSignalValue = (value) => {
   if (value == null) return '';
   if (typeof value === 'number') return value.toString();
@@ -69,6 +94,30 @@ const formatSignalValue = (value) => {
   } catch (_err) {
     return String(value);
   }
+};
+
+const formatPhysicalValue = (value) => {
+  if (value == null) return '';
+  const num = Number(value);
+  if (Number.isFinite(num)) {
+    return trimTrailingZeros(num.toFixed(6));
+  }
+  return formatSignalValue(value);
+};
+
+const formatRawDisplay = (rawHex, rawValue) => {
+  const hex = typeof rawHex === 'string' && rawHex ? rawHex : null;
+  const numeric = rawValue;
+  if (hex && (Number.isInteger(numeric) || typeof numeric === 'string')) {
+    return `${hex} (${numeric})`;
+  }
+  if (hex) return hex;
+  if (numeric == null) return '';
+  if (Number.isFinite(Number(numeric))) {
+    const intVal = Number(numeric);
+    return `0x${intVal.toString(16).toUpperCase()} (${intVal})`;
+  }
+  return formatSignalValue(numeric);
 };
 
 export function initTrace({ socket, getActiveTab, onTabChange }) {
@@ -94,6 +143,62 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     statusEl.dataset.tone = tone;
   };
 
+  const updateDetailContent = (record) => {
+    const cell = record.detailCell;
+    if (!cell) return;
+    const signals = Array.isArray(record.signals) ? record.signals : [];
+    cell.innerHTML = '';
+    if (signals.length === 0) {
+      const empty = document.createElement('div');
+      empty.classList.add('trace-detail-empty');
+      empty.textContent = 'No decoded signals';
+      cell.appendChild(empty);
+      return;
+    }
+    const table = document.createElement('table');
+    table.classList.add('trace-detail-table');
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Signal</th><th>Physical</th><th>Raw (Hex)</th><th>Named</th></tr>';
+    const tbodyEl = document.createElement('tbody');
+    for (const detail of signals) {
+      const row = document.createElement('tr');
+      const nameCell = document.createElement('td');
+      nameCell.textContent = detail.name || '';
+      const physicalCell = document.createElement('td');
+      physicalCell.textContent = formatPhysicalValue(detail.physical);
+      const rawCell = document.createElement('td');
+      rawCell.textContent = formatRawDisplay(detail.rawHex, detail.rawValue);
+      const namedCell = document.createElement('td');
+      namedCell.textContent = formatSignalValue(detail.named);
+      row.append(nameCell, physicalCell, rawCell, namedCell);
+      tbodyEl.appendChild(row);
+    }
+    table.append(thead, tbodyEl);
+    cell.appendChild(table);
+  };
+
+  const setExpanded = (record, expanded) => {
+    record.expanded = expanded;
+    if (record.row) {
+      record.row.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+    if (record.detailRow) {
+      record.detailRow.hidden = !expanded || !record.matches;
+    }
+    if (expanded) {
+      updateDetailContent(record);
+    }
+  };
+
+  const updateVisibility = (record) => {
+    const entry = record.lastEntry || { id: record.id };
+    record.matches = matchesFilter(entry, filterValue);
+    record.row.hidden = !record.matches;
+    if (record.detailRow) {
+      record.detailRow.hidden = !record.matches || !record.expanded;
+    }
+  };
+
   const renderAll = () => {
     if (!tbody) return;
     const records = Array.from(frames.values());
@@ -104,75 +209,9 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     });
     tbody.innerHTML = '';
     for (const record of records) {
-      record.row.hidden = !record.matches;
+      updateVisibility(record);
       tbody.appendChild(record.row);
-    }
-  };
-
-  const updateVisibility = (record) => {
-    const entry = record.lastEntry || { id: record.id };
-    record.matches = matchesFilter(entry, filterValue);
-    record.row.hidden = !record.matches;
-  };
-
-  const refreshSignalValue = (record) => {
-    const select = record.signalSelect;
-    const valueEl = record.signalValue;
-    const key = select?.value;
-    if (!select || !valueEl) return;
-    if (!key) {
-      valueEl.textContent = '';
-      return;
-    }
-    const decoded = record.decoded && typeof record.decoded === 'object' ? record.decoded : null;
-    if (!decoded || !Object.prototype.hasOwnProperty.call(decoded, key)) {
-      valueEl.textContent = '';
-      return;
-    }
-    valueEl.textContent = formatSignalValue(decoded[key]);
-  };
-
-  const refreshSignalOptions = (record) => {
-    const select = record.signalSelect;
-    if (!select) return;
-    const decoded = record.decoded && typeof record.decoded === 'object' ? record.decoded : null;
-    const entries = decoded ? Object.entries(decoded) : [];
-    const sorted = entries
-      .filter(([name]) => typeof name === 'string' && name.trim().length > 0)
-      .sort(([a], [b]) => a.localeCompare(b));
-    const previous = select.value;
-    select.innerHTML = '';
-
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = sorted.length ? 'Select signal' : 'No decoded signals';
-    placeholder.disabled = sorted.length === 0;
-    select.appendChild(placeholder);
-
-    for (const [name] of sorted) {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      select.appendChild(opt);
-    }
-
-    if (sorted.length === 0) {
-      select.value = '';
-      select.disabled = true;
-    } else {
-      select.disabled = false;
-      if (previous && sorted.some(([name]) => name === previous)) {
-        select.value = previous;
-      } else {
-        select.value = sorted[0][0];
-      }
-    }
-    refreshSignalValue(record);
-  };
-
-  const ensureRecord = (id) => {
-    if (frames.has(id)) {
-      return frames.get(id);
+      tbody.appendChild(record.detailRow);
     }
     const row = document.createElement('tr');
     row.dataset.frameId = id;
@@ -234,6 +273,78 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     return record;
   };
 
+  const ensureRecord = (id) => {
+    if (frames.has(id)) {
+      return frames.get(id);
+    }
+    const row = document.createElement('tr');
+    row.classList.add('trace-summary-row');
+    row.dataset.frameId = id;
+    row.setAttribute('aria-expanded', 'false');
+    row.tabIndex = 0;
+
+    const deltaCell = document.createElement('td');
+    const directionCell = document.createElement('td');
+    const frameTypeCell = document.createElement('td');
+    const idCell = document.createElement('td');
+    const nameCell = document.createElement('td');
+    const dlcCell = document.createElement('td');
+    const dataCell = document.createElement('td');
+
+    row.append(
+      deltaCell,
+      directionCell,
+      frameTypeCell,
+      idCell,
+      nameCell,
+      dlcCell,
+      dataCell,
+    );
+
+    const detailRow = document.createElement('tr');
+    detailRow.classList.add('trace-detail-row');
+    detailRow.hidden = true;
+    const detailCell = document.createElement('td');
+    detailCell.colSpan = 7;
+    detailRow.appendChild(detailCell);
+
+    const record = {
+      id,
+      row,
+      detailRow,
+      detailCell,
+      cells: {
+        delta: deltaCell,
+        direction: directionCell,
+        frameType: frameTypeCell,
+        id: idCell,
+        frameName: nameCell,
+        dlc: dlcCell,
+        data: dataCell,
+      },
+      lastTs: null,
+      lastEntry: null,
+      decoded: null,
+      signals: [],
+      matches: true,
+      expanded: false,
+    };
+
+    row.addEventListener('click', () => {
+      setExpanded(record, !record.expanded);
+    });
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setExpanded(record, !record.expanded);
+      }
+    });
+
+    frames.set(id, record);
+    renderAll();
+    return record;
+  };
+
   const updateRecord = (entry) => {
     const record = ensureRecord(entry.id ?? '');
     const previousTs = record.lastTs;
@@ -248,7 +359,10 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
     record.cells.dlc.textContent = entry.dlc ?? '';
     record.cells.data.textContent = entry.data ?? '';
     record.decoded = entry.decoded && typeof entry.decoded === 'object' ? entry.decoded : null;
-    refreshSignalOptions(record);
+    record.signals = Array.isArray(entry.signals) ? entry.signals : [];
+    if (record.expanded) {
+      updateDetailContent(record);
+    }
     updateVisibility(record);
   };
 
