@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import math
@@ -16,6 +17,7 @@ from CANIF.CANInterface import CANInterface
 from CANTP.CANTP import CANTP
 from COMDIAG.ComDia import ComDiag
 from COMMON.Cast import Hex, HexArr2Str
+from cantools.database.can.signal import NamedSignalValue
 
 
 def _coerce_number(value):
@@ -258,7 +260,51 @@ def _message_is_running(message):
         return False
 
 
+def normalize_choices(choices: dict) -> dict:
+    """Convert NamedSignalValue → string and filter invalid enum entries."""
+
+    if not isinstance(choices, dict):
+        return {}
+
+    fixed: Dict[int, object] = {}
+    for key, value in choices.items():
+        try:
+            int_key = int(key)
+        except Exception:
+            continue
+        if not (0 <= int_key <= 255):
+            continue
+        if isinstance(value, NamedSignalValue):
+            fixed[int_key] = value.name
+            continue
+        if isinstance(value, str):
+            fixed[int_key] = value
+            continue
+        try:
+            json.dumps(value)
+        except Exception:
+            continue
+        fixed[int_key] = value
+    return fixed
+
+
+def normalize_for_json(obj):
+    if isinstance(obj, NamedSignalValue):
+        return obj.name
+    if isinstance(obj, dict):
+        return {k: normalize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [normalize_for_json(v) for v in obj]
+    if hasattr(obj, "name") and hasattr(obj, "value"):
+        try:
+            return obj.name
+        except Exception:
+            return str(obj)
+    return obj
+
+
 def _json_safe(value):
+    value = normalize_for_json(value)
     if isinstance(value, float):
         if not math.isfinite(value):
             return None
@@ -467,19 +513,24 @@ def api_dbc_message_info(msg_name: str):
         raw_signed = _physical_to_raw(sig, physical)
         raw_unsigned = _signal_unsigned(raw_signed, bounds["bit_length"])
         physical_min, physical_max = _infer_physical_bounds(sig, bounds)
+        scale_attr = _signal_attr(sig, "scale")
+        offset_attr = _signal_attr(sig, "offset")
+        choices = normalize_choices(_signal_attr(sig, "choices") or {})
         signal_info = {
             "name": sig_name,
+            "start": _json_safe(_signal_attr(sig, "start")),
+            "length": _json_safe(_signal_attr(sig, "length")),
             "physical": _json_safe(physical),
             "raw": _json_safe(raw_signed),
             "raw_unsigned": _json_safe(raw_unsigned),
             "raw_hex": _format_raw_hex(raw_unsigned, bounds["bit_length"]),
-            "scale": _json_safe(_signal_attr(sig, "scale")),
-            "offset": _json_safe(_signal_attr(sig, "offset")),
+            "scale": _json_safe(scale_attr),
+            "offset": _json_safe(offset_attr),
             "minimum": _json_safe(physical_min),
             "maximum": _json_safe(physical_max),
             "unit": _signal_attr(sig, "unit"),
-            "choices": _json_safe(_signal_attr(sig, "choices")),
-            "is_float": bool(_signal_attr(sig, "is_float", False)),
+            "choices": choices,
+            "is_float": bool(_signal_attr(sig, "is_float", False) or isinstance(scale_attr, float)),
             "bit_length": bounds["bit_length"],
             "is_signed": bounds["is_signed"],
             "raw_signed_min": _json_safe(bounds["raw_signed_min"]),
@@ -511,7 +562,7 @@ def api_dbc_message_info(msg_name: str):
 
     running = _message_is_running(message)
 
-    return jsonify({
+    payload = {
         "ok": True,
         "message": {
             "name": message_name,
@@ -522,7 +573,9 @@ def api_dbc_message_info(msg_name: str):
             "signals": signals,
             "running": running,
         },
-    })
+    }
+
+    return jsonify(normalize_for_json(payload))
 
 
 @app.route("/api/send/raw", methods=["POST"])
