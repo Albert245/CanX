@@ -134,7 +134,11 @@ main { padding: 12px; }
 }
 
 #log-table,
-#trace-table { width: 100%; border-collapse: collapse; }
+#trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
 #log-table th,
 #log-table td,
 #trace-table th,
@@ -142,11 +146,61 @@ main { padding: 12px; }
   border: 1px solid var(--border);
   padding: 6px 8px;
   font-size: 12px;
+  white-space: nowrap;
 }
 #log-table th,
 #trace-table th {
   background: rgba(255, 255, 255, 0.03);
   text-align: left;
+}
+
+#log-table th:nth-child(1),
+#log-table td:nth-child(1),
+#trace-table th:nth-child(1),
+#trace-table td:nth-child(1) {
+  width: 110px;
+}
+
+#log-table th:nth-child(2),
+#log-table td:nth-child(2),
+#trace-table th:nth-child(2),
+#trace-table td:nth-child(2) {
+  width: 80px;
+}
+
+#log-table th:nth-child(3),
+#log-table td:nth-child(3),
+#trace-table th:nth-child(3),
+#trace-table td:nth-child(3) {
+  width: 90px;
+}
+
+#log-table th:nth-child(4),
+#log-table td:nth-child(4),
+#trace-table th:nth-child(4),
+#trace-table td:nth-child(4) {
+  width: 120px;
+}
+
+#log-table th:nth-child(5),
+#log-table td:nth-child(5),
+#trace-table th:nth-child(5),
+#trace-table td:nth-child(5) {
+  width: 160px;
+}
+
+#log-table th:nth-child(6),
+#log-table td:nth-child(6),
+#trace-table th:nth-child(6),
+#trace-table td:nth-child(6) {
+  width: 70px;
+}
+
+#log-table td:nth-child(7),
+#trace-table td:nth-child(7) {
+  white-space: normal;
+  word-break: break-word;
+  font-family: "Roboto Mono", "Fira Code", "Source Code Pro", monospace;
 }
 #log-table tbody tr:hover,
 #trace-table tbody tr:hover { background: #1c2030; }

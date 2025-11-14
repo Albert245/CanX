@@ -246,11 +246,16 @@ def _resolve_signal_details(message, decoded):
         if not name:
             continue
         physical_value = decoded.get(name)
+        named_value = None
+        if isinstance(physical_value, NamedSignalValue):
+            named_value = physical_value.name
+            physical_numeric = getattr(physical_value, "value", None)
+        else:
+            physical_numeric = physical_value
         bit_length = _signal_bit_length(signal)
-        raw_signed = _physical_to_raw(signal, physical_value)
+        raw_signed = _physical_to_raw(signal, physical_numeric)
         raw_unsigned = _signal_unsigned(raw_signed, bit_length)
         raw_hex = _format_raw_hex(raw_unsigned, bit_length) if raw_unsigned is not None else None
-        named_value = None
         choices = normalize_choices(getattr(signal, "choices", {}))
         if raw_unsigned is not None and raw_unsigned in choices:
             named_value = choices[raw_unsigned]
@@ -258,7 +263,7 @@ def _resolve_signal_details(message, decoded):
             _json_safe(
                 {
                     "name": name,
-                    "physical_value": physical_value,
+                    "physical_value": physical_numeric,
                     "raw_value": raw_unsigned,
                     "raw_hex_value": raw_hex,
                     "named_value": named_value,
