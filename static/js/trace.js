@@ -225,8 +225,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
       tbody.appendChild(record.row);
       tbody.appendChild(record.detailRow);
     }
-    const row = document.createElement('tr');
-    row.dataset.frameId = id;
+  };
 
   const ensureRecord = (id) => {
     if (frames.has(id)) {
