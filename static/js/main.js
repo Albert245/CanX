@@ -92,7 +92,7 @@ const createSocketStub = () => {
   };
 };
 
-let activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'log';
+let activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'trace';
 const tabListeners = new Map();
 
 const notifyTab = (tabName) => {
