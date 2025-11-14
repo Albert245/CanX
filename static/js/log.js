@@ -128,13 +128,7 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
     updateToggleState();
   };
 
-  const setToggleDisabled = (disabled) => {
-    if (!logToggle) return;
-    logToggle.disabled = !!disabled;
-  };
-
   if (logToggle) {
-    setToggleDisabled(!socket?.connected);
     logToggle.addEventListener('click', () => {
       if (!socket || typeof socket.emit !== 'function') return;
       if (!socket.connected) {
@@ -223,12 +217,10 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
   });
 
   socket.on('connect', () => {
-    setToggleDisabled(false);
     setLogStatus('');
   });
 
   socket.on('disconnect', () => {
-    setToggleDisabled(true);
     setLogStatus('Socket disconnected. Live updates paused.', 'warning');
   });
 
