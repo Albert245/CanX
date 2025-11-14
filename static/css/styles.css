@@ -133,9 +133,109 @@ main { padding: 12px; }
   color: #ff8a8a;
 }
 
-#trace-table { width: 100%; border-collapse: collapse; }
-#trace-table th, #trace-table td { border-bottom: 1px solid var(--border); padding: 6px 8px; font-size: 12px; }
+#log-table,
+#trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+#log-table th,
+#log-table td,
+#trace-table th,
+#trace-table td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+#log-table th,
+#trace-table th {
+  background: rgba(255, 255, 255, 0.03);
+  text-align: left;
+}
+
+#log-table th:nth-child(1),
+#log-table td:nth-child(1),
+#trace-table th:nth-child(1),
+#trace-table td:nth-child(1) {
+  width: 110px;
+}
+
+#log-table th:nth-child(2),
+#log-table td:nth-child(2),
+#trace-table th:nth-child(2),
+#trace-table td:nth-child(2) {
+  width: 80px;
+}
+
+#log-table th:nth-child(3),
+#log-table td:nth-child(3),
+#trace-table th:nth-child(3),
+#trace-table td:nth-child(3) {
+  width: 90px;
+}
+
+#log-table th:nth-child(4),
+#log-table td:nth-child(4),
+#trace-table th:nth-child(4),
+#trace-table td:nth-child(4) {
+  width: 120px;
+}
+
+#log-table th:nth-child(5),
+#log-table td:nth-child(5),
+#trace-table th:nth-child(5),
+#trace-table td:nth-child(5) {
+  width: 160px;
+}
+
+#log-table th:nth-child(6),
+#log-table td:nth-child(6),
+#trace-table th:nth-child(6),
+#trace-table td:nth-child(6) {
+  width: 70px;
+}
+
+#log-table td:nth-child(7),
+#trace-table td:nth-child(7) {
+  white-space: normal;
+  word-break: break-word;
+  font-family: "Roboto Mono", "Fira Code", "Source Code Pro", monospace;
+}
+#log-table tbody tr:hover,
 #trace-table tbody tr:hover { background: #1c2030; }
+
+.trace-summary-row { cursor: pointer; }
+
+.trace-summary-row[aria-expanded='true'] { background: rgba(122, 199, 255, 0.08); }
+
+.trace-detail-row td {
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  padding: 8px;
+}
+
+.trace-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.trace-detail-table th,
+.trace-detail-table td {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+}
+
+.trace-detail-table th {
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+
+.trace-detail-empty {
+  color: var(--muted);
+  font-style: italic;
+}
 
 .split { display: grid; grid-template-columns: 320px 1fr; gap: 12px; }
 .left, .right { background: var(--panel); padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
@@ -235,6 +335,22 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .signal-field input {
   width: 150px;
+}
+
+.signal-raw-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.signal-raw-controls .sig-raw {
+  width: 120px;
+}
+
+.signal-enum {
+  min-width: 160px;
+  padding: 4px 6px;
+  font-size: 12px;
 }
 
 .signal-step-group {

@@ -2,6 +2,7 @@
  * @fileoverview Entry point for the CanX web UI. Sets up the shared Socket.IO
  * connection, coordinates tab navigation, and bootstraps feature modules.
  */
+import { initLog } from './log.js';
 import { initTrace } from './trace.js';
 import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
@@ -91,7 +92,7 @@ const createSocketStub = () => {
   };
 };
 
-let activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'trace';
+let activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'log';
 const tabListeners = new Map();
 
 const notifyTab = (tabName) => {
@@ -279,6 +280,7 @@ const bootstrap = async () => {
   };
 
   const stimApi = initStim({ socket, ...tabContext });
+  initLog({ socket, ...tabContext });
   initTrace({ socket, ...tabContext });
   initMessages({ socket, ...tabContext, stimApi });
   initDiag({ socket, ...tabContext });
