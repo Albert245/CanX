@@ -37,7 +37,8 @@
         <span id="init-status"></span>
       </div>
       <nav>
-        <button class="tab-btn active" data-tab="trace">Log</button>
+        <button class="tab-btn active" data-tab="log">Log</button>
+        <button class="tab-btn" data-tab="trace">Trace</button>
         <button class="tab-btn" data-tab="messages">Messages</button>
         <button class="tab-btn" data-tab="stim">Stimulation</button>
         <button class="tab-btn" data-tab="diag">Diagnostics</button>
@@ -47,14 +48,14 @@
     </header>
 
     <main>
-      <section id="tab-trace" class="tab active">
+      <section id="tab-log" class="tab active">
         <div class="toolbar">
-          <button id="btn-trace-toggle" type="button" aria-pressed="false">Start Log</button>
-          <button id="btn-trace-clear" type="button">Clear Log</button>
-          <label>Filter ID <input id="trace-filter" type="text" placeholder="e.g. 7E0 or 0x7E0" /></label>
-          <span id="trace-status" class="status" role="status" aria-live="polite"></span>
+          <button id="btn-log-toggle" type="button" aria-pressed="false">Start Log</button>
+          <button id="btn-log-clear" type="button">Clear Log</button>
+          <label>Filter ID <input id="log-filter" type="text" placeholder="e.g. 7E0 or 0x7E0" /></label>
+          <span id="log-status" class="status" role="status" aria-live="polite"></span>
         </div>
-        <table id="trace-table">
+        <table id="log-table">
           <thead>
             <tr>
               <th>Time (s)</th>
@@ -64,6 +65,30 @@
               <th>Frame Name</th>
               <th>DLC</th>
               <th>Data</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="tab-trace" class="tab">
+        <div class="toolbar">
+          <button id="btn-trace-clear" type="button">Clear Trace</button>
+          <label>Filter ID <input id="trace-filter" type="text" placeholder="e.g. 7E0 or 0x7E0" /></label>
+          <span id="trace-status" class="status" role="status" aria-live="polite"></span>
+        </div>
+        <table id="trace-table">
+          <thead>
+            <tr>
+              <th>Δt (s)</th>
+              <th>Direction</th>
+              <th>Frame</th>
+              <th>ID</th>
+              <th>Frame Name</th>
+              <th>DLC</th>
+              <th>Data</th>
+              <th>Signal</th>
+              <th>Value</th>
             </tr>
           </thead>
           <tbody></tbody>
