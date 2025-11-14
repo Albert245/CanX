@@ -137,16 +137,27 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
 
   if (logToggle) {
     logToggle.addEventListener('click', () => {
-      if (!socket || typeof socket.emit !== 'function') return;
-      if (!socket.connected) {
-        setLogStatus('Socket disconnected. Unable to control log.', 'error');
+      if (!socket || typeof socket.emit !== 'function') {
+        setLogStatus('Socket client unavailable. Unable to control log.', 'error');
         return;
       }
+
       if (!logRunning) {
         pendingStartMonotonic = monotonicSeconds();
       }
+
       const eventName = logRunning ? 'stop_trace' : 'start_trace';
-      socket.emit(eventName);
+
+      try {
+        if (!socket.connected && typeof socket.connect === 'function') {
+          socket.connect();
+        }
+        socket.emit(eventName);
+        setLogStatus('', 'info');
+      } catch (err) {
+        console.error('Failed to emit log control event', err);
+        setLogStatus('Failed to control log. See console for details.', 'error');
+      }
     });
   }
 
