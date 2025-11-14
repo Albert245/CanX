@@ -11,7 +11,7 @@ from COMMON.Cast import *
 from CANIF.RWThread.CANReaderThread import *
 from CANIF.RWThread.CANWriterScheduler import*
 from E2E.DbcAdapter import DBCAdapter
-from typing import Union, Any, Optional
+from typing import Union, Any, Optional, Callable
 import ctypes
 import atexit
 import queue
@@ -60,6 +60,19 @@ class CANInterface:
         self.dbc_check = True if dbc_path else False
         self.nonDBC_messages = {}
         enable_high_res_timer()
+        self._tx_hook: Optional[Callable[[can.Message], None]] = None
+
+    def set_tx_hook(self, callback: Optional[Callable[[can.Message], None]]) -> None:
+        """Register a callback invoked whenever a CAN frame is transmitted."""
+        self._tx_hook = callback
+
+    def _notify_tx(self, message: can.Message) -> None:
+        if not self._tx_hook:
+            return
+        try:
+            self._tx_hook(message)
+        except Exception:
+            pass
  
     def initialize_bus(self):
         """Initialize the CAN bus based on the selected device."""
@@ -171,6 +184,7 @@ class CANInterface:
  
             msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False, is_fd=self.is_fd)
             self.bus.send(msg)
+            self._notify_tx(msg)
             print(f"->{message_id}: {raw_data}")
             return True
         except can.CanError as e:
@@ -199,9 +213,24 @@ class CANInterface:
             self.nonDBC_messages[msg_id] = message[1]
             if duration:
                 duration = duration / 1000
-                self.scheduler.add_message(msg_id = msg_id, period = period, is_fd = is_fd, is_extended_id = is_extended_id, get_payload = lambda:self._dump_payload(msg_id), duration = duration)
+                self.scheduler.add_message(
+                    msg_id = msg_id,
+                    period = period,
+                    is_fd = is_fd,
+                    is_extended_id = is_extended_id,
+                    get_payload = lambda:self._dump_payload(msg_id),
+                    duration = duration,
+                    on_sent = self._notify_tx,
+                )
             else:
-                self.scheduler.add_message(msg_id = msg_id, period = period, is_fd = is_fd, is_extended_id = is_extended_id, get_payload = lambda:self._dump_payload(msg_id))
+                self.scheduler.add_message(
+                    msg_id = msg_id,
+                    period = period,
+                    is_fd = is_fd,
+                    is_extended_id = is_extended_id,
+                    get_payload = lambda:self._dump_payload(msg_id),
+                    on_sent = self._notify_tx,
+                )
  
             return True
         except can.CanError as e:
@@ -303,7 +332,15 @@ class CANInterface:
         def _get_payload():
             return self.dbc.get_payload(msg_id)
        
-        self.scheduler.add_message(msg_id = msg_id, period = period, is_extended_id = is_extended_id, is_fd = is_fd, get_payload = _get_payload, duration = duration)
+        self.scheduler.add_message(
+            msg_id = msg_id,
+            period = period,
+            is_extended_id = is_extended_id,
+            is_fd = is_fd,
+            get_payload = _get_payload,
+            duration = duration,
+            on_sent = self._notify_tx,
+        )
    
     def start_periodic_by_node(self, node_name, duration = None, except_msg = [], role = "sender"):
         if role == "sender":
