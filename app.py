@@ -328,7 +328,7 @@ def _msg_to_dict(msg) -> Dict[str, Any]:
 def _trace_worker():
     while state.trace_running and state.canif and state.canif.reader:
         try:
-            msg = state.canif.reader.get_from_default(pop=True)
+            msg = state.canif.reader.get_from_default(pop=True, block=True, timeout=0.1)
         except Exception:
             msg = None
         if msg is None:

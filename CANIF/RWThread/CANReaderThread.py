@@ -10,7 +10,10 @@ class CANReaderThread(threading.Thread):
         self.bus = bus
         self.running = threading.Event()
         self.thread = None
-        self.default_queue = deque(maxlen=10)
+        # Use an unbounded thread-safe queue for the default stream so bursts of
+        # traffic do not evict older frames before downstream consumers can
+        # process them.
+        self.default_queue = queue.Queue()
         self.id_queues = defaultdict(lambda:deque(maxlen=3))
         self.latest_msgs = {}
         self.subscribe_ids = set()
@@ -48,11 +51,14 @@ class CANReaderThread(threading.Thread):
             self.id_queues.pop(msg_key,None)
             self.latest_msgs.pop(msg_key,None)
    
-    def get_from_default(self, pop=True):
+    def get_from_default(self, pop=True, block=False, timeout=None):
         """Get a message from the default queue"""
-        with self.lock:
-            if self.default_queue:
-                return self.default_queue.popleft() if pop else self.default_queue[0]
+        try:
+            if block:
+                return self.default_queue.get(timeout=timeout)
+            return self.default_queue.get_nowait()
+        except queue.Empty:
+            return None
  
     def get_from_id(self, msg_id, pop=True):
         """Get a message from a specific CAN ID queue"""
@@ -118,16 +124,17 @@ class CANReaderThread(threading.Thread):
                 continue
             msg_id = msg.arbitration_id
             with self.lock:
-                self.default_queue.append(msg)
                 self.latest_msgs[msg_id] = msg
                 self.id_last_seen[msg_id] = time.time()
                 self.id_queues[msg_id].append(msg)
-                if msg_id in self.subscribe_ids:
-                    for cb in self.callbacks.get(msg_id, []):
-                        try:
-                            cb(msg)
-                        except Exception as e:
-                            print(f"Callback error for ID {msg_id}: {e}")
+                callbacks = list(self.callbacks.get(msg_id, [])) if msg_id in self.subscribe_ids else []
+
+            self.default_queue.put(msg)
+            for cb in callbacks:
+                try:
+                    cb(msg)
+                except Exception as e:
+                    print(f"Callback error for ID {msg_id}: {e}")
 
     def stop(self):
         self.running.clear()
