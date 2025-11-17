@@ -22,6 +22,18 @@ const parseMaybeFloat = (value, fallback = null) => {
 
 const trimZeros = (str) => str.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
 
+export const shouldDisplaySignal = (signal) => {
+  const name =
+    typeof signal === 'string'
+      ? signal
+      : typeof signal === 'object' && signal
+        ? signal.name
+        : null;
+  if (!name) return true;
+  const normalized = String(name).toLowerCase();
+  return !(normalized.includes('alvcnt') || normalized.includes('crc'));
+};
+
 const formatPhysicalValue = (value, allowFloat = true) => {
   if (value === null || value === undefined) return '';
   const num = Number(value);
