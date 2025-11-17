@@ -93,7 +93,11 @@ class MessageTask:
                         break
                 self.in_burst_mode = False
                 now = time.perf_counter()
-                self.next_periodic_time += self.period
+                # When a burst interrupts the periodic schedule, the burst
+                # already satisfies the pending cycle. Resume the periodic
+                # cadence one full period after the burst completes so we
+                # don't keep waiting for the previously scheduled tick.
+                self.next_periodic_time = now + self.period
                 continue
             now = time.perf_counter()
             if now < self.next_periodic_time:
