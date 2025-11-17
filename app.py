@@ -825,9 +825,11 @@ def api_stim_update():
     if error:
         return jsonify({"ok": False, "error": error}), 400
 
+    burst_triggered = False
     if updates:
         try:
             state.canif.update_periodic(msg_name, updates)
+            burst_triggered = True  # update_periodic already triggers the burst
         except Exception as e:
             return jsonify({"ok": False, "error": f"Failed to update signals: {e}"}), 400
 
@@ -845,8 +847,7 @@ def api_stim_update():
         except Exception as e:
             return jsonify({"ok": False, "error": f"Failed to start periodic: {e}"}), 400
 
-    burst_triggered = False
-    if scheduler and msg_id is not None and getattr(scheduler, "tasks", {}).get(msg_id):
+    if (not burst_triggered) and scheduler and msg_id is not None and getattr(scheduler, "tasks", {}).get(msg_id):
         try:
             scheduler.trigger_burst(msg_id)
             burst_triggered = True
