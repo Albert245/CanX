@@ -288,7 +288,7 @@ export function initStim({ onTabChange } = {}) {
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.className = 'stim-message-toggle';
+    toggleBtn.className = 'stim-message-toggle toggle-btn';
     toggleBtn.textContent = 'Activate';
 
     const status = document.createElement('span');
@@ -342,7 +342,7 @@ export function initStim({ onTabChange } = {}) {
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.className = 'stim-node-toggle';
+    toggleBtn.className = 'stim-node-toggle toggle-btn';
     toggleBtn.textContent = 'Activate';
 
     const status = document.createElement('span');

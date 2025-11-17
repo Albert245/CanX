@@ -28,6 +28,20 @@ export function initMessages({ stimApi } = {}) {
   const metaEl = $('#msg-meta');
   const form = $('#signals-form');
   const statusEl = $('#msg-status');
+  const toggleBtn = $('#btn-toggle-periodic');
+
+  const setToggleState = (running) => {
+    if (!toggleBtn) return;
+    if (running === null) {
+      toggleBtn.textContent = 'Activate';
+      toggleBtn.dataset.state = 'inactive';
+      toggleBtn.disabled = true;
+      return;
+    }
+    toggleBtn.disabled = false;
+    toggleBtn.textContent = running ? 'Deactivate' : 'Activate';
+    toggleBtn.dataset.state = running ? 'active' : 'inactive';
+  };
 
   const setStatusText = (running) => {
     if (!statusEl) return;
@@ -63,6 +77,7 @@ export function initMessages({ stimApi } = {}) {
       if (!currentMessageInfo) currentMessageInfo = {};
       currentMessageInfo.running = !!running;
       setStatusText(currentMessageInfo.running);
+      setToggleState(currentMessageInfo.running);
       renderMeta();
     }
     renderMessageList();
@@ -78,6 +93,7 @@ export function initMessages({ stimApi } = {}) {
       form.innerHTML = '';
     }
     setStatusText(null);
+    setToggleState(null);
     renderMeta();
     renderMessageList();
   };
@@ -115,6 +131,7 @@ export function initMessages({ stimApi } = {}) {
       form.innerHTML = '';
     }
     setStatusText(null);
+    setToggleState(null);
     const response = await fetch(`/api/dbc/message_info/${encodeURIComponent(message.name)}`);
     const json = await response.json().catch(() => ({ ok: false }));
     if (form) {
@@ -178,37 +195,40 @@ export function initMessages({ stimApi } = {}) {
 
   $('#msg-search')?.addEventListener('input', renderMessageList);
 
-  const startPeriodic = $('#btn-start-periodic');
-  startPeriodic?.addEventListener('click', async () => {
+  toggleBtn?.addEventListener('click', async () => {
     if (!currentMessage) return;
-    const payload = {
-      message: currentMessage.name,
-      period: Number($('#msg-period')?.value || 100),
-      duration: Number($('#msg-duration')?.value || 0) || null,
-    };
-    const res = await fetch('/api/periodic/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      await selectMessage(currentMessage);
-      notifyMessageStateChange(currentMessage.name, true, { source: 'messages' });
+    const isRunning = activeMessages.get(currentMessage.name) === true;
+    const endpoint = isRunning ? '/api/periodic/stop' : '/api/periodic/start';
+    const payload = isRunning
+      ? { message: currentMessage.name }
+      : {
+          message: currentMessage.name,
+          period: Number($('#msg-period')?.value || 100),
+          duration: Number($('#msg-duration')?.value || 0) || null,
+        };
+    if (toggleBtn) {
+      toggleBtn.disabled = true;
+      toggleBtn.textContent = isRunning ? 'Deactivating…' : 'Activating…';
     }
-  });
-
-  const stopPeriodic = $('#btn-stop-periodic');
-  stopPeriodic?.addEventListener('click', async () => {
-    if (!currentMessage) return;
-    const payload = { message: currentMessage.name };
-    const res = await fetch('/api/periodic/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error('Failed to toggle message');
+      }
       await selectMessage(currentMessage);
-      notifyMessageStateChange(currentMessage.name, false, { source: 'messages' });
+      notifyMessageStateChange(currentMessage.name, !isRunning, { source: 'messages' });
+    } catch (err) {
+      window.alert(err.message || 'Failed to toggle message');
+    } finally {
+      const runningNow = activeMessages.get(currentMessage?.name || '') === true;
+      setToggleState(currentMessage ? runningNow : null);
+      if (toggleBtn) {
+        toggleBtn.disabled = !currentMessage;
+      }
     }
   });
 
@@ -283,5 +303,6 @@ export function initMessages({ stimApi } = {}) {
     applySignalUpdates(form, applied);
   });
 
+  setToggleState(null);
   return {};
 }
