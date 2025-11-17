@@ -130,7 +130,7 @@ CanX automatically adapts timing and frame handling for each hardware type, ensu
 
 ## 🧑‍💻 Author
 
-**Nhật Phạm (NhatPM7)**  
+**Nhật Phạm (Albert245)**  
 Embedded Software Engineer — AUTOSAR BSW, Diagnostics & Python Tooling  
 📍 Vietnam  
 💡 *“From Vector to PCAN — without compromise.”*
