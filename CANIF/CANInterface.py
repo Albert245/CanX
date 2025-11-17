@@ -270,7 +270,7 @@ class CANInterface:
         try:
             period = period/1000
         except:
-            period = 10000
+            period = 0
             duration = 1
            
         self._start_periodic_by_message_id(msg_id = msg_id, period = period, duration = duration, is_extended_id = is_extended_id, is_fd = is_fd)
