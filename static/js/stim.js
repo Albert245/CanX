@@ -3,7 +3,18 @@
  * and signal editing helpers.
  */
 
-import { createSignalRow, gatherSignalValues, applySignalUpdates } from './signal-utils.js';
+import {
+  createSignalRow,
+  gatherSignalValues,
+  applySignalUpdates,
+  shouldDisplaySignal,
+} from './signal-utils.js';
+import {
+  notifyMessageSignalsUpdated,
+  notifyMessageStateChange,
+  onMessageSignalsUpdated,
+  onMessageStateChange,
+} from './message-bus.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -20,7 +31,7 @@ export function initStim({ onTabChange } = {}) {
     stimStatus.style.color = isError ? '#f88' : '#9aa0a6';
   };
 
-  const setMessageRunning = (detail, running) => {
+  const setMessageRunning = (detail, running, { silent = false } = {}) => {
     if (!detail) return;
     detail.dataset.running = running ? '1' : '0';
     const status = detail.querySelector('.stim-status');
@@ -31,6 +42,12 @@ export function initStim({ onTabChange } = {}) {
     const toggle = detail.querySelector('.stim-message-toggle');
     if (toggle) {
       toggle.textContent = running ? 'Deactivate' : 'Activate';
+    }
+    if (!silent) {
+      const messageName = detail?.dataset?.message;
+      if (messageName) {
+        notifyMessageStateChange(messageName, running, { source: 'stim' });
+      }
     }
   };
 
@@ -198,9 +215,11 @@ export function initStim({ onTabChange } = {}) {
       }
       setMessageRunning(wrapper, !!msg.running);
       if (body) {
-        msg.signals.forEach((sig) => {
-          body.appendChild(buildSignalRow(sig));
-        });
+        msg.signals
+          .filter((sig) => shouldDisplaySignal(sig))
+          .forEach((sig) => {
+            body.appendChild(buildSignalRow(sig));
+          });
       }
     } catch (err) {
       if (body) {
@@ -239,6 +258,9 @@ export function initStim({ onTabChange } = {}) {
       if (typeof js.running === 'boolean') {
         setMessageRunning(wrapper, js.running);
       }
+      if (js.applied && Object.keys(js.applied).length) {
+        notifyMessageSignalsUpdated(messageName, js.applied, { source: 'stim' });
+      }
       updateNodeStatusFromMessages(wrapper.closest('.stim-node'));
     } catch (err) {
       if (status) status.textContent = `error: ${err.message}`;
@@ -266,7 +288,7 @@ export function initStim({ onTabChange } = {}) {
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.className = 'stim-message-toggle';
+    toggleBtn.className = 'stim-message-toggle toggle-btn';
     toggleBtn.textContent = 'Activate';
 
     const status = document.createElement('span');
@@ -320,7 +342,7 @@ export function initStim({ onTabChange } = {}) {
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.className = 'stim-node-toggle';
+    toggleBtn.className = 'stim-node-toggle toggle-btn';
     toggleBtn.textContent = 'Activate';
 
     const status = document.createElement('span');
@@ -414,6 +436,24 @@ export function initStim({ onTabChange } = {}) {
       return;
     }
     addNodeToView(nodeName);
+  });
+
+  onMessageStateChange(({ message, running, source }) => {
+    if (source === 'stim' || !message) return;
+    const detail = stimContainer?.querySelector(`.stim-message[data-message="${message}"]`);
+    if (!detail) return;
+    setMessageRunning(detail, !!running, { silent: true });
+    updateNodeStatusFromMessages(detail.closest('.stim-node'));
+  });
+
+  onMessageSignalsUpdated(({ message, applied, source }) => {
+    if (source === 'stim' || !message || !applied) return;
+    const detail = stimContainer?.querySelector(`.stim-message[data-message="${message}"]`);
+    if (!detail) return;
+    const body = detail.querySelector('.stim-signals');
+    if (body) {
+      applySignalUpdates(body, applied);
+    }
   });
 
   if (typeof onTabChange === 'function') {
