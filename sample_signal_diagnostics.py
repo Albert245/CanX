@@ -29,17 +29,18 @@ import math
 import traceback
 from pathlib import Path
 from typing import Dict, List, Any
+from logger.log import logger
 
 try:
     import cantools
 except ModuleNotFoundError:
-    print("❌ cantools not installed. Install with: pip install cantools")
+    logger.error("❌ cantools not installed. Install with: pip install cantools")
     raise
 
 try:
     from E2E.DbcAdapter import DBCAdapter
 except Exception as exc:
-    print("❌ Could not import DBCAdapter:", exc)
+    logger.error("❌ Could not import DBCAdapter:", exc)
     raise
 
 # ---------------------------------------------------------
@@ -239,24 +240,24 @@ def run_full_diagnostic() -> Dict[str, Any]:
 # ---------------------------------------------------------
 
 if __name__ == "__main__":
-    print("=== CanX Full DBC Diagnostic v2 ===")
+    logger.info("=== CanX Full DBC Diagnostic v2 ===")
     findings = run_full_diagnostic()
 
     # PRINT SUMMARY
     for name, info in findings["messages"].items():
-        print(f"\n[{name}] ({len(info['errors'])} errors)")
+        logger.info(f"\n[{name}] ({len(info['errors'])} errors)")
         for e in info["errors"]:
-            print("  ❌", e)
+            logger.error(f"  ❌ {e}")
 
     # SAVE JSON
     try:
         with OUTPUT_JSON.open("w", encoding="utf-8") as f:
             json.dump(findings, f, indent=2, ensure_ascii=False)
-        print(f"\nReport saved: {OUTPUT_JSON.resolve()}")
+        logger.info(f"\nReport saved: {OUTPUT_JSON.resolve()}")
     except Exception as e:
-        print(f"❌ Could not write report: {e}")
+        logger.error(f"❌ Could not write report: {e}")
 
     if findings["global_errors"]:
-        print("\nGLOBAL ERRORS:")
+        logger.info("\nGLOBAL ERRORS:")
         for e in findings["global_errors"]:
-            print(" -", e)
+            logger.info(f" - {e}")

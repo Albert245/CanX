@@ -12,6 +12,7 @@ from CANTP.session import FlowControlSettings
 from CANIF.CANInterface import CANInterface
 from COMMON.Cast import Hex, StrArr2Int
 from proxy_dll.Generate_key_from_dll import ASK_KeyGenerate
+from logger.log import logger
 
 
 class ComDiag:
@@ -121,9 +122,9 @@ class ComDiag:
         while self.keep_alive:
             success = self.send_tester_present(ecu_id)
             if not success:
-                print("Warning: Tester Present message failed!")
+                logger.warning("Warning: Tester Present message failed!")
             time.sleep(interval_sec)
-        print("Stopped Tester Present")
+        logger.info("Stopped Tester Present")
 
     def start_tester_present(self, interval: int = 2000, ecu_id: Optional[str] = None) -> None:
         """Start sending Tester Present messages periodically in a background thread."""
@@ -131,7 +132,7 @@ class ComDiag:
         if not ecu_id:
             ecu_id = self.ecu_id
         if self.thread and self.thread.is_alive():
-            print("Tester Present loop is already running!")
+            logger.warning("Tester Present loop is already running!")
             return
 
         self.keep_alive = True
@@ -146,10 +147,10 @@ class ComDiag:
         """Stop the Tester Present background loop."""
 
         if not self.keep_alive:
-            print("Tester Present loop is not running.")
+            logger.info("Tester Present loop is not running.")
             return
 
-        print("Stopping Tester Present loop...")
+        logger.info("Stopping Tester Present loop...")
         self.keep_alive = False
         if self.thread:
             self.thread.join()
@@ -163,7 +164,7 @@ class ComDiag:
             int(key, 16)
             return key
         except ValueError:
-            print(f"ERROR: key return: {key}")
+            logger.error(f"ERROR: key return: {key}")
             return None
 
     def unlock_security(self, ecu_id: str = "7B3") -> bool:
@@ -171,21 +172,21 @@ class ComDiag:
 
         recv = self.send_and_received("27 11", ecu_id=ecu_id)
         if not recv:
-            print("Timeout - Seca")
+            logger.error("Timeout - Seca")
             return False
         if NRC_check(recv):
-            print(f"NRC: {recv}")
+            logger.error(f"NRC: {recv}")
             return False
         key = self.get_key(recv)
         if not key:
-            print("ERROR: generate key failed")
+            logger.error("ERROR: generate key failed")
             return False
         recv = self.send_and_received("27 12" + key, ecu_id=ecu_id)
         if NRC_check(recv):
-            print("ERROR: wrong key")
-            print(f"NRC: {recv}")
+            logger.error("ERROR: wrong key")
+            logger.error(f"NRC: {recv}")
             return False
-        print("INFO: Seca Unlocked")
+        logger.info("INFO: Seca Unlocked")
         return True
 
     def send_periodic(
