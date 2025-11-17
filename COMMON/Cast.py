@@ -126,6 +126,10 @@ def add_padding(input_arr:list, padding):
     return outdata
  
 def trim(value, min_val, max_val):
-    if min_val and max_val:
-        return max(min_val, min(value, max_val))
+    """Clamp *value* between *min_val* and *max_val* when the bounds exist."""
+
+    if min_val is not None:
+        value = max(min_val, value)
+    if max_val is not None:
+        value = min(value, max_val)
     return value
