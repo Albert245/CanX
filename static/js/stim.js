@@ -118,6 +118,36 @@ export function initStim({ onTabChange } = {}) {
     }
   };
 
+  const deactivateNodeMessages = async (detail, nodeName) => {
+    if (!detail || !nodeName) return true;
+    try {
+      const res = await fetch('/api/stim/node/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ node: nodeName }),
+      });
+      const js = await res.json().catch(() => ({ ok: res.ok }));
+      if (!res.ok || (js && js.ok === false)) {
+        const error = js?.error || res.statusText || 'Unable to deactivate node';
+        throw new Error(error);
+      }
+      const statuses = js?.statuses || {};
+      detail.querySelectorAll('.stim-message').forEach((msgDetail) => {
+        const name = msgDetail.dataset.message;
+        if (!name) return;
+        const running = Object.prototype.hasOwnProperty.call(statuses, name)
+          ? !!statuses[name]
+          : false;
+        setMessageRunning(msgDetail, running);
+      });
+      updateNodeStatusFromMessages(detail);
+      return true;
+    } catch (err) {
+      setStimStatus(err.message || 'Unable to deactivate node', true);
+      return false;
+    }
+  };
+
   const populateNodeSelect = () => {
     if (!nodeSelect) return;
     nodeSelect.innerHTML = '';
@@ -300,11 +330,20 @@ export function initStim({ onTabChange } = {}) {
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.textContent = 'Remove';
-    removeBtn.addEventListener('click', (evt) => {
+    removeBtn.addEventListener('click', async (evt) => {
       evt.preventDefault();
       evt.stopPropagation();
+      removeBtn.disabled = true;
+      removeBtn.textContent = 'Removing…';
+      const deactivated = await deactivateNodeMessages(detail, nodeName);
+      if (!deactivated) {
+        removeBtn.disabled = false;
+        removeBtn.textContent = 'Remove';
+        return;
+      }
       stimNodesAdded.delete(nodeName);
       detail.remove();
+      setStimStatus('');
     });
 
     summary.appendChild(title);
