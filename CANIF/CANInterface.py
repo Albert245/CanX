@@ -15,6 +15,7 @@ from typing import Union, Any, Optional, Callable
 import ctypes
 import atexit
 import queue
+from logger.log import logger
  
 timeBeginPeriod = ctypes.windll.winmm.timeBeginPeriod
 timeEndPeriod = ctypes.windll.winmm.timeEndPeriod
@@ -31,20 +32,20 @@ class MockBus:
         self.rx_queue = queue.Queue()
 
     def send(self, msg: can.Message):
-        print(f"[MockBus] Sent: {msg}")
+        logger.info(f"[MockBus] Sent: {msg}")
         # Tự loopback để test
         self.rx_queue.put(msg)
 
     def recv(self, timeout=None):
         try:
             msg = self.rx_queue.get(timeout=timeout)
-            print(f"[MockBus] Received: {msg}")
+            logger.info(f"[MockBus] Received: {msg}")
             return msg
         except queue.Empty:
             return None
 
     def shutdown(self):
-        print("[MockBus] Closed.") 
+        logger.info("[MockBus] Closed.")
  
 class CANInterface:
     def __init__(self, device,is_fd = False, channel = 0, padding = '00', dbc_path: Optional[str] = None):
@@ -102,14 +103,14 @@ class CANInterface:
                 self.scheduler = SmartCanMessageScheduler(self.bus)
                 self.reader.start()
             elif self.device == "VirtualCAN":
-                print("Using Virtual CAN Bus")
+                logger.info("Using Virtual CAN Bus")
                 self.bus = can.interface.Bus(bustype="virtual")
                 self.reader = CANReaderThread(self.bus)
                 self.scheduler = SmartCanMessageScheduler(self.bus)
                 self.reader.start()
 
             elif self.device == "MockCAN":
-                print("Using Mock CAN Bus (no hardware)")
+                logger.info("Using Mock CAN Bus (no hardware)")
                 self.bus = MockBus()
                 self.reader = CANReaderThread(self.bus)
                 self.scheduler = SmartCanMessageScheduler(self.bus)
@@ -118,7 +119,7 @@ class CANInterface:
                 raise ValueError("Unsupported device selected!")
             enable_high_res_timer()
         except Exception as e:
-            print(f"ERROR: CANInterface - Failed to initialize CAN bus: {e}.")
+            logger.error(f"ERROR: CANInterface - Failed to initialize CAN bus: {e}.")
    
     def read(self, message_id, timeout = 1000):
         """
@@ -128,10 +129,10 @@ class CANInterface:
                 ret : ['62','F1','00']
         """
         if not self.bus:
-            print("ERROR: CANInterface - CAN bus is not initialized.")
+            logger.error("ERROR: CANInterface - CAN bus is not initialized.")
             return None
         if not self.reader:
-            print("ERROR: CANInterface - CAN reader thread is not running.")
+            logger.error("ERROR: CANInterface - CAN reader thread is not running.")
             return None
         timeout_sec = timeout / 1000.0
         deadline = time.monotonic() + timeout_sec
@@ -139,13 +140,13 @@ class CANInterface:
             try:
                 msg_key = int(message_id, 16)
             except ValueError:
-                print(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
+                logger.error(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
                 return None
         else:
             try:
                 msg_key = int(message_id)
             except (TypeError, ValueError):
-                print(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
+                logger.error(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
                 return None
         try:
             while True:
@@ -153,12 +154,12 @@ class CANInterface:
                     break
                 msg = self.reader.get_from_id(msg_id=msg_key)
                 if msg :
-                    print(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
+                    logger.info(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
                     return HexArr2StrArr(msg.data)
                 time.sleep(0.001)
             return None
         except Exception as e:
-            print(f"Error reading CAN message: {e}")
+            logger.error(f"Error reading CAN message: {e}")
             return None
  
     def write(self, message_id, raw_data,padding = None, is_fd = None):
@@ -172,7 +173,7 @@ class CANInterface:
         is_fd = self.is_fd if is_fd is None else is_fd
  
         if not self.bus:
-            print("Error: CAN bus is not initialized.")
+            logger.error("Error: CAN bus is not initialized.")
             return False
         try:
             can_id = int(message_id,16)
@@ -185,10 +186,10 @@ class CANInterface:
             msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False, is_fd=self.is_fd)
             self.bus.send(msg)
             self._notify_tx(msg)
-            print(f"->{message_id}: {raw_data}")
+            logger.info(f"->{message_id}: {raw_data}")
             return True
         except can.CanError as e:
-            print(f"Error sending CAN <{message_id}>: {raw_data}")
+            logger.error(f"Error sending CAN <{message_id}>: {raw_data}")
             return False
  
     def write_periodic(self, message:list, period:int, duration = None, is_fd = None, is_extended_id = False):
@@ -199,12 +200,12 @@ class CANInterface:
                 duration (int, optional) : Approximate duration in seconds to continue sending messages. If no duration is provided, the task will continue indefinitely.
         """
         if not message:
-            print(f"Error: Empty message list for write_periodic")
+            logger.error("Error: Empty message list for write_periodic")
             return False
         if is_fd == None:
             is_fd = self.is_fd
         if not self.bus:
-            print("Error: CAN bus is not initialized.")
+            logger.error("Error: CAN bus is not initialized.")
             return False
        
         try:
@@ -234,7 +235,7 @@ class CANInterface:
  
             return True
         except can.CanError as e:
-            print(f"Error sending CAN <{message[0]}>: {message[1]}")
+            logger.error(f"Error sending CAN <{message[0]}>: {message[1]}")
             return False
  
     def import_dbc(self, dbc_path):
@@ -243,18 +244,18 @@ class CANInterface:
  
     def start_periodic_by_message(self, message_name_or_id, period:int = None, duration = None, is_fd = None):
         if not message_name_or_id:
-            print(f"Error: Empty message name for start_periodic_by_message_name")
+            logger.error("Error: Empty message name for start_periodic_by_message_name")
             return False
         if is_fd == None:
             is_fd = self.is_fd
         if not self.scheduler:
-            print("Scheduler not initialized")
+            logger.error("Scheduler not initialized")
             return False
         if not self.dbc:
-            print("DBC not loaded")
+            logger.error("DBC not loaded")
             return False
         if not self.bus:
-            print("Error: CAN bus is not initialized.")
+            logger.error("Error: CAN bus is not initialized.")
             return False
  
         message = self.get_msg_att(message_name_or_id)
@@ -430,12 +431,12 @@ class CANInterface:
                 callback (callable|None): optional callback invoked on reception.
         """
         if not self.reader:
-            print("ERROR: CANInterface - CAN reader thread is not initialized.")
+            logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
             return
         try:
             self.reader.subscribe(msg_id, callback)
         except ValueError as exc:
-            print(f"ERROR: CANInterface - {exc}")
+            logger.error(f"ERROR: CANInterface - {exc}")
 
     def unsubscribe_id_queue(self, msg_id):
         """
@@ -443,12 +444,12 @@ class CANInterface:
         Args:   msg_id (str|int) : message id
         """
         if not self.reader:
-            print("ERROR: CANInterface - CAN reader thread is not initialized.")
+            logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
             return
         try:
             self.reader.unsubscribe(msg_id)
         except ValueError as exc:
-            print(f"ERROR: CANInterface - {exc}")
+            logger.error(f"ERROR: CANInterface - {exc}")
    
     def read_all(self, timeout = 1000):
         """
@@ -457,10 +458,10 @@ class CANInterface:
                 ret : ['62','F1','00'] or None if timeout
         """
         if not self.bus:
-            print("ERROR: CANInterface - CAN bus is not initialized.")
+            logger.error("ERROR: CANInterface - CAN bus is not initialized.")
             return None
         if not self.reader:
-            print("ERROR: CANInterface - CAN reader thread is not running.")
+            logger.error("ERROR: CANInterface - CAN reader thread is not running.")
             return None
         timeout_sec = timeout / 1000.0
         deadline = time.monotonic() + timeout_sec
@@ -470,19 +471,19 @@ class CANInterface:
                     break
                 msg = self.reader.get_from_default()
                 if msg:
-                    print(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
+                    logger.info(f"<-{Hex(msg.arbitration_id)}: {HexArr2Str(msg.data)}")
                     return HexArr2StrArr(msg.data)
                 time.sleep(0.001)
             return None
         except Exception as e:
-            print(f"Error reading CAN message: {e}")
+            logger.error(f"Error reading CAN message: {e}")
             return None
  
     def shutdown_bus(self):
         self.reader.stop()
-        print("Reader stopped")
+        logger.info("Reader stopped")
         self.stop_all_periodic()
-        print("Writer stopped")
+        logger.info("Writer stopped")
         self.bus.shutdown()
-        print("Bus stopped")
+        logger.info("Bus stopped")
         disable_high_res_timer()

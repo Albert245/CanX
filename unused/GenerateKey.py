@@ -6,11 +6,12 @@ r"""
 import ctypes
 import sys
 import os
+from logger.log import logger
  
  
 # Check if correct arguments are passed
 if len(sys.argv) != 3:
-    print("Usage: call_32bit.exe <seed> <dll_path>")
+    logger.error("Usage: call_32bit.exe <seed> <dll_path>")
     sys.exit(1)
  
 # Read command-line arguments
@@ -19,7 +20,7 @@ dll_path = sys.argv[2]  # DLL path
  
 # Ensure DLL exists
 if not os.path.exists(dll_path):
-    print(f"Error: DLL not found at {dll_path}")
+    logger.error(f"Error: DLL not found at {dll_path}")
     sys.exit(1)
  
 # Load the DLL
@@ -54,5 +55,5 @@ security_dll.ASK_KeyGenerate(seed_buffer, key_buffer)
 computed_key = " ".join(f"{b:02X}" for b in key_buffer)
  
 # Print the key (so Python 64-bit can read it)
-print(f"key:{computed_key}")
+logger.info(f"key:{computed_key}")
  

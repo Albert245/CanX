@@ -3,6 +3,7 @@ import queue
 import time
 import can
 from collections import defaultdict, deque
+from logger.log import logger
  
 class CANReaderThread(threading.Thread):
     def __init__(self, bus):
@@ -134,7 +135,7 @@ class CANReaderThread(threading.Thread):
                 try:
                     cb(msg)
                 except Exception as e:
-                    print(f"Callback error for ID {msg_id}: {e}")
+                    logger.error(f"Callback error for ID {msg_id}: {e}")
 
     def stop(self):
         self.running.clear()

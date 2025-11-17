@@ -4,6 +4,7 @@ import ctypes
 import subprocess
 import time
 import os
+from logger.log import logger
  
 # # Load the 64-bit Proxy DLL
 # proxy_dll = ctypes.WinDLL(r"D:\COMMON\USERS\NhatPM7\Tool\CAN\proxy_dll\ProxyDLL.dll")
@@ -30,7 +31,7 @@ def ASK_KeyGenerate(dll_path, seed):
     result = subprocess.run([helper_path, dll_path, seed_hex], capture_output=True, text=True)
  
     if result.returncode != 0:
-        print(f"Error calling Helper32.exe: {result.stderr}")
+        logger.error(f"Error calling Helper32.exe: {result.stderr}")
         return None
  
     # Get the computed key
@@ -42,7 +43,7 @@ if __name__ == "__main__":
     # Example Usage
     dll_path = r"test.dll"
     seed = 0x750d4c7799b585a6  # Example 64-bit seed
-    print(f'seed : {seed}')
+    logger.info(f'seed : {seed}')
     computed_key = ASK_KeyGenerate(dll_path, seed)
     if computed_key:
-        print(f"Generated Key : {computed_key}")
+        logger.info(f"Generated Key : {computed_key}")
