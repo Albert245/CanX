@@ -840,11 +840,21 @@ def api_stim_update():
         try:
             state.canif.start_periodic_by_message(msg_name)
             started = True
-            running = True
+            scheduler = getattr(state.canif, "scheduler", None)
+            running = bool(getattr(scheduler, "tasks", {}).get(msg_id)) if scheduler and msg_id is not None else False
         except Exception as e:
             return jsonify({"ok": False, "error": f"Failed to start periodic: {e}"}), 400
 
-    return jsonify({"ok": True, "running": running, "started": started, "applied": applied})
+    burst_triggered = False
+    if scheduler and msg_id is not None and getattr(scheduler, "tasks", {}).get(msg_id):
+        try:
+            scheduler.trigger_burst(msg_id)
+            burst_triggered = True
+            running = True
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"Failed to trigger burst: {e}"}), 400
+
+    return jsonify({"ok": True, "running": running, "started": started, "burst": burst_triggered, "applied": applied})
 
 
 def _collect_message_statuses(message_names):

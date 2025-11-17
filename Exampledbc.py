@@ -3,6 +3,7 @@ from ComDia import *
 import time
 import ctypes
 import atexit
+from logger.log import logger
  
 # =========[ INTIALIZE ]==============
 physical_addr = '7B3'
@@ -63,6 +64,6 @@ while(time.time()-start_time<15):
     continue
    
 #===========[ END ]====================
-print("Shutdown bus...")
+logger.info("Shutdown bus...")
 CanIf.shutdown_bus()
  

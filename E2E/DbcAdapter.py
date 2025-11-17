@@ -77,7 +77,7 @@ class DBCAdapter:
                 try:
                     signals[signal] = trim(signals[signal], self.message_trim[message_name][signal]["minimum"], self.message_trim[message_name][signal]["maximum"])
                 except Exception as e:
-                    print(f"[ERROR] Failed to push signal {signal}: {e}")
+                    logger.error(f"[ERROR] Failed to push signal {signal}: {e}")
             self.current_signals[message_name].update(signals)
             self.signal_queues[message_name].append(signals)
 
@@ -137,7 +137,7 @@ class DBCAdapter:
             signals = msg.decode(data)
             return signals
         except Exception as e:
-            logger.error(f"[DECODE] Failed to decode messageID {hex(message_id)}: {e}")
+            logger.debug(f"[DECODE] Failed to decode messageID {hex(message_id)}: {e}")
             return{}
     def Messages(self):
         return self.current_signals.keys()

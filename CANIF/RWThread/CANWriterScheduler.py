@@ -17,7 +17,7 @@ class MessageTask:
         self.is_fd = is_fd
         self.on_sent = on_sent
         self.lock = threading.Lock()
- 
+
         self.burst_count = 0
         self.burst_spacing = 0.04
         self.next_periodic_time = time.perf_counter()
@@ -28,6 +28,7 @@ class MessageTask:
         self.stop_event = threading.Event()
         self.pause_event = threading.Event()
         self.pause_event.set()
+        self.wake_event = threading.Event()
         self.avr_time = [0,0,0,0]
  
     def start(self, bus: can.Bus):
@@ -38,6 +39,7 @@ class MessageTask:
         self.running = False
         self.stop_event.set()
         self.pause_event.set()
+        self.wake_event.set()
         self.thread.join()
    
     def pause(self):
@@ -51,10 +53,23 @@ class MessageTask:
         logger.info(f"[RESUME] message id: {hex(self.msg_id)} resumed")
  
     def trigger_burst(self, count: int = 3, spacing: float = 0.04):
+        immediate_burst = False
         with self.lock:
-            self.burst_count = count
-            self.burst_spacing = spacing
-            self.in_burst_mode = True
+            if self.stop_event.is_set() or not self.pause_event.is_set():
+                return
+            if not self.running:
+                if self.period == 0:
+                    immediate_burst = True
+                else:
+                    return
+            else:
+                self.burst_count = count
+                self.burst_spacing = spacing
+                self.in_burst_mode = True
+                self.wake_event.set()
+
+        if immediate_burst:
+            self._burst_now(count, spacing)
    
     def _send_loop(self):
         while self.running:
@@ -82,15 +97,29 @@ class MessageTask:
                 continue
             now = time.perf_counter()
             if now < self.next_periodic_time:
-                if self.stop_event.wait(timeout = (self.next_periodic_time-now)):
+                remaining = self.next_periodic_time - now
+                woke = self.wake_event.wait(timeout=remaining)
+                if self.stop_event.is_set():
                     break
+                if woke:
+                    self.wake_event.clear()
+                    continue
             self.pause_event.wait()
             with self.lock:
                 payload = self.get_payload()
             self._send(payload)
             self.next_periodic_time += self.period
 
- 
+    def _burst_now(self, count: int, spacing: float):
+        for index in range(count):
+            with self.lock:
+                payload = self.get_payload()
+            self._send(payload)
+            if index < count - 1:
+                if self.stop_event.wait(timeout=spacing):
+                    break
+
+
     def _send(self,payload: List[int]):
         msg = can.Message(arbitration_id=self.msg_id, data=payload, is_extended_id=self.is_extended_id, is_fd=self.is_fd)
         try:
@@ -109,7 +138,7 @@ class SmartCanMessageScheduler:
     def add_message(self, msg_id: int, period: float, get_payload: Callable[[], List[int]], is_extended_id:bool = False, is_fd:bool = False, on_sent: Optional[Callable[[can.Message],None]] = None, duration = None):
         with self.lock:
             if msg_id in self.tasks:
-                print(f"[WARN] Message {hex(msg_id)} already exists. Stop first.")
+                logger.warning(f"[WARN] Message {hex(msg_id)} already exists. Stop first.")
                 return
             task = MessageTask(msg_id=msg_id, period=period, get_payload=get_payload, is_extended_id=is_extended_id, is_fd=is_fd,duration=duration,on_sent=on_sent)
             self.tasks[msg_id] = task

@@ -2,6 +2,7 @@ import ctypes
 import sys
 import pefile
 import time
+from logger.log import logger
 """
 ASK_KeyGenerate
 GenerateKeyEx
@@ -16,9 +17,9 @@ dll_path = r"D:\00_Src\AUTOSAR_BJ_EV\CryptoLib\ASK\20_lib_Win32_client\HKMC_Adva
 security_dll = ctypes.WinDLL(dll_path)  # Use WinDLL or CDLL depending on the DLL type
 pe = pefile.PE(dll_path)
  
-print("Exported Functions:")
+logger.info("Exported Functions:")
 for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
-    print(exp.name.decode() if exp.name else f"Ordinal {exp.ordinal}")
+    logger.info(exp.name.decode() if exp.name else f"Ordinal {exp.ordinal}")
  
 # Allocate a buffer (assuming version info is max 256 bytes)
 version_buffer = ctypes.create_string_buffer(256)
@@ -31,7 +32,7 @@ security_dll.vGetVersionInfo.restype = None  # Function modifies buffer, so no r
 security_dll.vGetVersionInfo(version_buffer)
  
 # Convert buffer to string
-print(f"DLL Version: {version_buffer.value.decode('utf-8')}")
+logger.info(f"DLL Version: {version_buffer.value.decode('utf-8')}")
  
 # Assume seed2key takes a byte array and returns a byte array
 security_dll.seed2key.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.POINTER(ctypes.c_ubyte)]
@@ -48,7 +49,7 @@ security_dll.GenerateKeyEx.restype = None  # If it modifies an output buffer
 seed = (0x75, 0x0d,0x4c,0x77,0x99,0xb5,0x85,0xa6)
 seed1 = (0x750d4c7799b585a6)
 seed2 = (0x42ad3f73470ddf4b)
-print(seed1)
+logger.info(seed1)
 # print(len(seed1))
 seed_buffer = (ctypes.c_ubyte * len(seed))(*seed)
  
@@ -76,7 +77,7 @@ seed_ptr2 = ctypes.cast(seed_array2, LP_c_ubyte)
 security_dll.ASK_KeyGenerate(seed_buffer, key_buffer)
 # Convert key to string
 computed_key = " ".join(f"{b:02X}" for b in key_buffer)
-print(f"Computed Key: {computed_key}")
+logger.info(f"Computed Key: {computed_key}")
  
 # security_dll.ASK_KeyGenerate(seed_ptr2, key_buffer1)
 # # Convert key to string
