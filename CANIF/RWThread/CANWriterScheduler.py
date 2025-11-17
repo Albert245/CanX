@@ -53,13 +53,23 @@ class MessageTask:
         logger.info(f"[RESUME] message id: {hex(self.msg_id)} resumed")
  
     def trigger_burst(self, count: int = 3, spacing: float = 0.04):
+        immediate_burst = False
         with self.lock:
-            if not self.running or not self.pause_event.is_set():
+            if self.stop_event.is_set() or not self.pause_event.is_set():
                 return
-            self.burst_count = count
-            self.burst_spacing = spacing
-            self.in_burst_mode = True
-            self.wake_event.set()
+            if not self.running:
+                if self.period == 0:
+                    immediate_burst = True
+                else:
+                    return
+            else:
+                self.burst_count = count
+                self.burst_spacing = spacing
+                self.in_burst_mode = True
+                self.wake_event.set()
+
+        if immediate_burst:
+            self._burst_now(count, spacing)
    
     def _send_loop(self):
         while self.running:
@@ -100,7 +110,16 @@ class MessageTask:
             self._send(payload)
             self.next_periodic_time += self.period
 
- 
+    def _burst_now(self, count: int, spacing: float):
+        for index in range(count):
+            with self.lock:
+                payload = self.get_payload()
+            self._send(payload)
+            if index < count - 1:
+                if self.stop_event.wait(timeout=spacing):
+                    break
+
+
     def _send(self,payload: List[int]):
         msg = can.Message(arbitration_id=self.msg_id, data=payload, is_extended_id=self.is_extended_id, is_fd=self.is_fd)
         try:
