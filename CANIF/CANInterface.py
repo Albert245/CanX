@@ -410,12 +410,16 @@ class CANInterface:
         self.nonDBC_messages[msg_id] = raw_data
         return True
  
-    def update_periodic(self, message_name: str, signals: Dict[str,Any]):
+    def update_periodic(self, message_name: str, signals: Dict[str,Any]) -> bool:
         self.dbc.push_signals(message_name, signals)
-        if self.dbc.isOnEvent(message_name):
+        burst_triggered = False
+        if self.dbc.isOnEvent(message_name) and self.scheduler:
             msg_id = self.dbc.get_message_id_by_name(message_name)
-            self.scheduler.trigger_burst(msg_id)
-        return True
+            task_exists = bool(self.scheduler.tasks.get(msg_id)) if hasattr(self.scheduler, "tasks") else False
+            if task_exists:
+                self.scheduler.trigger_burst(msg_id)
+                burst_triggered = True
+        return burst_triggered
  
     def stop_all_periodic(self):
         self.scheduler.stop_all()

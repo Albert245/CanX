@@ -828,8 +828,7 @@ def api_stim_update():
     burst_triggered = False
     if updates:
         try:
-            state.canif.update_periodic(msg_name, updates)
-            burst_triggered = True  # update_periodic already triggers the burst
+            burst_triggered = state.canif.update_periodic(msg_name, updates)
         except Exception as e:
             return jsonify({"ok": False, "error": f"Failed to update signals: {e}"}), 400
 
