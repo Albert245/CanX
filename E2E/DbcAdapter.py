@@ -1,6 +1,7 @@
 import threading
 import collections
-from typing import Dict, Any, Optional, Callable, Deque, Union
+from copy import deepcopy
+from typing import Dict, Any, Optional, Deque, Union
 import cantools
 from E2E.crc import*
 from COMMON.Cast import*
@@ -73,60 +74,62 @@ class DBCAdapter:
             if message_name not in self.signal_queues:
                 raise KeyError(f"Message {message_name} not found in DBC")
 
-            for signal in signals:
+            trimmed_signals: Dict[str, Any] = {}
+            for signal, value in signals.items():
                 try:
-                    signals[signal] = trim(signals[signal], self.message_trim[message_name][signal]["minimum"], self.message_trim[message_name][signal]["maximum"])
+                    trimmed_signals[signal] = trim(
+                        value,
+                        self.message_trim[message_name][signal]["minimum"],
+                        self.message_trim[message_name][signal]["maximum"],
+                    )
                 except Exception as e:
                     logger.error(f"[ERROR] Failed to push signal {signal}: {e}")
-            self.current_signals[message_name].update(signals)
-            self.signal_queues[message_name].append(signals)
+            self.current_signals[message_name].update(trimmed_signals)
+            self.signal_queues[message_name].append(trimmed_signals)
 
-    def get_payload(self, msg_id: str) -> bytes:
-        # with self.lock:
-        alvcnt_name = None
-        alvcnt_update = False
-        grp = False
-        msg = self.message_cache[msg_id]
+    def get_payload(self, msg_id: Union[int, str]) -> bytes:
+        if isinstance(msg_id, str):
+            msg = self.db.get_message_by_name(msg_id)
+        else:
+            msg = self.message_cache[msg_id]
         message_name = msg.name
-        if (self.messages_atrributes[message_name]["Group"]):
-            alvcnt_name = self.messages_atrributes[message_name]["AlvCnt"]
-            grp = True
-            if (self.messages_atrributes[message_name]["On_event"] == False):
-                alvcnt_update = True
-            else:
-                pass
+        attrs = self.messages_atrributes[message_name]
+        alvcnt_name = attrs["AlvCnt"] if attrs["Group"] else None
+        alvcnt_update = attrs["Group"] and not attrs["On_event"]
+
         with self.lock:
             if self.signal_queues[message_name]:
-                if grp:
-                    alvcnt_update = True
                 updates = self.signal_queues[message_name].popleft()
                 self.current_signals[message_name].update(updates)
-            if alvcnt_update:
+                if attrs["Group"]:
+                    alvcnt_update = True
+
+            if alvcnt_update and alvcnt_name:
                 alvcnt = ((self.current_signals[message_name][alvcnt_name] + 1) & 0xff)
-                alvcnt_data = {alvcnt_name : alvcnt}
-                self.current_signals[message_name].update(alvcnt_data)
- 
-            signals = self.current_signals[message_name]
-        payload = msg.encode(signals)
- 
-        if self.messages_atrributes[message_name]["CRC"]:
-            decode = msg.decode(payload)
+                self.current_signals[message_name][alvcnt_name] = alvcnt
+
+            signals_snapshot = self.current_signals[message_name].copy()
+
+        payload = msg.encode(signals_snapshot)
+
+        crc_name = attrs["CRC"]
+        if crc_name:
             data_bytes = bytearray(payload)
-            crc_calc = crc_calculate_cy(msg.frame_id,data_bytes)
-            crc_update = {self.messages_atrributes[message_name]["CRC"] : crc_calc}
-            self.current_signals[message_name].update(crc_update)
-            signals = self.current_signals[message_name]
-            payload = msg.encode(signals)
- 
+            crc_calc = crc_calculate_cy(msg.frame_id, data_bytes)
+            signals_snapshot[crc_name] = crc_calc
+            with self.lock:
+                self.current_signals[message_name][crc_name] = crc_calc
+            payload = msg.encode(signals_snapshot)
+
         return payload
     def reset_message(self, message_name: Optional[str] = None):
         with self.lock:
             try:
                 if message_name:
-                    self.current_signals[message_name] = self.initial[message_name]
+                    self.current_signals[message_name] = deepcopy(self.initial[message_name])
                     self.signal_queues[message_name].clear()
                 else:
-                    self.current_signals = self.initial
+                    self.current_signals = {msg: deepcopy(signals) for msg, signals in self.initial.items()}
                     for msg in self.signal_queues.keys():
                         self.signal_queues[msg].clear()
             except Exception as e:
