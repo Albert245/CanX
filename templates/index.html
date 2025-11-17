@@ -33,8 +33,12 @@
           <button id="btn-dbc-browse" type="button">Browse…</button>
           <input id="dbc-file" type="file" accept=".dbc" hidden />
         </div>
-        <button id="btn-init">Init</button>
-        <span id="init-status"></span>
+        <div class="init-actions">
+          <button id="btn-connection-toggle" type="button" aria-pressed="false">Connect</button>
+          <button id="btn-reset-signals" type="button" disabled>Initialize</button>
+          <button id="btn-log-toggle" type="button" aria-pressed="false">Start Log</button>
+        </div>
+        <span id="init-status" class="init-status" role="status" aria-live="polite"></span>
       </div>
       <nav>
         <button class="tab-btn active" data-tab="trace">Trace</button>
@@ -72,7 +76,6 @@
 
       <section id="tab-log" class="tab">
         <div class="toolbar">
-          <button id="btn-log-toggle" type="button" aria-pressed="false">Start Log</button>
           <button id="btn-log-clear" type="button">Clear Log</button>
           <label>Filter ID <input id="log-filter" type="text" placeholder="e.g. 7E0 or 0x7E0" /></label>
           <span id="log-status" class="status" role="status" aria-live="polite"></span>

@@ -539,7 +539,38 @@ def api_init():
     state.cantp = CANTP(CanIF=state.canif, padding=padding)
     state.diag = None
 
-    return jsonify({"ok": True, "device": device, "channel": channel, "is_fd": is_fd, "dbc_loaded": bool(state.canif.dbc)})
+    return jsonify({
+        "ok": True,
+        "device": device,
+        "channel": channel,
+        "is_fd": is_fd,
+        "dbc_loaded": bool(state.canif.dbc),
+        "connected": True,
+    })
+
+
+@app.route("/api/shutdown", methods=["POST"])
+def api_shutdown():
+    if not state.canif:
+        state.trace_running = False
+        state.trace_thread = None
+        state.cantp = None
+        state.diag = None
+        return jsonify({"ok": True, "connected": False, "dbc_loaded": False})
+
+    try:
+        if state.canif.bus:
+            state.canif.shutdown_bus()
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+    state.trace_running = False
+    state.trace_thread = None
+    state.cantp = None
+    state.diag = None
+
+    dbc_loaded = bool(getattr(state.canif, "dbc", None))
+    return jsonify({"ok": True, "connected": False, "dbc_loaded": dbc_loaded})
 
 
 @app.route("/api/dbc/messages", methods=["GET"])
@@ -562,6 +593,25 @@ def api_dbc_messages():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
     return jsonify({"ok": True, "messages": out})
+
+
+@app.route("/api/messages/reset", methods=["POST"])
+def api_messages_reset():
+    if not state.canif or not state.canif.dbc:
+        return jsonify({"ok": False, "error": "DBC not loaded"}), 400
+    try:
+        state.canif.reset_all_messages()
+        snapshots = {}
+        for msg_name in state.canif.get_messages_in_DBC():
+            try:
+                message = state.canif.get_msg_att(msg_name)
+            except Exception:
+                continue
+            current = state.canif.get_current_signals_queue(msg_name)
+            snapshots[msg_name] = _build_signal_snapshot(message, current)
+        return jsonify({"ok": True, "messages": snapshots})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 @app.route("/api/dbc/nodes", methods=["GET"])
@@ -778,6 +828,29 @@ def _prepare_signal_updates(message, signal_payloads):
         }
 
     return updates, applied, None
+
+
+def _build_signal_snapshot(message, current_signals):
+    applied = {}
+    snapshot = current_signals if isinstance(current_signals, dict) else {}
+    for sig in getattr(message, "signals", []):
+        sig_name = _signal_attr(sig, "name")
+        if not sig_name:
+            continue
+        physical_value = snapshot.get(sig_name)
+        bounds = _signal_bounds(sig)
+        raw_signed = _physical_to_raw(sig, physical_value)
+        raw_unsigned = _signal_unsigned(raw_signed, bounds.get("bit_length"))
+        physical_snapshot = physical_value
+        if physical_snapshot is None and raw_unsigned is not None:
+            physical_snapshot = _raw_to_physical(sig, raw_unsigned)
+        applied[sig_name] = {
+            "physical": _json_safe(physical_snapshot),
+            "raw": _json_safe(raw_signed),
+            "raw_unsigned": _json_safe(raw_unsigned),
+            "raw_hex": _format_raw_hex(raw_unsigned, bounds.get("bit_length")),
+        }
+    return applied
 
 
 @app.route("/api/periodic/update", methods=["POST"])
