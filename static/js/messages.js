@@ -23,12 +23,40 @@ export function initMessages({ stimApi } = {}) {
   let currentMessageInfo = null;
   let messages = [];
   const activeMessages = new Map();
+  let busConnected = false;
+  let dbcLoaded = false;
 
   const titleEl = $('#msg-title');
   const metaEl = $('#msg-meta');
   const form = $('#signals-form');
   const statusEl = $('#msg-status');
   const toggleBtn = $('#btn-toggle-periodic');
+  const initStatusEl = $('#init-status');
+  const connectionToggle = $('#btn-connection-toggle');
+  const resetMessagesBtn = $('#btn-reset-signals');
+
+  const setInitStatus = (text, tone = 'info') => {
+    if (!initStatusEl) return;
+    if (!text) {
+      initStatusEl.textContent = '';
+      initStatusEl.removeAttribute('data-tone');
+      return;
+    }
+    initStatusEl.textContent = text;
+    initStatusEl.dataset.tone = tone;
+  };
+
+  const updateConnectionButton = () => {
+    if (!connectionToggle) return;
+    connectionToggle.textContent = busConnected ? 'Disconnect' : 'Connect';
+    connectionToggle.setAttribute('aria-pressed', busConnected ? 'true' : 'false');
+    connectionToggle.classList.toggle('is-active', busConnected);
+  };
+
+  const updateResetButtonState = () => {
+    if (!resetMessagesBtn) return;
+    resetMessagesBtn.disabled = !dbcLoaded;
+  };
 
   const setToggleState = (running) => {
     if (!toggleBtn) return;
@@ -153,31 +181,103 @@ export function initMessages({ stimApi } = {}) {
     renderMessageList();
   }
 
-  const initButton = $('#btn-init');
-  initButton?.addEventListener('click', async () => {
-    const payload = {
-      device: $('#device')?.value,
-      channel: Number($('#channel')?.value || 0),
-      is_fd: !!$('#is_fd')?.checked,
-      padding: $('#padding')?.value || '00',
-      dbc_path: $('#dbc_path')?.value || null,
-    };
-    const response = await fetch('/api/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const json = await response.json().catch(() => ({}));
-    const status = $('#init-status');
-    if (status) {
-      status.textContent = json.ok
-        ? `OK - DBC: ${json.dbc_loaded ? 'yes' : 'no'}`
-        : json.error || 'ERR';
+  const buildInitPayload = () => ({
+    device: $('#device')?.value,
+    channel: Number($('#channel')?.value || 0),
+    is_fd: !!$('#is_fd')?.checked,
+    padding: $('#padding')?.value || '00',
+    dbc_path: $('#dbc_path')?.value || null,
+  });
+
+  const connectBus = async () => {
+    if (!connectionToggle) return;
+    connectionToggle.disabled = true;
+    connectionToggle.textContent = 'Connecting…';
+    try {
+      const payload = buildInitPayload();
+      const response = await fetch('/api/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || 'Failed to connect');
+      }
+      busConnected = true;
+      dbcLoaded = !!json.dbc_loaded;
+      setInitStatus(`Connected - DBC: ${json.dbc_loaded ? 'yes' : 'no'}`, json.dbc_loaded ? 'success' : 'warning');
+      stimApi?.resetNodes?.();
+    } catch (err) {
+      setInitStatus(err.message || 'Failed to connect to CAN bus.', 'error');
+    } finally {
+      connectionToggle.disabled = false;
+      updateConnectionButton();
+      updateResetButtonState();
     }
-    if (json.ok && stimApi) {
-      stimApi.resetNodes?.();
+  };
+
+  const disconnectBus = async () => {
+    if (!connectionToggle) return;
+    connectionToggle.disabled = true;
+    connectionToggle.textContent = 'Disconnecting…';
+    try {
+      const response = await fetch('/api/shutdown', { method: 'POST' });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || 'Failed to disconnect');
+      }
+      busConnected = false;
+      dbcLoaded = !!json.dbc_loaded;
+      setInitStatus('Disconnected from CAN bus.', 'info');
+      stimApi?.resetNodes?.();
+    } catch (err) {
+      setInitStatus(err.message || 'Failed to disconnect from CAN bus.', 'error');
+    } finally {
+      connectionToggle.disabled = false;
+      updateConnectionButton();
+      updateResetButtonState();
+    }
+  };
+
+  connectionToggle?.addEventListener('click', () => {
+    if (connectionToggle.disabled) return;
+    if (busConnected) {
+      disconnectBus();
+    } else {
+      connectBus();
     }
   });
+
+  resetMessagesBtn?.addEventListener('click', async () => {
+    if (!dbcLoaded) {
+      setInitStatus('DBC not loaded. Connect before initializing.', 'warning');
+      return;
+    }
+    resetMessagesBtn.disabled = true;
+    const original = resetMessagesBtn.textContent;
+    resetMessagesBtn.textContent = 'Initializing…';
+    try {
+      const response = await fetch('/api/messages/reset', { method: 'POST' });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || 'Failed to initialize messages');
+      }
+      const snapshots = json.messages || {};
+      Object.entries(snapshots).forEach(([msgName, applied]) => {
+        notifyMessageSignalsUpdated(msgName, applied, { source: 'reset' });
+      });
+      setInitStatus('Messages reset to default values.', 'success');
+    } catch (err) {
+      setInitStatus(err.message || 'Failed to reset messages.', 'error');
+    } finally {
+      resetMessagesBtn.textContent = original;
+      resetMessagesBtn.disabled = !dbcLoaded;
+    }
+  });
+
+  updateConnectionButton();
+  updateResetButtonState();
 
   const loadDbcButton = $('#btn-load-dbc');
   loadDbcButton?.addEventListener('click', async () => {
@@ -187,6 +287,8 @@ export function initMessages({ stimApi } = {}) {
     messages = json.messages || [];
     activeMessages.clear();
     clearCurrentMessageView();
+    dbcLoaded = true;
+    updateResetButtonState();
     if (stimApi) {
       stimApi.resetNodes?.();
       await stimApi.loadNodes?.();
