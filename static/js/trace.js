@@ -3,6 +3,8 @@
  * collapsing frames by ID and surfacing per-frame signal details on demand.
  */
 
+import { broadcastTraceEntry } from './trace_bus.js';
+
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
 const normalizeSignalDetail = (detail = {}) => {
@@ -323,6 +325,7 @@ export function initTrace({ socket, getActiveTab, onTabChange }) {
   const handleTraceMessage = (msg) => {
     const entry = normalizeTraceMessage(msg);
     updateRecord(entry);
+    broadcastTraceEntry(entry);
   };
 
   const clearTrace = () => {

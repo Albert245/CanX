@@ -2,36 +2,9 @@ import { createGraphicCore } from './graphic_core.js';
 import { createGraphicRenderer } from './graphic_renderer.js';
 import { initGraphicSignalManager } from './graphic_signal_manager.js';
 import { initGraphicUi } from './graphic_ui.js';
+import { subscribeTraceEntries } from '../trace_bus.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
-
-const normalizeSignalDetail = (detail = {}) => {
-  const name = typeof detail?.name === 'string' ? detail.name : '';
-  const physical = detail?.physical_value ?? detail?.physical ?? detail?.value;
-  return { name, physical_value: physical };
-};
-
-const normalizeTraceEntry = (msg = {}) => {
-  const tsRaw = Number(msg?.ts);
-  const ts = Number.isFinite(tsRaw) ? tsRaw : Date.now() / 1000;
-  const safeString = (value) => (typeof value === 'string' && value ? value : undefined);
-  const signals = Array.isArray(msg?.signals)
-    ? msg.signals.map((detail) => normalizeSignalDetail(detail)).filter((detail) => detail.name)
-    : [];
-  return {
-    ts,
-    frame_name: safeString(msg?.frame_name),
-    frameName: safeString(msg?.frameName),
-    message_name: safeString(msg?.message_name),
-    messageName: safeString(msg?.messageName),
-    frame: safeString(msg?.frame),
-    id: msg?.id,
-    id_hex: msg?.id_hex ?? msg?.idHex,
-    arbitration_id: msg?.arbitration_id ?? msg?.arbitrationId,
-    can_id: msg?.can_id ?? msg?.canId,
-    signals,
-  };
-};
 
 export function initGraphic({ socket, onTabChange }) {
   const combinedCanvas = $('#graphic-combined-canvas');
@@ -70,7 +43,6 @@ export function initGraphic({ socket, onTabChange }) {
         minValue: descriptor.minValue,
         maxValue: descriptor.maxValue,
         frameAliases: descriptor.frameAliases,
-        messageId: descriptor.messageId,
       });
     },
     onSignalRemoved: (signalId) => {
@@ -97,12 +69,9 @@ export function initGraphic({ socket, onTabChange }) {
 
   signalManager.loadSignalIndex();
 
-  const handleTrace = (payload) => {
-    const entry = normalizeTraceEntry(payload);
+  subscribeTraceEntries((entry) => {
     core.ingestTraceEntry(entry);
-  };
-
-  socket?.on?.('trace', handleTrace);
+  });
 
   onTabChange?.('graphic', () => {
     window.requestAnimationFrame(() => {
