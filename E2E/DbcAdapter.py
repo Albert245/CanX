@@ -189,6 +189,17 @@ class DBCAdapter:
         if crc_name:
             data_bytes = bytearray(payload)
             crc_calc = crc_calculate_cy(msg.frame_id, data_bytes)
+
+            try:
+                crc_signal = msg.get_signal_by_name(crc_name)
+                crc_mask = (1 << crc_signal.length) - 1 if crc_signal.length else None
+            except KeyError:
+                crc_signal = None
+                crc_mask = None
+
+            if crc_mask is not None:
+                crc_calc &= crc_mask
+
             signals_snapshot[crc_name] = crc_calc
             with self.lock:
                 self.current_signals[message_name][crc_name] = crc_calc
