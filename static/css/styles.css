@@ -569,6 +569,30 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   color: #ffd166;
 }
 
+.graphic-zoom-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.graphic-zoom-controls button {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #f3f3f3;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  min-width: 48px;
+}
+
+.graphic-zoom-controls button:hover,
+.graphic-zoom-controls button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .graphic-canvas {
   background: var(--panel);
   border: 1px solid var(--border);
