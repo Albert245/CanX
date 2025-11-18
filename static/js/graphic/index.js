@@ -44,6 +44,13 @@ export function initGraphic({ socket, onTabChange }) {
         maxValue: descriptor.maxValue,
         frameAliases: descriptor.frameAliases,
       });
+      if (descriptor.initialValue != null) {
+        core.ingestSignalValue(
+          descriptor.messageName,
+          descriptor.signalName,
+          descriptor.initialValue,
+        );
+      }
     },
     onSignalRemoved: (signalId) => {
       core.removeSignal(signalId);
