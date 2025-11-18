@@ -8,7 +8,9 @@ const MAX_VERTICAL_ZOOM = 8;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-const nowSeconds = () => Date.now() / 1000;
+const nowSeconds = () => performance.now() / 1000;
+
+const normalizeKey = (value) => String(value ?? '').trim().toLowerCase();
 
 const createSignalBuffer = (capacity = DEFAULT_BUFFER_CAPACITY) => ({
   timestamps: new Float64Array(capacity),
@@ -111,24 +113,29 @@ export function createGraphicCore(options = {}) {
   } = options;
 
   const signals = new Map();
-  const signalsByMessage = new Map();
+  const messageEntries = new Map();
+  const aliasLookup = new Map();
 
   let timePerDivision = clamp(defaultTimePerDiv, minTimePerDiv, maxTimePerDiv);
   let isPaused = false;
   let frozenWindowEnd = null;
   let manualOffset = 0;
   let combinedVerticalZoom = 1;
+  let lastSampleTimestamp = 0;
+  let remoteClockOffset = null;
 
   const getDuration = () => timePerDivision * timeDivisions;
 
   const getWindowEnd = () => {
     if (!isPaused) {
-      frozenWindowEnd = nowSeconds();
+      const liveNow = nowSeconds();
+      const end = lastSampleTimestamp ? Math.max(liveNow, lastSampleTimestamp) : liveNow;
+      frozenWindowEnd = end;
       manualOffset = 0;
-      return frozenWindowEnd;
+      return end;
     }
     if (frozenWindowEnd == null) {
-      frozenWindowEnd = nowSeconds();
+      frozenWindowEnd = lastSampleTimestamp || nowSeconds();
     }
     return frozenWindowEnd + manualOffset;
   };
@@ -173,16 +180,65 @@ export function createGraphicCore(options = {}) {
     }
   };
 
+  const registerAlias = (entry, alias) => {
+    const key = normalizeKey(alias);
+    if (!key) return;
+    aliasLookup.set(key, entry.key);
+    entry.aliases.add(key);
+  };
+
+  const ensureMessageEntry = (descriptor) => {
+    const canonicalKey = normalizeKey(descriptor.messageName);
+    if (!canonicalKey) return null;
+    let entry = messageEntries.get(canonicalKey);
+    if (!entry) {
+      entry = { key: canonicalKey, signals: new Map(), aliases: new Set() };
+      messageEntries.set(canonicalKey, entry);
+    }
+    registerAlias(entry, descriptor.messageName);
+    const aliasSources = Array.isArray(descriptor.frameAliases) ? descriptor.frameAliases : [];
+    aliasSources.forEach((alias) => registerAlias(entry, alias));
+    return entry;
+  };
+
+  const cleanupMessageEntry = (entry) => {
+    if (!entry || entry.signals.size) return;
+    messageEntries.delete(entry.key);
+    entry.aliases.forEach((alias) => {
+      if (aliasLookup.get(alias) === entry.key) {
+        aliasLookup.delete(alias);
+      }
+    });
+  };
+
+  const getMessageMap = (identifier) => {
+    const key = normalizeKey(identifier);
+    if (!key) return null;
+    const canonicalKey = aliasLookup.get(key) || key;
+    const entry = messageEntries.get(canonicalKey);
+    return entry ? entry.signals : null;
+  };
+
   const registerSignal = (descriptor) => {
     if (!descriptor || !descriptor.id) return null;
     if (signals.has(descriptor.id)) {
       return signals.get(descriptor.id);
+    }
+    const messageEntry = ensureMessageEntry(descriptor);
+    if (!messageEntry) {
+      return null;
+    }
+    const signalKey = normalizeKey(descriptor.signalName);
+    if (!signalKey) {
+      return null;
     }
     const buffer = createSignalBuffer(bufferCapacity);
     const signal = {
       id: descriptor.id,
       messageName: descriptor.messageName,
       signalName: descriptor.signalName,
+      messageKey: messageEntry.key,
+      signalKey,
       displayName: descriptor.displayName || descriptor.signalName,
       color: descriptor.color,
       unit: descriptor.unit || '',
@@ -193,10 +249,7 @@ export function createGraphicCore(options = {}) {
       verticalZoom: 1,
     };
     signals.set(signal.id, signal);
-    if (!signalsByMessage.has(signal.messageName)) {
-      signalsByMessage.set(signal.messageName, new Map());
-    }
-    signalsByMessage.get(signal.messageName).set(signal.signalName, signal);
+    messageEntry.signals.set(signalKey, signal);
     return signal;
   };
 
@@ -204,12 +257,10 @@ export function createGraphicCore(options = {}) {
     const signal = signals.get(signalId);
     if (!signal) return;
     signals.delete(signalId);
-    const messageMap = signalsByMessage.get(signal.messageName);
-    if (messageMap) {
-      messageMap.delete(signal.signalName);
-      if (!messageMap.size) {
-        signalsByMessage.delete(signal.messageName);
-      }
+    const entry = messageEntries.get(signal.messageKey);
+    if (entry) {
+      entry.signals.delete(signal.signalKey);
+      cleanupMessageEntry(entry);
     }
   };
 
@@ -244,38 +295,74 @@ export function createGraphicCore(options = {}) {
 
   const resetCombinedVerticalZoom = () => setCombinedVerticalZoom(1);
 
+  const resolveMessageSignals = (entry) => {
+    const candidates = [
+      entry.frame_name,
+      entry.frameName,
+      entry.message_name,
+      entry.messageName,
+      entry.frame,
+      entry.id,
+      entry.id_hex,
+      entry.arbitration_id,
+      entry.can_id,
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const map = getMessageMap(candidate);
+      if (map) return map;
+    }
+    return null;
+  };
+
   const ingestTraceEntry = (entry) => {
     if (!entry) return;
-    const frameName = entry.frame_name || entry.frameName || entry.message_name || entry.frame;
-    if (!frameName) return;
     const samples = Array.isArray(entry.signals) ? entry.signals : [];
     if (!samples.length) return;
-    const messageSignals = signalsByMessage.get(frameName);
+    const messageSignals = resolveMessageSignals(entry);
     if (!messageSignals || !messageSignals.size) return;
-    const timestamp = Number(entry.ts);
-    const ts = Number.isFinite(timestamp) ? timestamp : nowSeconds();
+    const remoteTimestamp = Number(entry.ts);
+    const nowTs = nowSeconds();
+    if (Number.isFinite(remoteTimestamp)) {
+      const candidateOffset = nowTs - remoteTimestamp;
+      if (remoteClockOffset == null) {
+        remoteClockOffset = candidateOffset;
+      } else {
+        const delta = candidateOffset - remoteClockOffset;
+        remoteClockOffset += delta * 0.1;
+      }
+    }
+    const tsBase = Number.isFinite(remoteTimestamp) && remoteClockOffset != null
+      ? remoteTimestamp + remoteClockOffset
+      : nowTs;
+    let appended = false;
     samples.forEach((sample) => {
-      const name = sample?.name;
-      if (!name || !messageSignals.has(name)) return;
-      const signal = messageSignals.get(name);
+      const signalKey = normalizeKey(sample?.name);
+      if (!signalKey || !messageSignals.has(signalKey)) return;
+      const signal = messageSignals.get(signalKey);
       const physical = sample?.physical_value ?? sample?.physical ?? sample?.value;
       const numeric = safeNumber(physical, null);
       if (numeric == null) return;
-      pushSample(signal.buffer, ts, numeric);
+      pushSample(signal.buffer, tsBase, numeric);
+      appended = true;
     });
+    if (appended && Number.isFinite(tsBase)) {
+      lastSampleTimestamp = lastSampleTimestamp ? Math.max(lastSampleTimestamp, tsBase) : tsBase;
+    }
   };
 
   const pause = () => {
     if (isPaused) return;
     isPaused = true;
-    frozenWindowEnd = nowSeconds();
+    const liveNow = nowSeconds();
+    frozenWindowEnd = lastSampleTimestamp ? Math.max(liveNow, lastSampleTimestamp) : liveNow;
     manualOffset = 0;
   };
 
   const resume = () => {
     if (!isPaused) return;
     isPaused = false;
-    frozenWindowEnd = nowSeconds();
+    frozenWindowEnd = lastSampleTimestamp ? Math.max(nowSeconds(), lastSampleTimestamp) : nowSeconds();
     manualOffset = 0;
   };
 
@@ -283,6 +370,21 @@ export function createGraphicCore(options = {}) {
     if (!isPaused || !Number.isFinite(deltaSeconds) || deltaSeconds === 0) return;
     manualOffset += deltaSeconds;
     clampManualOffset();
+  };
+
+  const ingestSignalValue = (messageName, signalName, value, timestamp = null) => {
+    const messageSignals = getMessageMap(messageName);
+    if (!messageSignals) return false;
+    const signal = messageSignals.get(normalizeKey(signalName));
+    if (!signal) return false;
+    const numeric = safeNumber(value, null);
+    if (numeric == null) return false;
+    const ts = Number.isFinite(timestamp) ? timestamp : nowSeconds();
+    pushSample(signal.buffer, ts, numeric);
+    if (Number.isFinite(ts)) {
+      lastSampleTimestamp = lastSampleTimestamp ? Math.max(lastSampleTimestamp, ts) : ts;
+    }
+    return true;
   };
 
   const setTimePerDivision = (value) => {
@@ -360,6 +462,7 @@ export function createGraphicCore(options = {}) {
     setTimePerDivision,
     adjustTimePerDivision,
     ingestTraceEntry,
+    ingestSignalValue,
     pause,
     resume,
     isPaused: () => isPaused,

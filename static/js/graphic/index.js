@@ -30,7 +30,6 @@ export function initGraphic({ socket, onTabChange }) {
   const combinedContainer = $('#graphic-combined');
   const separateContainer = $('#graphic-separate-container');
   const placeholderEl = $('#graphic-placeholder');
-  const legendEl = $('#graphic-legend');
   const stageEl = $('#graphic-stage');
 
   if (!combinedCanvas || !combinedContainer || !separateContainer) {
@@ -42,8 +41,8 @@ export function initGraphic({ socket, onTabChange }) {
     combinedCanvas,
     combinedContainer,
     separateContainer,
-    legendEl,
     placeholderEl,
+    stageEl,
   });
 
   const signalManager = initGraphicSignalManager({
@@ -62,6 +61,7 @@ export function initGraphic({ socket, onTabChange }) {
         color: descriptor.color,
         minValue: descriptor.minValue,
         maxValue: descriptor.maxValue,
+        frameAliases: descriptor.frameAliases,
       });
     },
     onSignalRemoved: (signalId) => {
@@ -96,11 +96,27 @@ export function initGraphic({ socket, onTabChange }) {
   socket?.on?.('trace', handleTrace);
 
   onTabChange?.('graphic', () => {
-    // force a redraw when the Graphic tab becomes visible
     window.requestAnimationFrame(() => {
       renderer.start();
     });
   });
 
   renderer.start();
+
+  if (typeof window !== 'undefined') {
+    window.CanXGraphicExample = {
+      /**
+       * Inject a sample into the live plot for testing.
+       * Example: window.CanXGraphicExample.push('EngineStatus', 'RPM', 1500);
+       */
+      push(messageName, signalName, value) {
+        const entry = {
+          frame_name: messageName,
+          ts: performance.now() / 1000,
+          signals: [{ name: signalName, physical_value: value }],
+        };
+        core.ingestTraceEntry(entry);
+      },
+    };
+  }
 }

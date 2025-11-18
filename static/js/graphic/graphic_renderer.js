@@ -140,13 +140,7 @@ const removeStalePanels = (panelMap, activeIds) => {
 };
 
 export function createGraphicRenderer(core, options) {
-  const {
-    combinedCanvas,
-    combinedContainer,
-    separateContainer,
-    legendEl,
-    placeholderEl,
-  } = options;
+  const { combinedCanvas, combinedContainer, separateContainer, placeholderEl, stageEl } = options;
 
   if (!combinedCanvas) throw new Error('Missing combined canvas');
 
@@ -157,6 +151,7 @@ export function createGraphicRenderer(core, options) {
   let rafId = null;
   let lastWidth = 0;
   let lastHeight = 0;
+  stageEl?.setAttribute('data-mode', mode);
 
   const resizeObserver = new ResizeObserver(() => {
     lastWidth = 0;
@@ -215,29 +210,6 @@ export function createGraphicRenderer(core, options) {
     ctx2d.restore();
   };
 
-  const updateLegend = (signalsSnapshot) => {
-    if (!legendEl) return;
-    legendEl.innerHTML = '';
-    if (!signalsSnapshot.length) {
-      legendEl.hidden = true;
-      return;
-    }
-    legendEl.hidden = false;
-    signalsSnapshot.forEach((signal) => {
-      const item = document.createElement('li');
-      item.className = 'graphic-legend-item';
-      const swatch = document.createElement('span');
-      swatch.className = 'graphic-legend-swatch';
-      swatch.style.setProperty('--swatch-color', signal.color || '#4f8cff');
-      const label = document.createElement('span');
-      label.className = 'graphic-legend-label';
-      label.textContent = `${signal.displayName}${signal.unit ? ` [${signal.unit}]` : ''}`;
-      item.appendChild(swatch);
-      item.appendChild(label);
-      legendEl.appendChild(item);
-    });
-  };
-
   const renderCombined = (windowState, signalsSnapshot) => {
     const container = combinedContainer || combinedCanvas.parentElement;
     const width = Math.floor(container?.clientWidth || combinedCanvas.clientWidth || 600);
@@ -271,9 +243,7 @@ export function createGraphicRenderer(core, options) {
 
   const renderSeparate = (windowState, signalsSnapshot) => {
     if (!separateContainer) return;
-    const activeIds = new Set();
     signalsSnapshot.forEach((signal) => {
-      activeIds.add(signal.id);
       const panel = ensurePanel(separateContainer, panelMap, signal);
       panel.name.textContent = signal.displayName;
       panel.unit.textContent = signal.unit ? `[${signal.unit}]` : '';
@@ -303,7 +273,6 @@ export function createGraphicRenderer(core, options) {
       drawLineSeries(ctx2d, rect, windowState, signal, yRange, signal.color || '#4f8cff');
       ctx2d.restore();
     });
-    removeStalePanels(panelMap, activeIds);
   };
 
   const renderFrame = () => {
@@ -312,14 +281,15 @@ export function createGraphicRenderer(core, options) {
     if (placeholderEl) {
       placeholderEl.hidden = signalsSnapshot.length > 0;
     }
-    updateLegend(signalsSnapshot);
     const activeIds = new Set(signalsSnapshot.map((signal) => signal.id));
     removeStalePanels(panelMap, activeIds);
     if (mode === 'combined') {
+      stageEl?.setAttribute('data-mode', 'combined');
       combinedContainer?.classList.add('is-active');
       separateContainer?.classList.remove('is-active');
       renderCombined(windowState, signalsSnapshot);
     } else {
+      stageEl?.setAttribute('data-mode', 'separate');
       combinedContainer?.classList.remove('is-active');
       separateContainer?.classList.add('is-active');
       renderSeparate(windowState, signalsSnapshot);
@@ -341,6 +311,7 @@ export function createGraphicRenderer(core, options) {
 
   const setMode = (nextMode) => {
     mode = nextMode === 'separate' ? 'separate' : 'combined';
+    stageEl?.setAttribute('data-mode', mode);
   };
 
   return {

@@ -198,22 +198,10 @@
 
       <section id="tab-graphic" class="tab">
         <div class="graphic-wrapper">
-          <div class="graphic-sidebar">
-            <div class="toolbar">
-              <button id="btn-graphic-refresh" type="button">Reload DBC Signals</button>
-              <input
-                id="graphic-search"
-                type="text"
-                placeholder="Search signal or message"
-                autocomplete="off"
-              />
-            </div>
-            <ul id="graphic-results" class="graphic-result-list"></ul>
-          </div>
-          <div class="graphic-main">
-            <div class="graphic-main-header">
+          <div class="graphic-stage-column">
+            <div class="graphic-stage-header">
               <div>
-                <h3>Selected Signals</h3>
+                <h3>Graphic View</h3>
                 <div class="graphic-mode-toggle" role="radiogroup" aria-label="Graph style">
                   <label>
                     <input type="radio" name="graphic-mode" value="combined" checked />
@@ -230,8 +218,6 @@
                 <span id="graphic-pause-indicator" class="graphic-pause-indicator" hidden>Paused</span>
               </div>
             </div>
-            <ul id="graphic-selected" class="graphic-selected-list"></ul>
-            <div id="graphic-status" class="graphic-status" role="status" aria-live="polite"></div>
             <div class="graphic-controls-row">
               <div class="graphic-scale-readout" aria-live="polite">
                 <div>
@@ -253,16 +239,32 @@
               <div class="graphic-canvas is-active" id="graphic-combined" aria-label="Signal oscilloscope view">
                 <canvas id="graphic-combined-canvas"></canvas>
                 <div id="graphic-placeholder" aria-live="polite">Select signals to render them here.</div>
-                <div class="graphic-overlay">
-                  <ul id="graphic-legend" class="graphic-legend" hidden></ul>
-                </div>
               </div>
               <div id="graphic-separate-container" class="graphic-separate-container"></div>
-              <p class="graphic-stage-hint">
-                Scroll vertically to adjust amplitude, horizontally to change the time base. Drag to pan while paused.
-              </p>
             </div>
+            <p class="graphic-stage-hint">
+              Scroll vertically to adjust amplitude, horizontally to change the time base. Drag to pan while paused.
+            </p>
           </div>
+          <aside class="graphic-sidebar" aria-label="Signal browser and legend">
+            <div class="graphic-sidebar-section graphic-search-section">
+              <div class="graphic-search-bar">
+                <input
+                  id="graphic-search"
+                  type="text"
+                  placeholder="Search signal or message"
+                  autocomplete="off"
+                />
+                <button id="btn-graphic-refresh" type="button">Reload</button>
+              </div>
+              <ul id="graphic-results" class="graphic-result-list"></ul>
+            </div>
+            <div class="graphic-sidebar-section graphic-selected-section">
+              <h3>Selected Signals</h3>
+              <ul id="graphic-selected" class="graphic-selected-list"></ul>
+            </div>
+            <div id="graphic-status" class="graphic-status" role="status" aria-live="polite"></div>
+          </aside>
         </div>
       </section>
     </main>

@@ -174,6 +174,28 @@ export function initGraphicSignalManager(options) {
       if (!signalMeta) {
         throw new Error('Signal metadata not available');
       }
+      const aliasSet = new Set([entry.messageName]);
+      [entry.idDisplay, entry.idHex, entry.idDec]
+        .filter((token) => token != null && token !== '')
+        .forEach((token) => aliasSet.add(String(token)));
+      const numericCandidates = [];
+      const decimalValue = Number(entry.idDec);
+      if (Number.isFinite(decimalValue)) {
+        numericCandidates.push(decimalValue);
+      }
+      const hexSource = entry.idHex || (typeof entry.idDisplay === 'string' && entry.idDisplay.startsWith('0x') ? entry.idDisplay : null);
+      if (hexSource) {
+        const parsed = Number.parseInt(hexSource, 16);
+        if (Number.isFinite(parsed)) {
+          numericCandidates.push(parsed);
+        }
+      }
+      numericCandidates.forEach((val) => {
+        aliasSet.add(String(val));
+        aliasSet.add(`0x${val.toString(16)}`);
+      });
+      const frameAliases = Array.from(aliasSet).filter(Boolean);
+
       const descriptor = {
         id: entry.key,
         messageName: entry.messageName,
@@ -184,6 +206,7 @@ export function initGraphicSignalManager(options) {
         minValue: signalMeta.minimum,
         maxValue: signalMeta.maximum,
         idDisplay: entry.idDisplay,
+        frameAliases,
       };
       const element = createSelectedItem(descriptor);
       selectedList.appendChild(element);
@@ -241,7 +264,15 @@ export function initGraphicSignalManager(options) {
       signalIndex = [];
       messages.forEach((msg) => {
         const messageName = msg?.name;
-        const idDisplay = msg?.id_hex || msg?.id;
+        const idHex = msg?.id_hex || null;
+        const idDecValue = msg?.id;
+        const idDec =
+          typeof idDecValue === 'string'
+            ? idDecValue
+            : Number.isFinite(idDecValue)
+              ? String(idDecValue)
+              : null;
+        const idDisplay = idHex || idDec || '';
         if (!messageName) return;
         (Array.isArray(msg?.signals) ? msg.signals : []).forEach((signalName) => {
           const key = `${messageName}::${signalName}`;
@@ -250,6 +281,8 @@ export function initGraphicSignalManager(options) {
             messageName,
             signalName,
             idDisplay,
+            idHex,
+            idDec,
           });
         });
       });
