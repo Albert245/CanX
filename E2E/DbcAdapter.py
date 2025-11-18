@@ -37,10 +37,11 @@ class DBCAdapter:
                     sig_initial = int(sig.raw_initial)
                 except:
                     pass
-                initial_value = trim((sig_initial*sig.scale + sig.offset), sig.minimum, sig.maximum)
+                min_val, max_val = self._resolve_signal_limits(sig)
+                initial_value = trim((sig_initial*sig.scale + sig.offset), min_val, max_val)
                 self.current_signals[msg.name][sig.name] = initial_value
                 self.initial[msg.name][sig.name] = initial_value
-                self.message_trim[msg.name][sig.name] = {"minimum": sig.minimum, "maximum": sig.maximum}
+                self.message_trim[msg.name][sig.name] = {"minimum": min_val, "maximum": max_val}
  
             
             for sender in msg.senders:
@@ -73,6 +74,33 @@ class DBCAdapter:
                 "CRC": crc
             }
             self.signal_queues[msg.name] = collections.deque(maxlen=1)
+
+    def _resolve_signal_limits(self, sig):
+        """Provide fallback physical min/max values even when the DBC omits them."""
+
+        min_val = sig.minimum
+        max_val = sig.maximum
+
+        if min_val is not None and max_val is not None:
+            return min_val, max_val
+
+        # Scale/offset default to 1/0 per the DBC spec when omitted.
+        scale = sig.scale if sig.scale is not None else 1
+        offset = sig.offset if sig.offset is not None else 0
+
+        if sig.is_signed:
+            raw_min = -(1 << (sig.length - 1))
+            raw_max = (1 << (sig.length - 1)) - 1
+        else:
+            raw_min = 0
+            raw_max = (1 << sig.length) - 1
+
+        if min_val is None:
+            min_val = raw_min * scale + offset
+        if max_val is None:
+            max_val = raw_max * scale + offset
+
+        return min_val, max_val
 
     def _sanitize_signal_value(self, signal_name: str, value: Any):
         """Normalize a signal update before clamping.
