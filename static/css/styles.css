@@ -5,6 +5,7 @@
   --muted: #9aa0a6;
   --accent: #4f8cff;
   --border: #2a2f3a;
+  --graphic-max-width: 960px;
 }
 
 * { box-sizing: border-box; }
@@ -465,6 +466,12 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: min(100%, var(--graphic-max-width));
+  justify-self: start;
+}
+
+.graphic-main > * {
+  width: 100%;
 }
 
 .graphic-main-header {
@@ -500,6 +507,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 
 .graphic-selected-item {
@@ -514,6 +522,8 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   outline: none;
   position: relative;
   border-left: 4px solid var(--signal-color, transparent);
+  width: 100%;
+  min-width: 0;
 }
 
 .graphic-selected-item:focus-visible {
@@ -526,15 +536,25 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 4px;
   flex: 1 1 auto;
   font-size: 12px;
+  min-width: 0;
 }
 
 .graphic-selected-toggle span {
   display: block;
 }
 
+.graphic-selected-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .graphic-selected-meta {
   font-size: 11px;
   color: var(--muted);
+  white-space: normal;
+  word-break: break-word;
 }
 
 .graphic-remove {
@@ -569,17 +589,52 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   color: #ffd166;
 }
 
+.graphic-zoom-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.graphic-zoom-controls button {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #f3f3f3;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  min-width: 48px;
+}
+
+.graphic-zoom-controls button:hover,
+.graphic-zoom-controls button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .graphic-canvas {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px;
   min-height: 320px;
+  width: 100%;
+  max-width: var(--graphic-max-width);
+  overflow: hidden;
+}
+
+#graphic-combined-wrapper {
+  width: 100%;
+  max-width: var(--graphic-max-width);
 }
 
 #graphic-combined-canvas {
-  width: 100%;
-  height: 300px;
+  width: 100% !important;
+  max-width: var(--graphic-max-width);
+  height: 300px !important;
+  display: block;
 }
 
 .graphic-separate-container {

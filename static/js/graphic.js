@@ -79,6 +79,12 @@ const COLOR_PALETTE = [
 
 const MAX_POINTS = 240;
 const RESULT_LIMIT = 80;
+const DEFAULT_TIME_WINDOW = 20;
+const MIN_TIME_WINDOW = 1;
+const MAX_TIME_WINDOW = 600;
+const MIN_VALUE_ZOOM = 0.25;
+const MAX_VALUE_ZOOM = 6;
+const ZOOM_STEP = 1.1;
 
 const numberOrNull = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -90,6 +96,8 @@ const normalizeId = (value) => {
   if (!value) return '';
   return String(value).replace(/^0x/i, '').replace(/\s+/g, '').toUpperCase();
 };
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 const colorWithAlpha = (hex, alpha) => {
   if (!hex) return `rgba(79, 140, 255, ${alpha})`;
@@ -162,6 +170,9 @@ export function initGraphic({ socket, onTabChange }) {
   const combinedWrapper = $('#graphic-combined-wrapper');
   const combinedCanvas = $('#graphic-combined-canvas');
   const separateContainer = $('#graphic-separate-container');
+  const zoomInBtn = $('#graphic-zoom-in');
+  const zoomOutBtn = $('#graphic-zoom-out');
+  const zoomResetBtn = $('#graphic-zoom-reset');
   const modeInputs = $$('input[name="graphic-mode"]');
 
   let activeMode = modeInputs.find((input) => input.checked)?.value || 'combined';
@@ -177,7 +188,10 @@ export function initGraphic({ socket, onTabChange }) {
   let separateCharts = new Map();
   let separateNeedsRebuild = true;
   let baseTimestamp = null;
+  let latestTimestamp = 0;
   let chartUnavailableNotified = false;
+  let timeWindowSeconds = DEFAULT_TIME_WINDOW;
+  let valueZoomFactor = 1;
 
   loadChartLibrary();
 
@@ -319,6 +333,98 @@ export function initGraphic({ socket, onTabChange }) {
     return { minValue, maxValue };
   };
 
+  const getWatcherDataRange = (watcher) => {
+    if (!watcher) {
+      return { min: 0, max: 1 };
+    }
+    const values = watcher.data
+      ?.map((point) => point?.y)
+      .filter((value) => Number.isFinite(value));
+    if (!values?.length) {
+      return { min: watcher.minValue, max: watcher.maxValue };
+    }
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    if (min === max) {
+      const padding = Math.max(Math.abs(min) * 0.05, 0.5);
+      return { min: min - padding, max: max + padding };
+    }
+    return { min, max };
+  };
+
+  const applyValueZoomRange = ({ min, max }) => {
+    const safeMin = Number.isFinite(min) ? min : 0;
+    const safeMax = Number.isFinite(max) ? max : safeMin + 1;
+    const center = (safeMin + safeMax) / 2;
+    const baseRange = Math.max(Math.abs(safeMax - safeMin), 0.1);
+    const scaledRange = baseRange * valueZoomFactor;
+    return { min: center - scaledRange / 2, max: center + scaledRange / 2 };
+  };
+
+  const getWatcherDisplayRange = (watcher) => applyValueZoomRange(getWatcherDataRange(watcher));
+
+  const getTimeBounds = () => {
+    const end = latestTimestamp > 0 ? latestTimestamp : timeWindowSeconds;
+    const start = Math.max(0, end - timeWindowSeconds);
+    if (end <= start) {
+      return { start: 0, end: start + timeWindowSeconds };
+    }
+    return { start, end };
+  };
+
+  const syncCombinedScales = () => {
+    if (!combinedChart?.options?.scales) return;
+    const { start, end } = getTimeBounds();
+    if (combinedChart.options.scales.x) {
+      combinedChart.options.scales.x.min = start;
+      combinedChart.options.scales.x.max = end;
+    }
+    watchers.forEach((watcher) => {
+      if (!watcher.enabled) return;
+      const axisId = `y_${watcher.key}`;
+      const scale = combinedChart.options.scales[axisId];
+      if (!scale) return;
+      const { min, max } = getWatcherDisplayRange(watcher);
+      scale.min = min;
+      scale.max = max;
+    });
+  };
+
+  const updateAllSeparateCharts = () => {
+    separateCharts.forEach((_, key) => updateSeparateChart(key));
+  };
+
+  const adjustTimeWindow = (factor) => {
+    timeWindowSeconds = clamp(timeWindowSeconds * factor, MIN_TIME_WINDOW, MAX_TIME_WINDOW);
+    if (activeMode === 'combined') {
+      syncCombinedScales();
+      markCombinedDirty();
+      flushCombinedUpdates();
+    }
+    updateAllSeparateCharts();
+  };
+
+  const adjustValueZoom = (factor) => {
+    valueZoomFactor = clamp(valueZoomFactor * factor, MIN_VALUE_ZOOM, MAX_VALUE_ZOOM);
+    if (activeMode === 'combined') {
+      syncCombinedScales();
+      markCombinedDirty();
+      flushCombinedUpdates();
+    }
+    updateAllSeparateCharts();
+  };
+
+  const resetZoomState = () => {
+    timeWindowSeconds = DEFAULT_TIME_WINDOW;
+    valueZoomFactor = 1;
+    if (activeMode === 'combined') {
+      syncCombinedScales();
+      markCombinedDirty();
+      flushCombinedUpdates();
+    }
+    updateAllSeparateCharts();
+  };
+
   const createWatcher = (entry, meta) => {
     const key = `${entry.messageName}::${entry.signalName}`;
     if (watchers.has(key)) {
@@ -410,9 +516,12 @@ export function initGraphic({ socket, onTabChange }) {
     }
     combinedDatasets = new Map();
     const datasets = [];
+    const { start, end } = getTimeBounds();
     const scales = {
       x: {
         type: 'linear',
+        min: start,
+        max: end,
         title: { display: true, text: 'Time (s)', color: '#9aa0a6' },
         ticks: { color: '#9aa0a6' },
         grid: { color: '#2a2f3a' },
@@ -422,11 +531,12 @@ export function initGraphic({ socket, onTabChange }) {
     watchers.forEach((watcher) => {
       if (!watcher.enabled) return;
       const axisId = `y_${watcher.key}`;
+      const { min, max } = getWatcherDisplayRange(watcher);
       scales[axisId] = {
         type: 'linear',
         position: leftSide ? 'left' : 'right',
-        min: watcher.minValue,
-        max: watcher.maxValue,
+        min,
+        max,
         ticks: { color: '#9aa0a6' },
         grid: { color: leftSide ? '#2a2f3a' : 'transparent' },
         title: {
@@ -486,6 +596,7 @@ export function initGraphic({ socket, onTabChange }) {
 
   const markCombinedDirty = () => {
     if (activeMode !== 'combined') return;
+    syncCombinedScales();
     combinedDirty = true;
   };
 
@@ -519,21 +630,22 @@ export function initGraphic({ socket, onTabChange }) {
       const meta = document.createElement('div');
       meta.className = 'graphic-result-meta';
       meta.textContent = watcher.unit ? `Unit: ${watcher.unit}` : '';
-      const canvas = document.createElement('canvas');
       card.appendChild(title);
       if (meta.textContent) card.appendChild(meta);
       if (chartAvailable) {
+        const canvas = document.createElement('canvas');
         card.appendChild(canvas);
         separateContainer.appendChild(card);
-        const context = canvas.getContext('2d');
-        const chart = new ChartConstructor(context, {
+        const { min, max } = getWatcherDisplayRange(watcher);
+        const { start, end } = getTimeBounds();
+        const chart = new ChartConstructor(canvas.getContext('2d'), {
           type: 'line',
           data: {
-            labels: watcher.data.map((point) => point.x.toFixed(1)),
             datasets: [
               {
                 label: watcher.signalName,
-                data: watcher.data.map((point) => point.y),
+                data: watcher.data,
+                parsing: false,
                 borderColor: watcher.color,
                 backgroundColor: colorWithAlpha(watcher.color, 0.25),
                 borderWidth: 2,
@@ -549,13 +661,17 @@ export function initGraphic({ socket, onTabChange }) {
             animation: false,
             scales: {
               x: {
+                type: 'linear',
+                min: start,
+                max: end,
                 title: { display: true, text: 'Time (s)', color: '#9aa0a6' },
                 ticks: { color: '#9aa0a6' },
                 grid: { color: '#2a2f3a' },
               },
               y: {
-                min: watcher.minValue,
-                max: watcher.maxValue,
+                type: 'linear',
+                min,
+                max,
                 ticks: { color: '#9aa0a6' },
                 grid: { color: '#2a2f3a' },
               },
@@ -590,14 +706,23 @@ export function initGraphic({ socket, onTabChange }) {
     if (!entry) return;
     const watcher = watchers.get(key);
     if (!watcher) return;
+    entry.card.classList.toggle('is-disabled', !watcher.enabled);
     if (!entry.chart) {
-      entry.card.classList.toggle('is-disabled', !watcher.enabled);
       return;
     }
-    entry.chart.data.labels = watcher.data.map((point) => point.x.toFixed(1));
-    entry.chart.data.datasets[0].data = watcher.data.map((point) => point.y);
-    entry.chart.data.datasets[0].hidden = !watcher.enabled;
-    entry.card.classList.toggle('is-disabled', !watcher.enabled);
+    const dataset = entry.chart.data.datasets[0];
+    dataset.data = watcher.data;
+    dataset.hidden = !watcher.enabled;
+    const { min, max } = getWatcherDisplayRange(watcher);
+    const { start, end } = getTimeBounds();
+    if (entry.chart.options?.scales?.x) {
+      entry.chart.options.scales.x.min = start;
+      entry.chart.options.scales.x.max = end;
+    }
+    if (entry.chart.options?.scales?.y) {
+      entry.chart.options.scales.y.min = min;
+      entry.chart.options.scales.y.max = max;
+    }
     entry.chart.update('none');
   };
 
@@ -638,6 +763,8 @@ export function initGraphic({ socket, onTabChange }) {
     colorPool.push(watcher.color);
     if (!watchers.size) {
       baseTimestamp = null;
+      latestTimestamp = 0;
+      resetZoomState();
     }
     combinedNeedsRebuild = true;
     separateNeedsRebuild = true;
@@ -740,6 +867,25 @@ export function initGraphic({ socket, onTabChange }) {
 
   searchInput?.addEventListener('input', renderResults);
 
+  const handleCanvasWheel = (event) => {
+    if (!watchers.size) return;
+    event.preventDefault();
+    const isHorizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    const delta = isHorizontal ? event.deltaX : event.deltaY;
+    if (delta === 0) return;
+    const factor = delta > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    if (isHorizontal) {
+      adjustTimeWindow(factor);
+    } else {
+      adjustValueZoom(factor);
+    }
+  };
+
+  combinedWrapper?.addEventListener('wheel', handleCanvasWheel, { passive: false });
+  zoomInBtn?.addEventListener('click', () => adjustTimeWindow(1 / ZOOM_STEP));
+  zoomOutBtn?.addEventListener('click', () => adjustTimeWindow(ZOOM_STEP));
+  zoomResetBtn?.addEventListener('click', resetZoomState);
+
   const recordDataPoint = (watcher, value) => {
     const now = Date.now();
     if (baseTimestamp === null) {
@@ -750,6 +896,7 @@ export function initGraphic({ socket, onTabChange }) {
     if (watcher.data.length > MAX_POINTS) {
       watcher.data.splice(0, watcher.data.length - MAX_POINTS);
     }
+    latestTimestamp = Math.max(latestTimestamp, timeSeconds);
   };
 
   const handleTrace = (payload) => {
