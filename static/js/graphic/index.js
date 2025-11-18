@@ -14,13 +14,21 @@ const normalizeSignalDetail = (detail = {}) => {
 const normalizeTraceEntry = (msg = {}) => {
   const tsRaw = Number(msg?.ts);
   const ts = Number.isFinite(tsRaw) ? tsRaw : Date.now() / 1000;
-  const frameName = typeof msg?.frame_name === 'string' ? msg.frame_name : null;
+  const safeString = (value) => (typeof value === 'string' && value ? value : undefined);
   const signals = Array.isArray(msg?.signals)
     ? msg.signals.map((detail) => normalizeSignalDetail(detail)).filter((detail) => detail.name)
     : [];
   return {
     ts,
-    frame_name: frameName,
+    frame_name: safeString(msg?.frame_name),
+    frameName: safeString(msg?.frameName),
+    message_name: safeString(msg?.message_name),
+    messageName: safeString(msg?.messageName),
+    frame: safeString(msg?.frame),
+    id: msg?.id,
+    id_hex: msg?.id_hex ?? msg?.idHex,
+    arbitration_id: msg?.arbitration_id ?? msg?.arbitrationId,
+    can_id: msg?.can_id ?? msg?.canId,
     signals,
   };
 };

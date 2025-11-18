@@ -69,30 +69,50 @@ const setCanvasSize = (canvas, width, height, dpr) => {
   }
 };
 
-const drawLineSeries = (ctx, rect, window, series, yRange, color) => {
+const buildSeriesPoints = (windowState, rect, series, yRange) => {
   const { times, values } = series;
-  if (!times.length || rect.width <= 0 || rect.height <= 0) return;
+  if (!times.length || rect.width <= 0 || rect.height <= 0) return [];
+  if (!Number.isFinite(windowState.duration) || windowState.duration <= 0) return [];
   const denom = yRange.max - yRange.min || 1e-6;
-  ctx.save();
-  ctx.beginPath();
-  let started = false;
+  const points = [];
   for (let i = 0; i < times.length; i += 1) {
     const t = times[i];
     const v = values[i];
-    const xRatio = (t - window.start) / window.duration;
+    const xRatio = (t - windowState.start) / windowState.duration;
     const yRatio = (v - yRange.min) / denom;
     const x = rect.x + xRatio * rect.width;
     const y = rect.y + rect.height - yRatio * rect.height;
-    if (!started) {
-      ctx.moveTo(x, y);
-      started = true;
-    } else {
-      ctx.lineTo(x, y);
-    }
+    points.push({ x, y });
   }
+  return points;
+};
+
+const drawStepSeries = (ctx, points, color) => {
+  if (!points || !points.length) return;
+  ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
-  ctx.stroke();
+  if (points.length >= 2) {
+    ctx.beginPath();
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p1.y);
+      if (p2.y !== p1.y) {
+        ctx.moveTo(p2.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+      }
+    }
+    ctx.stroke();
+  }
+  const dotRadius = 2.5;
+  ctx.fillStyle = color;
+  points.forEach((point) => {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, dotRadius, 0, Math.PI * 2);
+    ctx.fill();
+  });
   ctx.restore();
 };
 
@@ -235,7 +255,8 @@ export function createGraphicRenderer(core, options) {
     drawGrid(ctx, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
 
     signalsSnapshot.forEach((signal) => {
-      drawLineSeries(ctx, rect, windowState, signal, yRange, signal.color || '#4f8cff');
+      const points = buildSeriesPoints(windowState, rect, signal, yRange);
+      drawStepSeries(ctx, points, signal.color || '#4f8cff');
     });
 
     ctx.restore();
@@ -270,7 +291,8 @@ export function createGraphicRenderer(core, options) {
       const yRange = { min: center - span / 2, max: center + span / 2 };
       const ticks = computeTicks(yRange.min, yRange.max, 5).ticks;
       drawGrid(ctx2d, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
-      drawLineSeries(ctx2d, rect, windowState, signal, yRange, signal.color || '#4f8cff');
+      const points = buildSeriesPoints(windowState, rect, signal, yRange);
+      drawStepSeries(ctx2d, points, signal.color || '#4f8cff');
       ctx2d.restore();
     });
   };
