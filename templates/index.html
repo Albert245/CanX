@@ -225,8 +225,31 @@
             </div>
             <ul id="graphic-selected" class="graphic-selected-list"></ul>
             <div id="graphic-status" class="graphic-status" role="status" aria-live="polite"></div>
-            <div class="graphic-canvas" id="graphic-combined-wrapper">
-              <canvas id="graphic-combined-canvas"></canvas>
+            <div class="graphic-oscilloscope">
+              <div class="graphic-canvas" id="graphic-combined-wrapper" aria-label="Signal oscilloscope view">
+                <canvas id="graphic-combined-canvas"></canvas>
+                <div id="graphic-placeholder" aria-live="polite">Select signals to render them here.</div>
+                <div class="graphic-stage-overlay">
+                  <div class="graphic-scale-readout" aria-live="polite">
+                    <div>
+                      <span>Time / div</span>
+                      <strong id="graphic-time-scale">2.0s</strong>
+                    </div>
+                    <div>
+                      <span>Vertical zoom</span>
+                      <strong id="graphic-value-scale">1×</strong>
+                    </div>
+                  </div>
+                  <div class="graphic-zoom-controls" aria-label="Time axis zoom controls">
+                    <button id="graphic-zoom-out" type="button" aria-label="Zoom out time axis">−</button>
+                    <button id="graphic-zoom-in" type="button" aria-label="Zoom in time axis">+</button>
+                    <button id="graphic-zoom-reset" type="button">Reset</button>
+                  </div>
+                </div>
+              </div>
+              <p class="graphic-stage-hint">
+                Scroll vertically to adjust amplitude, horizontally to change the time base.
+              </p>
             </div>
             <div id="graphic-separate-container" class="graphic-separate-container"></div>
           </div>
