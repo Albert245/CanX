@@ -162,6 +162,18 @@ export function initGraphicSignalManager(options) {
     return li;
   };
 
+  const coerceInitialValue = (value) => {
+    if (value == null) return null;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const addSignal = async (entry) => {
     if (!entry) return;
     if (selectedSignals.has(entry.key)) {
@@ -207,6 +219,7 @@ export function initGraphicSignalManager(options) {
         maxValue: signalMeta.maximum,
         idDisplay: entry.idDisplay,
         frameAliases,
+        initialValue: coerceInitialValue(signalMeta.physical),
       };
       const element = createSelectedItem(descriptor);
       selectedList.appendChild(element);

@@ -43,7 +43,15 @@ export function initGraphic({ socket, onTabChange }) {
         minValue: descriptor.minValue,
         maxValue: descriptor.maxValue,
         frameAliases: descriptor.frameAliases,
+        initialValue: descriptor.initialValue,
       });
+      if (descriptor.initialValue != null) {
+        core.ingestSignalValue(
+          descriptor.messageName,
+          descriptor.signalName,
+          descriptor.initialValue,
+        );
+      }
     },
     onSignalRemoved: (signalId) => {
       core.removeSignal(signalId);
@@ -61,6 +69,7 @@ export function initGraphic({ socket, onTabChange }) {
     zoomInBtn: $('#graphic-zoom-in'),
     zoomOutBtn: $('#graphic-zoom-out'),
     zoomResetBtn: $('#graphic-zoom-reset'),
+    autoScaleBtn: $('#graphic-zoom-auto'),
     modeInputs: Array.from(document.querySelectorAll('input[name="graphic-mode"]')),
     combinedContainer,
     separateContainer,

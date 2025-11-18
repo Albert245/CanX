@@ -232,12 +232,14 @@
 .graphic-zoom-controls {
   display: inline-flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .graphic-zoom-controls button {
-  width: 48px;
+  min-width: 48px;
   height: 36px;
   font-size: 16px;
+  padding: 0 12px;
 }
 
 .graphic-stage {
