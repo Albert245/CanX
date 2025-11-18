@@ -58,6 +58,7 @@ class DBCAdapter:
             alvcnt = ""
             alv_len = 0
             crc = ""
+            crc_mask = None
             for sig in msg.signals:
                 if "AlvCnt" in sig.name:
                     grp = True
@@ -65,13 +66,15 @@ class DBCAdapter:
                     alv_len = (1<<sig.length)-1
                 elif "Crc" in sig.name:
                     crc = sig.name
+                    crc_mask = (1 << sig.length) - 1 if sig.length else None
             cmt = msg.comment if msg.comment else ""
             self.messages_atrributes[msg.name] = {
                 "Periodic": True if msg.send_type == "Cyclic" else False,
                 "On_event" : True if "Event" in cmt else False,
                 "Group": grp,
                 "AlvCnt": alvcnt,
-                "CRC": crc
+                "CRC": crc,
+                "CRC_mask": crc_mask
             }
             self.signal_queues[msg.name] = collections.deque(maxlen=1)
 
@@ -186,16 +189,10 @@ class DBCAdapter:
         payload = msg.encode(signals_snapshot)
 
         crc_name = attrs["CRC"]
+        crc_mask = attrs.get("CRC_mask")
         if crc_name:
             data_bytes = bytearray(payload)
             crc_calc = crc_calculate_cy(msg.frame_id, data_bytes)
-
-            try:
-                crc_signal = msg.get_signal_by_name(crc_name)
-                crc_mask = (1 << crc_signal.length) - 1 if crc_signal.length else None
-            except KeyError:
-                crc_signal = None
-                crc_mask = None
 
             if crc_mask is not None:
                 crc_calc &= crc_mask
