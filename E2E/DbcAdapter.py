@@ -1,8 +1,13 @@
 import threading
 import collections
+import math
+from numbers import Number
 from copy import deepcopy
 from typing import Dict, Any, Optional, Deque, Union
+
 import cantools
+from cantools.database.can.signal import NamedSignalValue
+
 from E2E.crc import*
 from COMMON.Cast import*
 from logger.log import*
@@ -32,10 +37,11 @@ class DBCAdapter:
                     sig_initial = int(sig.raw_initial)
                 except:
                     pass
-                initial_value = trim((sig_initial*sig.scale + sig.offset), sig.minimum, sig.maximum)
+                min_val, max_val = self._resolve_signal_limits(sig)
+                initial_value = trim((sig_initial*sig.scale + sig.offset), min_val, max_val)
                 self.current_signals[msg.name][sig.name] = initial_value
                 self.initial[msg.name][sig.name] = initial_value
-                self.message_trim[msg.name][sig.name] = {"minimum": sig.minimum, "maximum": sig.maximum}
+                self.message_trim[msg.name][sig.name] = {"minimum": min_val, "maximum": max_val}
  
             
             for sender in msg.senders:
@@ -68,7 +74,68 @@ class DBCAdapter:
                 "CRC": crc
             }
             self.signal_queues[msg.name] = collections.deque(maxlen=1)
- 
+
+    def _resolve_signal_limits(self, sig):
+        """Provide fallback physical min/max values even when the DBC omits them."""
+
+        min_val = sig.minimum
+        max_val = sig.maximum
+
+        if min_val is not None and max_val is not None:
+            return min_val, max_val
+
+        # Scale/offset default to 1/0 per the DBC spec when omitted.
+        scale = sig.scale if sig.scale is not None else 1
+        offset = sig.offset if sig.offset is not None else 0
+
+        if sig.is_signed:
+            raw_min = -(1 << (sig.length - 1))
+            raw_max = (1 << (sig.length - 1)) - 1
+        else:
+            raw_min = 0
+            raw_max = (1 << sig.length) - 1
+
+        if min_val is None:
+            min_val = raw_min * scale + offset
+        if max_val is None:
+            max_val = raw_max * scale + offset
+
+        return min_val, max_val
+
+    def _sanitize_signal_value(self, signal_name: str, value: Any):
+        """Normalize a signal update before clamping.
+
+        Returns a tuple of (value, is_numeric). Non scalar inputs return (None, False).
+        """
+
+        if isinstance(value, NamedSignalValue):
+            return value.value, True
+        if isinstance(value, Number):
+            if isinstance(value, float) and not math.isfinite(value):
+                return None, False
+            return value, True
+        if isinstance(value, str):
+            candidate = value.strip()
+            if not candidate:
+                return None, False
+            lower = candidate.lower()
+            try:
+                if lower.startswith("0x"):
+                    return int(candidate, 16), True
+                if lower.startswith("0b"):
+                    return int(candidate, 2), True
+                if lower.startswith("0o"):
+                    return int(candidate, 8), True
+                if any(char in candidate for char in (".", "e", "E")):
+                    return float(candidate), True
+                return int(candidate), True
+            except ValueError:
+                return candidate, False
+        logger.error(
+            f"[ERROR] Invalid type for signal {signal_name}: {type(value).__name__}"
+        )
+        return None, False
+
     def push_signals(self, message_name: str, signals: Dict[str,Any]):
         with self.lock:
             if message_name not in self.signal_queues:
@@ -76,14 +143,20 @@ class DBCAdapter:
 
             trimmed_signals: Dict[str, Any] = {}
             for signal, value in signals.items():
+                normalized_value, is_numeric = self._sanitize_signal_value(signal, value)
+                if normalized_value is None:
+                    continue
                 try:
-                    trimmed_signals[signal] = trim(
-                        value,
-                        self.message_trim[message_name][signal]["minimum"],
-                        self.message_trim[message_name][signal]["maximum"],
-                    )
+                    if is_numeric:
+                        normalized_value = trim(
+                            normalized_value,
+                            self.message_trim[message_name][signal]["minimum"],
+                            self.message_trim[message_name][signal]["maximum"],
+                        )
                 except Exception as e:
                     logger.error(f"[ERROR] Failed to push signal {signal}: {e}")
+                    continue
+                trimmed_signals[signal] = normalized_value
             self.current_signals[message_name].update(trimmed_signals)
             self.signal_queues[message_name].append(trimmed_signals)
 
