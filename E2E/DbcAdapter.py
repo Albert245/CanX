@@ -1,8 +1,13 @@
 import threading
 import collections
+import math
+from numbers import Number
 from copy import deepcopy
 from typing import Dict, Any, Optional, Deque, Union
+
 import cantools
+from cantools.database.can.signal import NamedSignalValue
+
 from E2E.crc import*
 from COMMON.Cast import*
 from logger.log import*
@@ -68,7 +73,41 @@ class DBCAdapter:
                 "CRC": crc
             }
             self.signal_queues[msg.name] = collections.deque(maxlen=1)
- 
+
+    def _sanitize_signal_value(self, signal_name: str, value: Any):
+        """Normalize a signal update before clamping.
+
+        Returns a tuple of (value, is_numeric). Non scalar inputs return (None, False).
+        """
+
+        if isinstance(value, NamedSignalValue):
+            return value.value, True
+        if isinstance(value, Number):
+            if isinstance(value, float) and not math.isfinite(value):
+                return None, False
+            return value, True
+        if isinstance(value, str):
+            candidate = value.strip()
+            if not candidate:
+                return None, False
+            lower = candidate.lower()
+            try:
+                if lower.startswith("0x"):
+                    return int(candidate, 16), True
+                if lower.startswith("0b"):
+                    return int(candidate, 2), True
+                if lower.startswith("0o"):
+                    return int(candidate, 8), True
+                if any(char in candidate for char in (".", "e", "E")):
+                    return float(candidate), True
+                return int(candidate), True
+            except ValueError:
+                return candidate, False
+        logger.error(
+            f"[ERROR] Invalid type for signal {signal_name}: {type(value).__name__}"
+        )
+        return None, False
+
     def push_signals(self, message_name: str, signals: Dict[str,Any]):
         with self.lock:
             if message_name not in self.signal_queues:
@@ -76,14 +115,20 @@ class DBCAdapter:
 
             trimmed_signals: Dict[str, Any] = {}
             for signal, value in signals.items():
+                normalized_value, is_numeric = self._sanitize_signal_value(signal, value)
+                if normalized_value is None:
+                    continue
                 try:
-                    trimmed_signals[signal] = trim(
-                        value,
-                        self.message_trim[message_name][signal]["minimum"],
-                        self.message_trim[message_name][signal]["maximum"],
-                    )
+                    if is_numeric:
+                        normalized_value = trim(
+                            normalized_value,
+                            self.message_trim[message_name][signal]["minimum"],
+                            self.message_trim[message_name][signal]["maximum"],
+                        )
                 except Exception as e:
                     logger.error(f"[ERROR] Failed to push signal {signal}: {e}")
+                    continue
+                trimmed_signals[signal] = normalized_value
             self.current_signals[message_name].update(trimmed_signals)
             self.signal_queues[message_name].append(trimmed_signals)
 
