@@ -85,6 +85,7 @@ const MAX_TIME_WINDOW = 600;
 const MIN_VALUE_ZOOM = 0.25;
 const MAX_VALUE_ZOOM = 6;
 const ZOOM_STEP = 1.1;
+const TIME_DIVISIONS = 10;
 
 const numberOrNull = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -98,6 +99,22 @@ const normalizeId = (value) => {
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const formatScaleNumber = (value) => {
+  if (!Number.isFinite(value)) return '—';
+  const absValue = Math.abs(value);
+  let digits = 3;
+  if (absValue >= 100) {
+    digits = 0;
+  } else if (absValue >= 10) {
+    digits = 1;
+  } else if (absValue >= 1) {
+    digits = 1;
+  } else if (absValue >= 0.1) {
+    digits = 2;
+  }
+  return Number(value.toFixed(digits)).toString();
+};
 
 const colorWithAlpha = (hex, alpha) => {
   if (!hex) return `rgba(79, 140, 255, ${alpha})`;
@@ -169,6 +186,8 @@ export function initGraphic({ socket, onTabChange }) {
   const statusEl = $('#graphic-status');
   const combinedWrapper = $('#graphic-combined-wrapper');
   const combinedCanvas = $('#graphic-combined-canvas');
+  const timeScaleEl = $('#graphic-time-scale');
+  const valueScaleEl = $('#graphic-value-scale');
   const separateContainer = $('#graphic-separate-container');
   const zoomInBtn = $('#graphic-zoom-in');
   const zoomOutBtn = $('#graphic-zoom-out');
@@ -372,6 +391,16 @@ export function initGraphic({ socket, onTabChange }) {
     return { start, end };
   };
 
+  const updateScaleReadout = () => {
+    if (timeScaleEl) {
+      const perDivision = timeWindowSeconds / TIME_DIVISIONS;
+      timeScaleEl.textContent = `${formatScaleNumber(perDivision)}s`;
+    }
+    if (valueScaleEl) {
+      valueScaleEl.textContent = `${formatScaleNumber(valueZoomFactor)}×`;
+    }
+  };
+
   const syncCombinedScales = () => {
     if (!combinedChart?.options?.scales) return;
     const { start, end } = getTimeBounds();
@@ -396,6 +425,7 @@ export function initGraphic({ socket, onTabChange }) {
 
   const adjustTimeWindow = (factor) => {
     timeWindowSeconds = clamp(timeWindowSeconds * factor, MIN_TIME_WINDOW, MAX_TIME_WINDOW);
+    updateScaleReadout();
     if (activeMode === 'combined') {
       syncCombinedScales();
       markCombinedDirty();
@@ -406,6 +436,7 @@ export function initGraphic({ socket, onTabChange }) {
 
   const adjustValueZoom = (factor) => {
     valueZoomFactor = clamp(valueZoomFactor * factor, MIN_VALUE_ZOOM, MAX_VALUE_ZOOM);
+    updateScaleReadout();
     if (activeMode === 'combined') {
       syncCombinedScales();
       markCombinedDirty();
@@ -417,6 +448,7 @@ export function initGraphic({ socket, onTabChange }) {
   const resetZoomState = () => {
     timeWindowSeconds = DEFAULT_TIME_WINDOW;
     valueZoomFactor = 1;
+    updateScaleReadout();
     if (activeMode === 'combined') {
       syncCombinedScales();
       markCombinedDirty();
@@ -962,6 +994,8 @@ export function initGraphic({ socket, onTabChange }) {
     renderSelectedSignals();
     applyMode(activeMode);
   };
+
+  updateScaleReadout();
 
   onTabChange?.('graphic', () => {
     renderSelectedSignals();
