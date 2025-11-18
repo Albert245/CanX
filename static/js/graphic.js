@@ -79,13 +79,16 @@ const COLOR_PALETTE = [
 
 const MAX_POINTS = 240;
 const RESULT_LIMIT = 80;
-const DEFAULT_TIME_WINDOW = 20;
-const MIN_TIME_WINDOW = 1;
-const MAX_TIME_WINDOW = 600;
+const TIME_DIVISIONS = 10;
+const MIN_TIME_PER_DIVISION = 0.01; // 10 ms
+const MAX_TIME_PER_DIVISION = 1; // 1 s
+const DEFAULT_TIME_PER_DIVISION = 0.1; // 100 ms
+const DEFAULT_TIME_WINDOW = TIME_DIVISIONS * DEFAULT_TIME_PER_DIVISION;
+const MIN_TIME_WINDOW = TIME_DIVISIONS * MIN_TIME_PER_DIVISION;
+const MAX_TIME_WINDOW = TIME_DIVISIONS * MAX_TIME_PER_DIVISION;
 const MIN_VALUE_ZOOM = 0.25;
 const MAX_VALUE_ZOOM = 6;
 const ZOOM_STEP = 1.1;
-const TIME_DIVISIONS = 10;
 
 const numberOrNull = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -132,6 +135,18 @@ const colorWithAlpha = (hex, alpha) => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
   return `rgba(79, 140, 255, ${alpha})`;
+};
+
+const formatTimeDisplay = (seconds) => {
+  if (!Number.isFinite(seconds)) return '—';
+  const absSeconds = Math.abs(seconds);
+  if (absSeconds >= 1) {
+    const decimals = absSeconds >= 10 ? 1 : 2;
+    return `${Number(seconds.toFixed(decimals))} s`;
+  }
+  const milliseconds = seconds * 1000;
+  const digits = milliseconds >= 100 ? 0 : milliseconds >= 10 ? 1 : 2;
+  return `${Number(milliseconds.toFixed(digits))} ms`;
 };
 
 const deriveMaxValue = (signal) => {
@@ -186,6 +201,7 @@ export function initGraphic({ socket, onTabChange }) {
   const statusEl = $('#graphic-status');
   const combinedWrapper = $('#graphic-combined-wrapper');
   const combinedCanvas = $('#graphic-combined-canvas');
+  const stagePlaceholder = $('#graphic-placeholder');
   const timeScaleEl = $('#graphic-time-scale');
   const valueScaleEl = $('#graphic-value-scale');
   const separateContainer = $('#graphic-separate-container');
@@ -394,11 +410,36 @@ export function initGraphic({ socket, onTabChange }) {
   const updateScaleReadout = () => {
     if (timeScaleEl) {
       const perDivision = timeWindowSeconds / TIME_DIVISIONS;
-      timeScaleEl.textContent = `${formatScaleNumber(perDivision)}s`;
+      timeScaleEl.textContent = formatTimeDisplay(perDivision);
     }
     if (valueScaleEl) {
       valueScaleEl.textContent = `${formatScaleNumber(valueZoomFactor)}×`;
     }
+  };
+
+  const getActiveWatchers = () => Array.from(watchers.values()).filter((watcher) => watcher.enabled);
+
+  const watchersHaveSamples = () =>
+    getActiveWatchers().some((watcher) => Array.isArray(watcher.data) && watcher.data.length);
+
+  const updateStagePlaceholder = () => {
+    if (!stagePlaceholder) return;
+    if (!watchers.size) {
+      stagePlaceholder.textContent = 'Select signals to render them here.';
+      stagePlaceholder.hidden = false;
+      return;
+    }
+    if (!getActiveWatchers().length) {
+      stagePlaceholder.textContent = 'Enable a signal to render it here.';
+      stagePlaceholder.hidden = false;
+      return;
+    }
+    if (!watchersHaveSamples()) {
+      stagePlaceholder.textContent = 'Listening for CAN frames…';
+      stagePlaceholder.hidden = false;
+      return;
+    }
+    stagePlaceholder.hidden = true;
   };
 
   const syncCombinedScales = () => {
@@ -526,6 +567,7 @@ export function initGraphic({ socket, onTabChange }) {
       li.appendChild(removeBtn);
       selectedList.appendChild(li);
     });
+    updateStagePlaceholder();
   };
 
   const rebuildCombinedChart = () => {
@@ -802,6 +844,7 @@ export function initGraphic({ socket, onTabChange }) {
     separateNeedsRebuild = true;
     renderSelectedSignals();
     renderResults();
+    updateStagePlaceholder();
     if (activeMode === 'combined') {
       ensureCombinedChart();
       flushCombinedUpdates();
@@ -950,6 +993,7 @@ export function initGraphic({ socket, onTabChange }) {
       updatedKeys.push(key);
     });
     if (!updatedKeys.length) return;
+    updateStagePlaceholder();
     if (activeMode === 'combined') {
       ensureCombinedChart();
       updatedKeys.forEach((key) => {
@@ -996,6 +1040,7 @@ export function initGraphic({ socket, onTabChange }) {
   };
 
   updateScaleReadout();
+  updateStagePlaceholder();
 
   onTabChange?.('graphic', () => {
     renderSelectedSignals();
