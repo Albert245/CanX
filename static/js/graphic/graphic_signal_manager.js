@@ -178,22 +178,31 @@ export function initGraphicSignalManager(options) {
       [entry.idDisplay, entry.idHex, entry.idDec]
         .filter((token) => token != null && token !== '')
         .forEach((token) => aliasSet.add(String(token)));
-      const numericCandidates = [];
+      const numericCandidates = new Set();
       const decimalValue = Number(entry.idDec);
       if (Number.isFinite(decimalValue)) {
-        numericCandidates.push(decimalValue);
+        numericCandidates.add(decimalValue);
       }
-      const hexSource = entry.idHex || (typeof entry.idDisplay === 'string' && entry.idDisplay.startsWith('0x') ? entry.idDisplay : null);
-      if (hexSource) {
-        const parsed = Number.parseInt(hexSource, 16);
-        if (Number.isFinite(parsed)) {
-          numericCandidates.push(parsed);
+      const hexTokens = [entry.idHex, entry.idDisplay].filter((token) => token != null && token !== '');
+      hexTokens.forEach((token) => {
+        const text = String(token).trim();
+        if (!text) return;
+        const normalized = text.replace(/\s+/g, '');
+        let source = normalized;
+        if (source.startsWith('0x') || source.startsWith('0X')) {
+          source = source.slice(2);
         }
-      }
-      numericCandidates.forEach((val) => {
+        const parsed = Number.parseInt(source, 16);
+        if (Number.isFinite(parsed)) {
+          numericCandidates.add(parsed);
+        }
+      });
+      const numericList = Array.from(numericCandidates);
+      numericList.forEach((val) => {
         aliasSet.add(String(val));
         aliasSet.add(`0x${val.toString(16)}`);
       });
+      const messageId = numericList.find((val) => Number.isFinite(val)) ?? null;
       const frameAliases = Array.from(aliasSet).filter(Boolean);
 
       const descriptor = {
@@ -207,6 +216,7 @@ export function initGraphicSignalManager(options) {
         maxValue: signalMeta.maximum,
         idDisplay: entry.idDisplay,
         frameAliases,
+        messageId,
       };
       const element = createSelectedItem(descriptor);
       selectedList.appendChild(element);

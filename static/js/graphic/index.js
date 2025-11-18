@@ -70,6 +70,7 @@ export function initGraphic({ socket, onTabChange }) {
         minValue: descriptor.minValue,
         maxValue: descriptor.maxValue,
         frameAliases: descriptor.frameAliases,
+        messageId: descriptor.messageId,
       });
     },
     onSignalRemoved: (signalId) => {

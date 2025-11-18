@@ -12,6 +12,34 @@ const nowSeconds = () => performance.now() / 1000;
 
 const normalizeKey = (value) => String(value ?? '').trim().toLowerCase();
 
+const parseNumericId = (identifier) => {
+  if (identifier == null) return null;
+  if (typeof identifier === 'number' && Number.isFinite(identifier)) {
+    return identifier;
+  }
+  const text = String(identifier).trim();
+  if (!text) return null;
+  const normalized = text.replace(/[\s_]/g, '');
+  if (!normalized) return null;
+  let value = normalized;
+  let base = 10;
+  if (/^0[xX]/.test(value)) {
+    base = 16;
+    value = value.slice(2);
+  } else if (/^0[bB]/.test(value)) {
+    base = 2;
+    value = value.slice(2);
+  } else if (/^0[oO]/.test(value)) {
+    base = 8;
+    value = value.slice(2);
+  } else if (/^[0-9A-Fa-f]+$/.test(value) && /[A-Fa-f]/.test(value)) {
+    base = 16;
+  }
+  if (!value) return null;
+  const parsed = Number.parseInt(value, base);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const createSignalBuffer = (capacity = DEFAULT_BUFFER_CAPACITY) => ({
   timestamps: new Float64Array(capacity),
   values: new Float32Array(capacity),
@@ -115,6 +143,7 @@ export function createGraphicCore(options = {}) {
   const signals = new Map();
   const messageEntries = new Map();
   const aliasLookup = new Map();
+  const idLookup = new Map();
 
   let timePerDivision = clamp(defaultTimePerDiv, minTimePerDiv, maxTimePerDiv);
   let isPaused = false;
@@ -192,13 +221,39 @@ export function createGraphicCore(options = {}) {
     if (!canonicalKey) return null;
     let entry = messageEntries.get(canonicalKey);
     if (!entry) {
-      entry = { key: canonicalKey, signals: new Map(), aliases: new Set() };
+      entry = { key: canonicalKey, signals: new Map(), aliases: new Set(), ids: new Map() };
       messageEntries.set(canonicalKey, entry);
     }
     registerAlias(entry, descriptor.messageName);
     const aliasSources = Array.isArray(descriptor.frameAliases) ? descriptor.frameAliases : [];
     aliasSources.forEach((alias) => registerAlias(entry, alias));
     return entry;
+  };
+
+  const registerMessageId = (entry, id) => {
+    if (!entry) return;
+    const numeric = parseNumericId(id);
+    if (numeric == null) return;
+    const nextCount = (entry.ids.get(numeric) || 0) + 1;
+    entry.ids.set(numeric, nextCount);
+    if (!idLookup.has(numeric)) {
+      idLookup.set(numeric, entry.key);
+    }
+  };
+
+  const unregisterMessageId = (entry, id) => {
+    if (!entry) return;
+    const numeric = parseNumericId(id);
+    if (numeric == null) return;
+    const current = entry.ids.get(numeric) || 0;
+    if (current <= 1) {
+      entry.ids.delete(numeric);
+      if (idLookup.get(numeric) === entry.key) {
+        idLookup.delete(numeric);
+      }
+    } else {
+      entry.ids.set(numeric, current - 1);
+    }
   };
 
   const cleanupMessageEntry = (entry) => {
@@ -209,13 +264,24 @@ export function createGraphicCore(options = {}) {
         aliasLookup.delete(alias);
       }
     });
+    entry.ids.forEach((_count, numeric) => {
+      if (idLookup.get(numeric) === entry.key) {
+        idLookup.delete(numeric);
+      }
+    });
   };
 
   const getMessageMap = (identifier) => {
     const key = normalizeKey(identifier);
     if (!key) return null;
     const canonicalKey = aliasLookup.get(key) || key;
-    const entry = messageEntries.get(canonicalKey);
+    let entry = messageEntries.get(canonicalKey);
+    if (entry) return entry.signals;
+    const numeric = parseNumericId(identifier);
+    if (numeric == null) return null;
+    const numericKey = idLookup.get(numeric);
+    if (!numericKey) return null;
+    entry = messageEntries.get(numericKey);
     return entry ? entry.signals : null;
   };
 
@@ -233,6 +299,7 @@ export function createGraphicCore(options = {}) {
       return null;
     }
     const buffer = createSignalBuffer(bufferCapacity);
+    const messageId = Number.isFinite(descriptor.messageId) ? descriptor.messageId : null;
     const signal = {
       id: descriptor.id,
       messageName: descriptor.messageName,
@@ -247,9 +314,13 @@ export function createGraphicCore(options = {}) {
       maxValueHint: safeNumber(descriptor.maxValue, safeNumber(descriptor.minValue, null)),
       buffer,
       verticalZoom: 1,
+      messageId,
     };
     signals.set(signal.id, signal);
     messageEntry.signals.set(signalKey, signal);
+    if (messageId != null) {
+      registerMessageId(messageEntry, messageId);
+    }
     return signal;
   };
 
@@ -259,6 +330,9 @@ export function createGraphicCore(options = {}) {
     signals.delete(signalId);
     const entry = messageEntries.get(signal.messageKey);
     if (entry) {
+      if (signal.messageId != null) {
+        unregisterMessageId(entry, signal.messageId);
+      }
       entry.signals.delete(signal.signalKey);
       cleanupMessageEntry(entry);
     }
