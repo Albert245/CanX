@@ -143,11 +143,6 @@ export function initGraphicSignalManager(options) {
     toggle.appendChild(color);
     toggle.appendChild(name);
 
-    const meta = document.createElement('div');
-    meta.className = 'graphic-selected-meta';
-    const unitPart = descriptor.unit ? ` · ${descriptor.unit}` : '';
-    meta.textContent = `${descriptor.messageName}${descriptor.idDisplay ? ` (${descriptor.idDisplay})` : ''}${unitPart}`;
-
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'graphic-remove';
@@ -155,11 +150,22 @@ export function initGraphicSignalManager(options) {
     removeBtn.setAttribute('aria-label', `Remove ${descriptor.displayName}`);
 
     li.appendChild(toggle);
-    li.appendChild(meta);
     li.appendChild(removeBtn);
 
     descriptor.elements = { li, checkbox };
     return li;
+  };
+
+  const coerceInitialValue = (value) => {
+    if (value == null) return null;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   };
 
   const addSignal = async (entry) => {
@@ -207,6 +213,7 @@ export function initGraphicSignalManager(options) {
         maxValue: signalMeta.maximum,
         idDisplay: entry.idDisplay,
         frameAliases,
+        initialValue: coerceInitialValue(signalMeta.physical),
       };
       const element = createSelectedItem(descriptor);
       selectedList.appendChild(element);

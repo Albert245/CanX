@@ -11,13 +11,12 @@ export function initGraphicUi(core, renderer, elements) {
     zoomInBtn,
     zoomOutBtn,
     zoomResetBtn,
+    autoScaleBtn,
     modeInputs,
     combinedContainer,
     separateContainer,
     stageEl,
   } = elements;
-
-  const defaultTimePerDiv = core.getTimePerDivision();
 
   const updateReadouts = () => {
     if (timeScaleEl) {
@@ -31,7 +30,9 @@ export function initGraphicUi(core, renderer, elements) {
       pauseButton.classList.toggle('is-active', core.isPaused());
     }
     if (pauseBadge) {
-      pauseBadge.hidden = !core.isPaused();
+      const paused = core.isPaused();
+      pauseBadge.classList.toggle('is-visible', paused);
+      pauseBadge.setAttribute('aria-hidden', paused ? 'false' : 'true');
     }
   };
 
@@ -55,11 +56,24 @@ export function initGraphicUi(core, renderer, elements) {
   });
 
   zoomResetBtn?.addEventListener('click', () => {
-    core.setTimePerDivision(defaultTimePerDiv);
-    core.resetCombinedVerticalZoom();
-    core.getSignals().forEach((signal) => {
-      core.resetSignalVerticalZoom(signal.id);
-    });
+    if (typeof core.resetValueAxisScaling === 'function') {
+      core.resetValueAxisScaling();
+    } else {
+      core.resetCombinedVerticalZoom();
+      core.getSignals().forEach((signal) => {
+        core.resetSignalVerticalZoom(signal.id);
+      });
+    }
+    if (typeof core.getDefaultTimePerDivision === 'function' && typeof core.setTimePerDivision === 'function') {
+      core.setTimePerDivision(core.getDefaultTimePerDivision());
+    }
+    updateReadouts();
+  });
+
+  autoScaleBtn?.addEventListener('click', () => {
+    if (typeof core.autoScaleAxes === 'function') {
+      core.autoScaleAxes();
+    }
     updateReadouts();
   });
 
@@ -98,33 +112,91 @@ export function initGraphicUi(core, renderer, elements) {
   let dragState = null;
 
   const beginDrag = (event) => {
-    if (!core.isPaused()) return;
     const container = event.currentTarget;
-    const width = container?.clientWidth || container?.getBoundingClientRect()?.width;
-    if (!width) return;
+    const paused = core.isPaused();
+    const target = event.target instanceof Element ? event.target : null;
+    const panel = target?.closest('.graphic-panel');
+    const signalId = panel?.dataset.signalId || null;
+    const targetEl = signalId ? panel : container;
+    const rect = targetEl?.getBoundingClientRect?.();
+    const width = rect?.width || targetEl?.clientWidth || 0;
+    const height = rect?.height || targetEl?.clientHeight || 0;
+    const allowValue = height > 0 && (container !== separateContainer || Boolean(signalId));
+    const allowTime = paused && width > 0;
+    if (!allowTime && !allowValue) return;
+
     dragState = {
       pointerId: event.pointerId,
       container,
+      targetEl,
+      signalId,
+      allowTime,
+      allowValue,
+      type: allowTime ? null : 'value',
       startX: event.clientX,
+      startY: event.clientY,
       width,
+      height,
       applied: 0,
+      prevClientY: event.clientY,
     };
     container.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   };
 
+  const pickDragType = (event, dx, dy) => {
+    if (!dragState || dragState.type) return dragState?.type || null;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const threshold = 3;
+    if (absDx < threshold && absDy < threshold) {
+      return null;
+    }
+    if (dragState.allowTime && absDx >= absDy * 1.2 && core.isPaused()) {
+      dragState.type = 'time';
+      dragState.applied = 0;
+      dragState.startX = event.clientX;
+      return dragState.type;
+    }
+    if (dragState.allowValue) {
+      dragState.type = 'value';
+      dragState.prevClientY = event.clientY;
+      return dragState.type;
+    }
+    dragState.type = dragState.allowTime ? 'time' : null;
+    return dragState.type;
+  };
+
   const moveDrag = (event) => {
     if (!dragState || event.pointerId !== dragState.pointerId) return;
-    if (!core.isPaused()) {
-      endDrag(event);
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    const currentType = dragState.type || pickDragType(event, dx, dy);
+    if (currentType === 'time') {
+      if (!core.isPaused()) {
+        endDrag(event);
+        return;
+      }
+      const localDx = event.clientX - dragState.startX;
+      const secondsPerPixel = core.getWindow().duration / Math.max(1, dragState.width);
+      const targetShift = -localDx * secondsPerPixel;
+      const delta = targetShift - dragState.applied;
+      dragState.applied = targetShift;
+      core.shiftWindow(delta);
       return;
     }
-    const dx = event.clientX - dragState.startX;
-    const secondsPerPixel = core.getWindow().duration / Math.max(1, dragState.width);
-    const targetShift = -dx * secondsPerPixel;
-    const delta = targetShift - dragState.applied;
-    dragState.applied = targetShift;
-    core.shiftWindow(delta);
+    if (currentType === 'value') {
+      const referenceEl = dragState.targetEl;
+      const height = referenceEl?.getBoundingClientRect?.().height || referenceEl?.clientHeight || dragState.height;
+      const deltaY = event.clientY - (dragState.prevClientY ?? event.clientY);
+      dragState.prevClientY = event.clientY;
+      if (!height || deltaY === 0) return;
+      if (dragState.signalId) {
+        core.panSignalValueAxis?.(dragState.signalId, deltaY, height);
+      } else {
+        core.panCombinedValueAxis?.(deltaY, height);
+      }
+    }
   };
 
   const endDrag = (event) => {
