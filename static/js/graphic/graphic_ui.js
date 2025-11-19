@@ -11,13 +11,12 @@ export function initGraphicUi(core, renderer, elements) {
     zoomInBtn,
     zoomOutBtn,
     zoomResetBtn,
+    autoScaleBtn,
     modeInputs,
     combinedContainer,
     separateContainer,
     stageEl,
   } = elements;
-
-  const defaultTimePerDiv = core.getTimePerDivision();
 
   const updateReadouts = () => {
     if (timeScaleEl) {
@@ -31,7 +30,9 @@ export function initGraphicUi(core, renderer, elements) {
       pauseButton.classList.toggle('is-active', core.isPaused());
     }
     if (pauseBadge) {
-      pauseBadge.hidden = !core.isPaused();
+      const paused = core.isPaused();
+      pauseBadge.classList.toggle('is-visible', paused);
+      pauseBadge.setAttribute('aria-hidden', paused ? 'false' : 'true');
     }
   };
 
@@ -55,11 +56,24 @@ export function initGraphicUi(core, renderer, elements) {
   });
 
   zoomResetBtn?.addEventListener('click', () => {
-    core.setTimePerDivision(defaultTimePerDiv);
-    core.resetCombinedVerticalZoom();
-    core.getSignals().forEach((signal) => {
-      core.resetSignalVerticalZoom(signal.id);
-    });
+    if (typeof core.resetValueAxisScaling === 'function') {
+      core.resetValueAxisScaling();
+    } else {
+      core.resetCombinedVerticalZoom();
+      core.getSignals().forEach((signal) => {
+        core.resetSignalVerticalZoom(signal.id);
+      });
+    }
+    if (typeof core.getDefaultTimePerDivision === 'function' && typeof core.setTimePerDivision === 'function') {
+      core.setTimePerDivision(core.getDefaultTimePerDivision());
+    }
+    updateReadouts();
+  });
+
+  autoScaleBtn?.addEventListener('click', () => {
+    if (typeof core.autoScaleAxes === 'function') {
+      core.autoScaleAxes();
+    }
     updateReadouts();
   });
 
