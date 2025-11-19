@@ -171,12 +171,6 @@
   font-weight: 600;
 }
 
-.graphic-selected-meta {
-  font-size: 12px;
-  color: var(--muted);
-  flex: 0 0 auto;
-}
-
 .graphic-remove {
   border-radius: 50%;
   width: 28px;
