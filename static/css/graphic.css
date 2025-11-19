@@ -48,7 +48,9 @@
 .graphic-main-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 }
 
 .graphic-sidebar {
@@ -127,6 +129,18 @@
   color: #ffd166;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  text-align: right;
+  min-width: 72px;
+  display: inline-flex;
+  justify-content: flex-end;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+}
+
+.graphic-pause-indicator.is-visible {
+  opacity: 1;
+  visibility: visible;
 }
 
 .graphic-selected-section h3 {

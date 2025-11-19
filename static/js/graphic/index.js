@@ -81,14 +81,18 @@ export function initGraphic({ socket, onTabChange }) {
   let traceRunning = true;
   let traceStateKnown = false;
 
+  const clearGraphicSamples = () => {
+    if (typeof core.clearAllSamples === 'function') {
+      core.clearAllSamples();
+    }
+  };
+
   const setTraceRunning = (running) => {
     const prev = traceStateKnown ? traceRunning : null;
     traceRunning = !!running;
     traceStateKnown = true;
-    if (traceRunning && prev === false) {
-      if (typeof core.clearAllSamples === 'function') {
-        core.clearAllSamples();
-      }
+    if (prev !== null && prev !== traceRunning) {
+      clearGraphicSamples();
     }
   };
 

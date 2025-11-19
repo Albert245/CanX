@@ -30,7 +30,9 @@ export function initGraphicUi(core, renderer, elements) {
       pauseButton.classList.toggle('is-active', core.isPaused());
     }
     if (pauseBadge) {
-      pauseBadge.hidden = !core.isPaused();
+      const paused = core.isPaused();
+      pauseBadge.classList.toggle('is-visible', paused);
+      pauseBadge.setAttribute('aria-hidden', paused ? 'false' : 'true');
     }
   };
 

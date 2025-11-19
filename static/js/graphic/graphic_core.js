@@ -287,6 +287,7 @@ export function createGraphicCore(options = {}) {
       rangeMax: initialRange.max,
       initialRange: { ...initialRange },
       buffer,
+      hasSamples: false,
       verticalZoom: 1,
       lastSampleTs: null,
       avgInterval: null,
@@ -392,6 +393,7 @@ export function createGraphicCore(options = {}) {
       if (numeric == null) return;
       pushSample(signal.buffer, tsBase, numeric);
       updateSignalTimingStats(signal, tsBase);
+      signal.hasSamples = true;
       appended = true;
     });
     if (appended && Number.isFinite(tsBase)) {
@@ -430,6 +432,7 @@ export function createGraphicCore(options = {}) {
     const ts = Number.isFinite(timestamp) ? timestamp : nowSeconds();
     pushSample(signal.buffer, ts, numeric);
     updateSignalTimingStats(signal, ts);
+    signal.hasSamples = true;
     if (Number.isFinite(ts)) {
       lastSampleTimestamp = lastSampleTimestamp ? Math.max(lastSampleTimestamp, ts) : ts;
     }
@@ -482,7 +485,7 @@ export function createGraphicCore(options = {}) {
     const snapshot = [];
     signals.forEach((signal) => {
       if (!signal.enabled) return;
-      if (!signal.buffer || signal.buffer.size === 0) return;
+      if (!signal.hasSamples || !signal.buffer || signal.buffer.size === 0) return;
       const slice = extractWindowSlice(signal.buffer, window.start, window.end);
       if (!slice.times.length) return;
       const expanded = expandDegenerateRange({ min: signal.rangeMin, max: signal.rangeMax });
@@ -520,6 +523,7 @@ export function createGraphicCore(options = {}) {
       clearSignalBuffer(signal.buffer);
       signal.lastSampleTs = null;
       signal.avgInterval = null;
+      signal.hasSamples = false;
     });
     lastSampleTimestamp = 0;
     remoteClockOffset = null;
