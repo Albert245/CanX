@@ -112,33 +112,70 @@ export function initGraphicUi(core, renderer, elements) {
   let dragState = null;
 
   const beginDrag = (event) => {
-    if (!core.isPaused()) return;
     const container = event.currentTarget;
-    const width = container?.clientWidth || container?.getBoundingClientRect()?.width;
-    if (!width) return;
-    dragState = {
-      pointerId: event.pointerId,
-      container,
-      startX: event.clientX,
-      width,
-      applied: 0,
-    };
+    const paused = core.isPaused();
+    const target = event.target instanceof Element ? event.target : null;
+    const panel = target?.closest('.graphic-panel');
+    const signalId = panel?.dataset.signalId || null;
+    const sizeTarget = signalId ? panel : container;
+    const rect = sizeTarget?.getBoundingClientRect?.();
+    const width = rect?.width || sizeTarget?.clientWidth;
+    const height = rect?.height || sizeTarget?.clientHeight;
+    if (paused) {
+      if (!width) return;
+      dragState = {
+        pointerId: event.pointerId,
+        container,
+        targetEl: sizeTarget,
+        type: 'time',
+        startX: event.clientX,
+        width,
+        applied: 0,
+      };
+    } else {
+      if (!height) return;
+      if (container === separateContainer && !signalId) return;
+      dragState = {
+        pointerId: event.pointerId,
+        container,
+        targetEl: sizeTarget,
+        type: 'value',
+        signalId,
+        lastY: event.clientY,
+        height,
+      };
+    }
     container.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   };
 
   const moveDrag = (event) => {
     if (!dragState || event.pointerId !== dragState.pointerId) return;
-    if (!core.isPaused()) {
-      endDrag(event);
+    if (dragState.type === 'time') {
+      if (!core.isPaused()) {
+        endDrag(event);
+        return;
+      }
+      const dx = event.clientX - dragState.startX;
+      const secondsPerPixel = core.getWindow().duration / Math.max(1, dragState.width);
+      const targetShift = -dx * secondsPerPixel;
+      const delta = targetShift - dragState.applied;
+      dragState.applied = targetShift;
+      core.shiftWindow(delta);
       return;
     }
-    const dx = event.clientX - dragState.startX;
-    const secondsPerPixel = core.getWindow().duration / Math.max(1, dragState.width);
-    const targetShift = -dx * secondsPerPixel;
-    const delta = targetShift - dragState.applied;
-    dragState.applied = targetShift;
-    core.shiftWindow(delta);
+    if (dragState.type === 'value') {
+      const referenceEl = dragState.targetEl;
+      const height = referenceEl?.getBoundingClientRect?.().height || referenceEl?.clientHeight || dragState.height;
+      const dy = event.clientY - dragState.lastY;
+      dragState.lastY = event.clientY;
+      if (!height || dy === 0) return;
+      if (dragState.signalId) {
+        core.panSignalValueAxis?.(dragState.signalId, dy, height);
+      } else {
+        core.panCombinedValueAxis?.(dy, height);
+      }
+    }
   };
 
   const endDrag = (event) => {

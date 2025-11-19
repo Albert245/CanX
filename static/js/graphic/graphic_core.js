@@ -5,6 +5,7 @@ const DEFAULT_TIME_PER_DIV = 10; // 10 s
 const DEFAULT_BUFFER_CAPACITY = 12000;
 const MIN_VERTICAL_ZOOM = 0.25;
 const MAX_VERTICAL_ZOOM = 8;
+const MIN_PIXEL_SIZE = 1;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -152,6 +153,7 @@ export function createGraphicCore(options = {}) {
   let frozenWindowEnd = null;
   let manualOffset = 0;
   let combinedVerticalZoom = 1;
+  let combinedVerticalOffset = 0;
   let lastSampleTimestamp = 0;
   let remoteClockOffset = null;
 
@@ -289,6 +291,7 @@ export function createGraphicCore(options = {}) {
       buffer,
       hasSamples: false,
       verticalZoom: 1,
+      verticalOffset: 0,
       lastSampleTs: null,
       avgInterval: null,
     };
@@ -327,7 +330,23 @@ export function createGraphicCore(options = {}) {
     signal.verticalZoom = next;
   };
 
-  const resetSignalVerticalZoom = (signalId) => setSignalVerticalZoom(signalId, 1);
+  const setSignalVerticalOffset = (signalId, value = 0) => {
+    const signal = signals.get(signalId);
+    if (!signal) return;
+    signal.verticalOffset = Number.isFinite(value) ? value : 0;
+  };
+
+  const adjustSignalVerticalOffset = (signalId, delta) => {
+    const signal = signals.get(signalId);
+    if (!signal) return;
+    if (!Number.isFinite(delta) || delta === 0) return;
+    signal.verticalOffset += delta;
+  };
+
+  const resetSignalVerticalZoom = (signalId) => {
+    setSignalVerticalZoom(signalId, 1);
+    setSignalVerticalOffset(signalId, 0);
+  };
 
   const setCombinedVerticalZoom = (value) => {
     combinedVerticalZoom = clamp(value, MIN_VERTICAL_ZOOM, MAX_VERTICAL_ZOOM);
@@ -337,7 +356,57 @@ export function createGraphicCore(options = {}) {
     setCombinedVerticalZoom(combinedVerticalZoom * factor);
   };
 
-  const resetCombinedVerticalZoom = () => setCombinedVerticalZoom(1);
+  const setCombinedVerticalOffset = (value = 0) => {
+    combinedVerticalOffset = Number.isFinite(value) ? value : 0;
+  };
+
+  const adjustCombinedVerticalOffset = (delta) => {
+    if (!Number.isFinite(delta) || delta === 0) return;
+    combinedVerticalOffset += delta;
+  };
+
+  const resetCombinedVerticalZoom = () => {
+    setCombinedVerticalZoom(1);
+    setCombinedVerticalOffset(0);
+  };
+
+  const getCombinedBaseRange = () => {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    signals.forEach((signal) => {
+      if (!signal.enabled) return;
+      if (Number.isFinite(signal.rangeMin) && signal.rangeMin < min) min = signal.rangeMin;
+      if (Number.isFinite(signal.rangeMax) && signal.rangeMax > max) max = signal.rangeMax;
+    });
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { min: -1, max: 1 };
+    }
+    if (min === max) {
+      return expandDegenerateRange({ min, max });
+    }
+    return { min, max };
+  };
+
+  const computeSignalSpan = (signal) => Math.max(signal.rangeMax - signal.rangeMin, 1e-6) * signal.verticalZoom;
+
+  const panSignalValueAxis = (signalId, pixelDelta, pixelHeight) => {
+    const signal = signals.get(signalId);
+    if (!signal) return;
+    const height = Math.max(MIN_PIXEL_SIZE, pixelHeight || 0);
+    const span = computeSignalSpan(signal);
+    if (span <= 0) return;
+    const deltaValue = (pixelDelta / height) * span;
+    adjustSignalVerticalOffset(signalId, deltaValue);
+  };
+
+  const panCombinedValueAxis = (pixelDelta, pixelHeight) => {
+    const height = Math.max(MIN_PIXEL_SIZE, pixelHeight || 0);
+    const base = getCombinedBaseRange();
+    const span = Math.max(base.max - base.min, 1e-6) * combinedVerticalZoom;
+    if (span <= 0) return;
+    const deltaValue = (pixelDelta / height) * span;
+    adjustCombinedVerticalOffset(deltaValue);
+  };
 
   const resolveMessageSignals = (entry) => {
     const candidates = [
@@ -486,25 +555,26 @@ export function createGraphicCore(options = {}) {
     signals.forEach((signal) => {
       if (!signal.enabled) return;
       if (!signal.hasSamples || !signal.buffer || signal.buffer.size === 0) return;
-      const slice = extractWindowSlice(signal.buffer, window.start, window.end);
-      if (!slice.times.length) return;
-      const baseMin = Number.isFinite(signal.rangeMin) ? signal.rangeMin : slice.min;
-      const baseMax = Number.isFinite(signal.rangeMax) ? signal.rangeMax : slice.max;
-      const expanded = expandDegenerateRange({ min: baseMin, max: baseMax });
-      snapshot.push({
-        id: signal.id,
-        color: signal.color,
-        unit: signal.unit,
-        displayName: signal.displayName,
-        times: slice.times,
-        values: slice.values,
-        rangeMin: expanded.min,
-        rangeMax: expanded.max,
-        verticalZoom: signal.verticalZoom,
-      });
+    const slice = extractWindowSlice(signal.buffer, window.start, window.end);
+    if (!slice.times.length) return;
+    const baseMin = Number.isFinite(signal.rangeMin) ? signal.rangeMin : slice.min;
+    const baseMax = Number.isFinite(signal.rangeMax) ? signal.rangeMax : slice.max;
+    const expanded = expandDegenerateRange({ min: baseMin, max: baseMax });
+    snapshot.push({
+      id: signal.id,
+      color: signal.color,
+      unit: signal.unit,
+      displayName: signal.displayName,
+      times: slice.times,
+      values: slice.values,
+      rangeMin: expanded.min,
+      rangeMax: expanded.max,
+      verticalZoom: signal.verticalZoom,
+      verticalOffset: signal.verticalOffset || 0,
     });
-    return snapshot;
-  };
+  });
+  return snapshot;
+};
 
   const getCombinedRange = (signalsSnapshot) => {
     if (!signalsSnapshot.length) return { min: -1, max: 1 };
@@ -545,9 +615,12 @@ export function createGraphicCore(options = {}) {
     setSignalVerticalZoom,
     adjustSignalVerticalZoom,
     resetSignalVerticalZoom,
+    panSignalValueAxis,
     setCombinedVerticalZoom,
     adjustCombinedVerticalZoom,
     resetCombinedVerticalZoom,
+    panCombinedValueAxis,
+    getCombinedVerticalOffset: () => combinedVerticalOffset,
     getCombinedVerticalZoom: () => combinedVerticalZoom,
     getTimePerDivision: () => timePerDivision,
     setTimePerDivision,

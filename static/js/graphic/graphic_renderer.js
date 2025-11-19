@@ -294,9 +294,10 @@ export function createGraphicRenderer(core, options) {
 
     const combinedRange = core.getCombinedRange(signalsSnapshot);
     const zoom = core.getCombinedVerticalZoom();
+    const offset = typeof core.getCombinedVerticalOffset === 'function' ? core.getCombinedVerticalOffset() : 0;
     const span = Math.max(combinedRange.max - combinedRange.min, 1e-6) * zoom;
     const center = (combinedRange.max + combinedRange.min) / 2;
-    const yRange = { min: center - span / 2, max: center + span / 2 };
+    const yRange = { min: center - span / 2 + offset, max: center + span / 2 + offset };
     const ticks = computeTicks(yRange.min, yRange.max, 6).ticks;
     drawGrid(ctx, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
 
@@ -334,7 +335,8 @@ export function createGraphicRenderer(core, options) {
       ctx2d.fillRect(0, 0, width, height);
       const span = Math.max(signal.rangeMax - signal.rangeMin, 1e-6) * signal.verticalZoom;
       const center = (signal.rangeMax + signal.rangeMin) / 2;
-      const yRange = { min: center - span / 2, max: center + span / 2 };
+      const offset = signal.verticalOffset || 0;
+      const yRange = { min: center - span / 2 + offset, max: center + span / 2 + offset };
       const ticks = computeTicks(yRange.min, yRange.max, 5).ticks;
       drawGrid(ctx2d, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
       const points = buildSeriesPoints(windowState, rect, signal, yRange);
