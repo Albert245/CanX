@@ -43,7 +43,15 @@ export function initGraphicSignalManager(options) {
   } = options;
 
   if (!resultsList || !selectedList) {
-    throw new Error('Graphic signal manager missing list elements');
+    console.warn('Graphic signal manager missing list elements; skipping initialization');
+    const noop = () => {};
+    return {
+      loadSignalIndex: noop,
+      removeSignal: noop,
+      toggleSignal: noop,
+      getSelectedSignals: () => [],
+      setStatus: noop,
+    };
   }
 
   let signalIndex = [];
