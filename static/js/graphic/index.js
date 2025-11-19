@@ -70,6 +70,8 @@ export function initGraphic({ socket, onTabChange }) {
     zoomOutBtn: $('#graphic-zoom-out'),
     zoomResetBtn: $('#graphic-zoom-reset'),
     autoScaleBtn: $('#graphic-zoom-auto'),
+    cursorButton: $('#graphic-cursor-toggle'),
+    cursorDeltaEl: $('#graphic-cursor-delta'),
     modeInputs: Array.from(document.querySelectorAll('input[name="graphic-mode"]')),
     combinedContainer,
     separateContainer,

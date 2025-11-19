@@ -705,3 +705,14 @@ export const formatZoomFactor = (zoom) => {
   const text = zoom.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
   return `${text}×`;
 };
+
+export const formatDeltaTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  if (seconds >= 1) {
+    return seconds >= 10 ? `${seconds.toFixed(1)} s` : `${seconds.toFixed(2)} s`;
+  }
+  const ms = seconds * 1000;
+  if (ms >= 100) return `${ms.toFixed(0)} ms`;
+  if (ms >= 10) return `${ms.toFixed(1)} ms`;
+  return `${ms.toFixed(2)} ms`;
+};

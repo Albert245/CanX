@@ -2,6 +2,7 @@ const COLOR_BG = '#0c0f16';
 const COLOR_GRID = 'rgba(255, 255, 255, 0.08)';
 const COLOR_SUBGRID = 'rgba(255, 255, 255, 0.04)';
 const COLOR_TEXT = 'rgba(255, 255, 255, 0.75)';
+const CURSOR_COLORS = ['#4f8cff', '#ff6b6b'];
 const SUBGRID_PARTS = 10;
 
 const computeNiceStep = (span, maxTicks = 6) => {
@@ -136,7 +137,35 @@ const drawStepSeries = (ctx, points, color) => {
   ctx.restore();
 };
 
-import { formatZoomFactor } from './graphic_core.js';
+import { formatZoomFactor, formatDeltaTime } from './graphic_core.js';
+
+const getCursorDeltaSeconds = (pair) => {
+  if (!pair || !Array.isArray(pair.positions)) return null;
+  const [a, b] = pair.positions;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.abs(b - a);
+};
+
+const drawCursorPair = (ctx, rect, windowState, pair) => {
+  if (!pair || !Array.isArray(pair.positions) || !pair.positions.length) return;
+  if (!rect || rect.width <= 0 || rect.height <= 0) return;
+  const duration = windowState.duration || 0;
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  pair.positions.forEach((timestamp, index) => {
+    if (!Number.isFinite(timestamp)) return;
+    if (timestamp < windowState.start || timestamp > windowState.end) return;
+    const ratio = (timestamp - windowState.start) / duration;
+    const x = rect.x + ratio * rect.width;
+    ctx.save();
+    ctx.strokeStyle = CURSOR_COLORS[index] || CURSOR_COLORS[0];
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, rect.y);
+    ctx.lineTo(x, rect.y + rect.height);
+    ctx.stroke();
+    ctx.restore();
+  });
+};
 
 const ensurePanel = (container, panelMap, signal) => {
   if (panelMap.has(signal.id)) {
@@ -148,15 +177,26 @@ const ensurePanel = (container, panelMap, signal) => {
 
   const header = document.createElement('div');
   header.className = 'graphic-panel-header';
+  const headerMain = document.createElement('div');
+  headerMain.className = 'graphic-panel-header-main';
   const name = document.createElement('span');
   name.className = 'graphic-panel-name';
   const unit = document.createElement('span');
   unit.className = 'graphic-panel-unit';
+  headerMain.appendChild(name);
+  headerMain.appendChild(unit);
+
+  const headerMeta = document.createElement('div');
+  headerMeta.className = 'graphic-panel-header-meta';
   const zoom = document.createElement('span');
   zoom.className = 'graphic-panel-zoom';
-  header.appendChild(name);
-  header.appendChild(unit);
-  header.appendChild(zoom);
+  const cursor = document.createElement('span');
+  cursor.className = 'graphic-panel-cursor';
+  headerMeta.appendChild(zoom);
+  headerMeta.appendChild(cursor);
+
+  header.appendChild(headerMain);
+  header.appendChild(headerMeta);
 
   const canvas = document.createElement('canvas');
   canvas.className = 'graphic-panel-canvas';
@@ -166,7 +206,7 @@ const ensurePanel = (container, panelMap, signal) => {
   container.appendChild(wrapper);
 
   const ctx = canvas.getContext('2d');
-  const panel = { wrapper, header, name, unit, zoom, canvas, ctx, width: 0, height: 0 };
+  const panel = { wrapper, header, name, unit, zoom, cursor, canvas, ctx, width: 0, height: 0 };
   panelMap.set(signal.id, panel);
   return panel;
 };
@@ -191,6 +231,7 @@ export function createGraphicRenderer(core, options) {
   let rafId = null;
   let lastWidth = 0;
   let lastHeight = 0;
+  let cursorOverlay = { enabled: false, combined: null, perSignal: null };
   stageEl?.setAttribute('data-mode', mode);
 
   const resizeObserver = new ResizeObserver(() => {
@@ -306,6 +347,10 @@ export function createGraphicRenderer(core, options) {
       drawStepSeries(ctx, points, signal.color || '#4f8cff');
     });
 
+    if (cursorOverlay.enabled && cursorOverlay.combined) {
+      drawCursorPair(ctx, rect, windowState, cursorOverlay.combined);
+    }
+
     ctx.restore();
   };
 
@@ -341,8 +386,21 @@ export function createGraphicRenderer(core, options) {
       drawGrid(ctx2d, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
       const points = buildSeriesPoints(windowState, rect, signal, yRange);
       drawStepSeries(ctx2d, points, signal.color || '#4f8cff');
+      if (panel.cursor) {
+        const cursorPair = cursorOverlay.enabled ? cursorOverlay.perSignal?.get(signal.id) : null;
+        const deltaSeconds = cursorPair ? getCursorDeltaSeconds(cursorPair) : null;
+        panel.cursor.textContent = cursorOverlay.enabled && deltaSeconds != null ? `Δt ${formatDeltaTime(deltaSeconds)}` : '';
+        if (cursorOverlay.enabled && cursorPair) {
+          drawCursorPair(ctx2d, rect, windowState, cursorPair);
+        }
+      }
       ctx2d.restore();
     });
+    if (!cursorOverlay.enabled) {
+      panelMap.forEach((panel) => {
+        if (panel.cursor) panel.cursor.textContent = '';
+      });
+    }
   };
 
   const renderFrame = () => {
@@ -384,10 +442,19 @@ export function createGraphicRenderer(core, options) {
     stageEl?.setAttribute('data-mode', mode);
   };
 
+  const setCursorState = (state) => {
+    cursorOverlay = {
+      enabled: !!state?.enabled,
+      combined: state?.combined || null,
+      perSignal: state?.perSignal || null,
+    };
+  };
+
   return {
     start,
     stop,
     setMode,
     getMode: () => mode,
+    setCursorState,
   };
 }
