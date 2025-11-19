@@ -20,6 +20,12 @@ const createSignalBuffer = (capacity = DEFAULT_BUFFER_CAPACITY) => ({
   capacity,
 });
 
+const clearSignalBuffer = (buffer) => {
+  if (!buffer) return;
+  buffer.head = 0;
+  buffer.size = 0;
+};
+
 const pushSample = (buffer, ts, value) => {
   buffer.timestamps[buffer.head] = ts;
   buffer.values[buffer.head] = value;
@@ -476,7 +482,9 @@ export function createGraphicCore(options = {}) {
     const snapshot = [];
     signals.forEach((signal) => {
       if (!signal.enabled) return;
+      if (!signal.buffer || signal.buffer.size === 0) return;
       const slice = extractWindowSlice(signal.buffer, window.start, window.end);
+      if (!slice.times.length) return;
       const expanded = expandDegenerateRange({ min: signal.rangeMin, max: signal.rangeMax });
       snapshot.push({
         id: signal.id,
@@ -507,6 +515,16 @@ export function createGraphicCore(options = {}) {
     return expandDegenerateRange({ min, max });
   };
 
+  const clearAllSamples = () => {
+    signals.forEach((signal) => {
+      clearSignalBuffer(signal.buffer);
+      signal.lastSampleTs = null;
+      signal.avgInterval = null;
+    });
+    lastSampleTimestamp = 0;
+    remoteClockOffset = null;
+  };
+
   return {
     TIME_DIVISIONS: timeDivisions,
     MIN_TIME_PER_DIV: minTimePerDiv,
@@ -531,6 +549,7 @@ export function createGraphicCore(options = {}) {
     resetValueAxisScaling,
     autoScaleAxes,
     getDefaultTimePerDivision: () => initialTimePerDivision,
+    clearAllSamples,
     ingestTraceEntry,
     ingestSignalValue,
     pause,

@@ -78,7 +78,42 @@ export function initGraphic({ socket, onTabChange }) {
 
   signalManager.loadSignalIndex();
 
+  let traceRunning = true;
+  let traceStateKnown = false;
+
+  const setTraceRunning = (running) => {
+    const prev = traceStateKnown ? traceRunning : null;
+    traceRunning = !!running;
+    traceStateKnown = true;
+    if (traceRunning && prev === false) {
+      if (typeof core.clearAllSamples === 'function') {
+        core.clearAllSamples();
+      }
+    }
+  };
+
+  if (socket && typeof socket.on === 'function') {
+    socket.on('trace_info', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'running')) {
+        setTraceRunning(!!msg.running);
+      }
+    });
+    socket.on('trace_error', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'running')) {
+        setTraceRunning(!!msg.running);
+      } else {
+        setTraceRunning(false);
+      }
+    });
+    socket.on('connected', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'trace_running')) {
+        setTraceRunning(!!msg.trace_running);
+      }
+    });
+  }
+
   subscribeTraceEntries((entry) => {
+    if (traceStateKnown && !traceRunning) return;
     core.ingestTraceEntry(entry);
   });
 
