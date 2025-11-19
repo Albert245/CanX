@@ -9,6 +9,12 @@ from COMMON.Cast import HexArr2Str
 
 panel_bp = Blueprint('panel_api', __name__)
 
+IMAGE_FOLDERS = {
+  'white': Path('static/assets/white'),
+  'blue': Path('static/assets/blue'),
+  'red': Path('static/assets/red'),
+}
+
 BLOCK_PATTERN = re.compile(r'on\s+([a-zA-Z_][\w]*)\s*(?:([^\{]*))?\{([^}]*)\}', re.IGNORECASE | re.DOTALL)
 
 
@@ -241,3 +247,23 @@ def panel_script_eval():
     return jsonify({'ok': True, 'actions': []})
   actions = _parse_commands(script, str(event), state)
   return jsonify({'ok': True, 'actions': actions[:20]})
+
+
+@panel_bp.route('/list-images', methods=['GET'])
+def panel_list_images():
+  result = {color: [] for color in IMAGE_FOLDERS.keys()}
+  root = Path(current_app.root_path)
+  for color, rel_path in IMAGE_FOLDERS.items():
+    try:
+      target_dir = root / rel_path
+      if not target_dir.exists() or not target_dir.is_dir():
+        continue
+      entries = [
+        entry.name
+        for entry in target_dir.iterdir()
+        if entry.is_file() and entry.suffix.lower() in {'.png', '.jpg', '.jpeg', '.svg'}
+      ]
+      result[color] = sorted(entries)
+    except Exception:
+      result[color] = []
+  return jsonify(result)

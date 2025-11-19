@@ -48,6 +48,12 @@ export class PanelPropertiesPanel {
     this.signalChoices = {};
     this.statusEl = null;
     this.signalDatalistId = 'panel-signal-options';
+    this.customRenderers = new Map();
+  }
+
+  registerCustomRenderer(type, renderer) {
+    if (!type || typeof renderer !== 'function') return;
+    this.customRenderers.set(type, renderer);
   }
 
   clear() {
@@ -92,6 +98,15 @@ export class PanelPropertiesPanel {
       });
     }
     sections.forEach((section) => this._renderSection(form, section));
+
+    const renderer = this.customRenderers.get(this.widget.type);
+    if (renderer) {
+      try {
+        renderer({ form, widget: this.widget, definition });
+      } catch (err) {
+        console.warn('Panel properties renderer error', err);
+      }
+    }
 
     this.statusEl = createElement('div', 'panel-properties-status');
     form.appendChild(this.statusEl);

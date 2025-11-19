@@ -344,6 +344,15 @@ export const createWidgetData = (type, overrides = {}) => {
     script: definition.defaults?.script || '',
     runtime: {},
   };
+  if (definition.defaults) {
+    const extras = { ...definition.defaults };
+    delete extras.label;
+    delete extras.mapping;
+    delete extras.images;
+    delete extras.options;
+    delete extras.script;
+    deepMerge(base, extras);
+  }
   return deepMerge(base, overrides);
 };
 

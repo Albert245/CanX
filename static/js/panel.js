@@ -2,6 +2,7 @@ import { PanelGrid } from './panel_grid.js';
 import { PanelWidgetManager, PANEL_WIDGET_LIBRARY } from './panel_widgets.js';
 import { PanelPropertiesPanel } from './panel_properties.js';
 import { PanelScriptEngine } from './panel_script.js';
+import { registerImageWidgetExtensions } from './panel_image_widgets.js';
 
 const PANEL_STORAGE_FILE = 'canx_panel.json';
 
@@ -156,6 +157,8 @@ const initPanel = () => {
     },
     fetchMessageInfo,
   });
+
+  registerImageWidgetExtensions({ propertiesPanel });
 
   const toolboxButtons = new Map();
 
