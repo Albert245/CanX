@@ -1,7 +1,8 @@
 const TIME_DIVISIONS = 10;
-const MIN_TIME_PER_DIV = 0.01; // 10 ms
-const MAX_TIME_PER_DIV = 10; // 10 s
-const DEFAULT_TIME_PER_DIV = 10; // 10 s
+const TIME_PER_DIVISION_STEPS = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10];
+const MIN_TIME_PER_DIV = TIME_PER_DIVISION_STEPS[0];
+const MAX_TIME_PER_DIV = TIME_PER_DIVISION_STEPS[TIME_PER_DIVISION_STEPS.length - 1];
+const DEFAULT_TIME_PER_DIV = MAX_TIME_PER_DIV; // 10 s
 const DEFAULT_BUFFER_CAPACITY = 12000;
 const MIN_VERTICAL_ZOOM = 0.25;
 const MAX_VERTICAL_ZOOM = 8;
@@ -138,17 +139,48 @@ export function createGraphicCore(options = {}) {
   const {
     bufferCapacity = DEFAULT_BUFFER_CAPACITY,
     timeDivisions = TIME_DIVISIONS,
-    minTimePerDiv = MIN_TIME_PER_DIV,
-    maxTimePerDiv = MAX_TIME_PER_DIV,
+    timePerDivisionSteps = TIME_PER_DIVISION_STEPS,
     defaultTimePerDiv = DEFAULT_TIME_PER_DIV,
   } = options;
+
+  const allowedTimeSteps = (Array.isArray(timePerDivisionSteps) && timePerDivisionSteps.length
+    ? timePerDivisionSteps
+    : TIME_PER_DIVISION_STEPS)
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+
+  const minTimePerDiv = allowedTimeSteps[0] ?? MIN_TIME_PER_DIV;
+  const maxTimePerDiv = allowedTimeSteps[allowedTimeSteps.length - 1] ?? MAX_TIME_PER_DIV;
+
+  const findNearestStepIndex = (value) => {
+    if (!allowedTimeSteps.length) {
+      return 0;
+    }
+    if (!Number.isFinite(value)) {
+      return allowedTimeSteps.length - 1;
+    }
+    const clampedValue = clamp(value, minTimePerDiv, maxTimePerDiv);
+    let bestIndex = 0;
+    let bestDiff = Number.POSITIVE_INFINITY;
+    allowedTimeSteps.forEach((step, index) => {
+      const diff = Math.abs(step - clampedValue);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIndex = index;
+      }
+    });
+    return bestIndex;
+  };
 
   const signals = new Map();
   const messageEntries = new Map();
   const aliasLookup = new Map();
 
-  const initialTimePerDivision = clamp(defaultTimePerDiv, minTimePerDiv, maxTimePerDiv);
+  const initialStepIndex = findNearestStepIndex(defaultTimePerDiv);
+  const initialTimePerDivision = allowedTimeSteps[initialStepIndex] ?? defaultTimePerDiv;
   let timePerDivision = initialTimePerDivision;
+  let timeStepIndex = initialStepIndex;
   let isPaused = false;
   let frozenWindowEnd = null;
   let manualOffset = 0;
@@ -209,7 +241,8 @@ export function createGraphicCore(options = {}) {
     const baseEnd = frozenWindowEnd ?? nowSeconds();
     const currentEnd = baseEnd + manualOffset;
     if (currentEnd - duration < earliest) {
-      manualOffset = earliest + duration - baseEnd;
+      const desiredOffset = earliest + duration - baseEnd;
+      manualOffset = Math.min(0, desiredOffset);
     }
   };
 
@@ -508,16 +541,62 @@ export function createGraphicCore(options = {}) {
     return true;
   };
 
-  const setTimePerDivision = (value) => {
-    const next = clamp(value, minTimePerDiv, maxTimePerDiv);
-    if (Math.abs(next - timePerDivision) < 1e-6) return;
-    timePerDivision = next;
+  const applyTimePerDivisionIndex = (index) => {
+    if (!allowedTimeSteps.length) return;
+    const clampedIndex = clamp(index, 0, allowedTimeSteps.length - 1);
+    const nextValue = allowedTimeSteps[clampedIndex];
+    if (Math.abs(nextValue - timePerDivision) < 1e-6) {
+      timeStepIndex = clampedIndex;
+      return;
+    }
+    const pausedTargetEnd = isPaused ? getWindowEnd() : null;
+    timePerDivision = nextValue;
+    timeStepIndex = clampedIndex;
     clampManualOffset();
+    if (pausedTargetEnd != null) {
+      const baseEnd = frozenWindowEnd ?? nowSeconds();
+      manualOffset = pausedTargetEnd - baseEnd;
+      clampManualOffset();
+    }
+  };
+
+  const setTimePerDivision = (value) => {
+    const targetIndex = findNearestStepIndex(value);
+    applyTimePerDivisionIndex(targetIndex);
   };
 
   const adjustTimePerDivision = (factor) => {
     if (!Number.isFinite(factor) || factor === 0) return;
-    setTimePerDivision(timePerDivision * factor);
+    const direction = factor > 1 ? 1 : -1;
+    applyTimePerDivisionIndex(timeStepIndex + direction);
+  };
+
+  const resetValueAxisScaling = () => {
+    resetCombinedVerticalZoom();
+    signals.forEach((signal) => {
+      resetSignalVerticalZoom(signal.id);
+    });
+  };
+
+  const suggestTimePerDivision = () => {
+    let bestInterval = null;
+    signals.forEach((signal) => {
+      if (!signal.enabled) return;
+      if (!Number.isFinite(signal.avgInterval) || signal.avgInterval <= 0) return;
+      bestInterval = bestInterval == null ? signal.avgInterval : Math.min(bestInterval, signal.avgInterval);
+    });
+    if (bestInterval == null) return null;
+    return clamp(bestInterval * 10, minTimePerDiv, maxTimePerDiv);
+  };
+
+  const autoScaleAxes = () => {
+    resetValueAxisScaling();
+    const suggested = suggestTimePerDivision();
+    if (Number.isFinite(suggested)) {
+      setTimePerDivision(suggested);
+    } else {
+      setTimePerDivision(initialTimePerDivision);
+    }
   };
 
   const resetValueAxisScaling = () => {
