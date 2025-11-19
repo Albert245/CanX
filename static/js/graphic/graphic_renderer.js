@@ -1,20 +1,23 @@
 const COLOR_BG = '#0c0f16';
 const COLOR_GRID = 'rgba(255, 255, 255, 0.08)';
+const COLOR_SUBGRID = 'rgba(255, 255, 255, 0.04)';
 const COLOR_TEXT = 'rgba(255, 255, 255, 0.75)';
+const SUBGRID_PARTS = 10;
 
-const niceNumber = (value) => {
-  if (!Number.isFinite(value) || value <= 0) return 1;
-  const exponent = Math.floor(Math.log10(value));
-  const fraction = value / 10 ** exponent;
-  let niceFraction;
-  if (fraction <= 1) niceFraction = 1;
-  else if (fraction <= 2) niceFraction = 2;
-  else if (fraction <= 5) niceFraction = 5;
-  else niceFraction = 10;
-  return niceFraction * 10 ** exponent;
+const computeNiceStep = (span, maxTicks = 6) => {
+  if (!Number.isFinite(span) || span <= 0) return 1;
+  const target = span / Math.max(1, maxTicks - 1);
+  const exponent = Math.floor(Math.log10(target));
+  const pow10 = 10 ** exponent;
+  const normalized = target / pow10;
+  const fractions = [1, 2, 2.5, 5, 10];
+  const chosen = fractions.find((fraction) => normalized <= fraction) ?? 10;
+  return chosen * pow10;
 };
 
-const computeTicks = (min, max, maxTicks = 6) => {
+const computeTicks = (minInput, maxInput, maxTicks = 6) => {
+  let min = Number(minInput);
+  let max = Number(maxInput);
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
     return { min: 0, max: 1, ticks: [0, 1], step: 1 };
   }
@@ -23,15 +26,32 @@ const computeTicks = (min, max, maxTicks = 6) => {
     min -= padding;
     max += padding;
   }
-  const span = max - min;
-  const step = niceNumber(span / Math.max(2, maxTicks - 1));
-  const niceMin = Math.floor(min / step) * step;
-  const niceMax = Math.ceil(max / step) * step;
-  const ticks = [];
-  for (let value = niceMin; value <= niceMax + step * 0.5; value += step) {
-    ticks.push(Number(value.toFixed(6)));
+  if (min > max) {
+    const tmp = min;
+    min = max;
+    max = tmp;
   }
-  return { min: niceMin, max: niceMax, ticks, step };
+  const span = max - min;
+  const step = computeNiceStep(span, maxTicks);
+  const ticks = [];
+  const epsilon = step * 1e-6;
+  const normalizedMin = Number(min.toFixed(6));
+  const normalizedMax = Number(max.toFixed(6));
+  ticks.push(normalizedMin);
+  let nextTick = Math.ceil((min + epsilon) / step) * step;
+  if (nextTick - min < epsilon) {
+    nextTick += step;
+  }
+  for (; nextTick < max - epsilon; nextTick += step) {
+    ticks.push(Number(nextTick.toFixed(6)));
+  }
+  if (ticks[ticks.length - 1] !== normalizedMax) {
+    ticks.push(normalizedMax);
+  }
+  if (ticks.length < 2) {
+    ticks.push(normalizedMax + step);
+  }
+  return { min: normalizedMin, max: normalizedMax, ticks, step };
 };
 
 const formatTick = (value) => {
@@ -194,6 +214,32 @@ export function createGraphicRenderer(core, options) {
     const tickMax = tickValues[tickValues.length - 1];
     const denom = tickMax - tickMin || 1;
     ctx2d.save();
+
+    if (SUBGRID_PARTS > 1) {
+      ctx2d.strokeStyle = COLOR_SUBGRID;
+      ctx2d.lineWidth = 0.5;
+      ctx2d.beginPath();
+      for (let i = 0; i < divisions; i += 1) {
+        for (let j = 1; j < SUBGRID_PARTS; j += 1) {
+          const x = rect.x + ((i + j / SUBGRID_PARTS) / divisions) * rect.width;
+          ctx2d.moveTo(x, rect.y);
+          ctx2d.lineTo(x, rect.y + rect.height);
+        }
+      }
+      for (let t = 0; t < tickValues.length - 1; t += 1) {
+        const start = tickValues[t];
+        const end = tickValues[t + 1];
+        for (let j = 1; j < SUBGRID_PARTS; j += 1) {
+          const value = start + ((end - start) * j) / SUBGRID_PARTS;
+          const yRatio = (value - tickMin) / denom;
+          const y = rect.y + rect.height - yRatio * rect.height;
+          ctx2d.moveTo(rect.x, y);
+          ctx2d.lineTo(rect.x + rect.width, y);
+        }
+      }
+      ctx2d.stroke();
+    }
+
     ctx2d.strokeStyle = COLOR_GRID;
     ctx2d.lineWidth = 1;
     ctx2d.beginPath();
@@ -248,9 +294,10 @@ export function createGraphicRenderer(core, options) {
 
     const combinedRange = core.getCombinedRange(signalsSnapshot);
     const zoom = core.getCombinedVerticalZoom();
+    const offset = typeof core.getCombinedVerticalOffset === 'function' ? core.getCombinedVerticalOffset() : 0;
     const span = Math.max(combinedRange.max - combinedRange.min, 1e-6) * zoom;
     const center = (combinedRange.max + combinedRange.min) / 2;
-    const yRange = { min: center - span / 2, max: center + span / 2 };
+    const yRange = { min: center - span / 2 + offset, max: center + span / 2 + offset };
     const ticks = computeTicks(yRange.min, yRange.max, 6).ticks;
     drawGrid(ctx, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
 
@@ -286,9 +333,10 @@ export function createGraphicRenderer(core, options) {
       ctx2d.clearRect(0, 0, width, height);
       ctx2d.fillStyle = COLOR_BG;
       ctx2d.fillRect(0, 0, width, height);
-      const span = Math.max(signal.dataMax - signal.dataMin, 1e-6) * signal.verticalZoom;
-      const center = (signal.dataMax + signal.dataMin) / 2;
-      const yRange = { min: center - span / 2, max: center + span / 2 };
+      const span = Math.max(signal.rangeMax - signal.rangeMin, 1e-6) * signal.verticalZoom;
+      const center = (signal.rangeMax + signal.rangeMin) / 2;
+      const offset = signal.verticalOffset || 0;
+      const yRange = { min: center - span / 2 + offset, max: center + span / 2 + offset };
       const ticks = computeTicks(yRange.min, yRange.max, 5).ticks;
       drawGrid(ctx2d, rect, windowState, ticks, core.TIME_DIVISIONS || 10);
       const points = buildSeriesPoints(windowState, rect, signal, yRange);
