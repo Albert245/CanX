@@ -488,9 +488,9 @@ export function createGraphicCore(options = {}) {
       if (!signal.hasSamples || !signal.buffer || signal.buffer.size === 0) return;
       const slice = extractWindowSlice(signal.buffer, window.start, window.end);
       if (!slice.times.length) return;
-      const sourceMin = Number.isFinite(slice.min) ? slice.min : signal.rangeMin;
-      const sourceMax = Number.isFinite(slice.max) ? slice.max : signal.rangeMax;
-      const expanded = expandDegenerateRange({ min: sourceMin, max: sourceMax });
+      const baseMin = Number.isFinite(signal.rangeMin) ? signal.rangeMin : slice.min;
+      const baseMax = Number.isFinite(signal.rangeMax) ? signal.rangeMax : slice.max;
+      const expanded = expandDegenerateRange({ min: baseMin, max: baseMax });
       snapshot.push({
         id: signal.id,
         color: signal.color,
