@@ -43,6 +43,7 @@ export function initGraphic({ socket, onTabChange }) {
         minValue: descriptor.minValue,
         maxValue: descriptor.maxValue,
         frameAliases: descriptor.frameAliases,
+        initialValue: descriptor.initialValue,
       });
     },
     onSignalRemoved: (signalId) => {
@@ -61,6 +62,7 @@ export function initGraphic({ socket, onTabChange }) {
     zoomInBtn: $('#graphic-zoom-in'),
     zoomOutBtn: $('#graphic-zoom-out'),
     zoomResetBtn: $('#graphic-zoom-reset'),
+    autoScaleBtn: $('#graphic-zoom-auto'),
     modeInputs: Array.from(document.querySelectorAll('input[name="graphic-mode"]')),
     combinedContainer,
     separateContainer,
@@ -69,7 +71,42 @@ export function initGraphic({ socket, onTabChange }) {
 
   signalManager.loadSignalIndex();
 
+  let traceRunning = true;
+  let traceStateKnown = false;
+
+  const setTraceRunning = (running) => {
+    const prev = traceStateKnown ? traceRunning : null;
+    traceRunning = !!running;
+    traceStateKnown = true;
+    if (traceRunning && prev === false) {
+      if (typeof core.clearAllSamples === 'function') {
+        core.clearAllSamples();
+      }
+    }
+  };
+
+  if (socket && typeof socket.on === 'function') {
+    socket.on('trace_info', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'running')) {
+        setTraceRunning(!!msg.running);
+      }
+    });
+    socket.on('trace_error', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'running')) {
+        setTraceRunning(!!msg.running);
+      } else {
+        setTraceRunning(false);
+      }
+    });
+    socket.on('connected', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'trace_running')) {
+        setTraceRunning(!!msg.trace_running);
+      }
+    });
+  }
+
   subscribeTraceEntries((entry) => {
+    if (traceStateKnown && !traceRunning) return;
     core.ingestTraceEntry(entry);
   });
 
