@@ -599,6 +599,34 @@ export function createGraphicCore(options = {}) {
     }
   };
 
+  const resetValueAxisScaling = () => {
+    resetCombinedVerticalZoom();
+    signals.forEach((signal) => {
+      resetSignalVerticalZoom(signal.id);
+    });
+  };
+
+  const suggestTimePerDivision = () => {
+    let bestInterval = null;
+    signals.forEach((signal) => {
+      if (!signal.enabled) return;
+      if (!Number.isFinite(signal.avgInterval) || signal.avgInterval <= 0) return;
+      bestInterval = bestInterval == null ? signal.avgInterval : Math.min(bestInterval, signal.avgInterval);
+    });
+    if (bestInterval == null) return null;
+    return clamp(bestInterval * 10, minTimePerDiv, maxTimePerDiv);
+  };
+
+  const autoScaleAxes = () => {
+    resetValueAxisScaling();
+    const suggested = suggestTimePerDivision();
+    if (Number.isFinite(suggested)) {
+      setTimePerDivision(suggested);
+    } else {
+      setTimePerDivision(initialTimePerDivision);
+    }
+  };
+
   const getSignals = () => Array.from(signals.values());
 
   const getRenderableSignals = (window) => {
