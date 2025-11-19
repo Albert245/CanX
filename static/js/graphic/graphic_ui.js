@@ -117,63 +117,84 @@ export function initGraphicUi(core, renderer, elements) {
     const target = event.target instanceof Element ? event.target : null;
     const panel = target?.closest('.graphic-panel');
     const signalId = panel?.dataset.signalId || null;
-    const sizeTarget = signalId ? panel : container;
-    const rect = sizeTarget?.getBoundingClientRect?.();
-    const width = rect?.width || sizeTarget?.clientWidth;
-    const height = rect?.height || sizeTarget?.clientHeight;
-    if (paused) {
-      if (!width) return;
-      dragState = {
-        pointerId: event.pointerId,
-        container,
-        targetEl: sizeTarget,
-        type: 'time',
-        startX: event.clientX,
-        width,
-        applied: 0,
-      };
-    } else {
-      if (!height) return;
-      if (container === separateContainer && !signalId) return;
-      dragState = {
-        pointerId: event.pointerId,
-        container,
-        targetEl: sizeTarget,
-        type: 'value',
-        signalId,
-        lastY: event.clientY,
-        height,
-      };
-    }
+    const targetEl = signalId ? panel : container;
+    const rect = targetEl?.getBoundingClientRect?.();
+    const width = rect?.width || targetEl?.clientWidth || 0;
+    const height = rect?.height || targetEl?.clientHeight || 0;
+    const allowValue = height > 0 && (container !== separateContainer || Boolean(signalId));
+    const allowTime = paused && width > 0;
+    if (!allowTime && !allowValue) return;
+
+    dragState = {
+      pointerId: event.pointerId,
+      container,
+      targetEl,
+      signalId,
+      allowTime,
+      allowValue,
+      type: allowTime ? null : 'value',
+      startX: event.clientX,
+      startY: event.clientY,
+      width,
+      height,
+      applied: 0,
+      prevClientY: event.clientY,
+    };
     container.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   };
 
+  const pickDragType = (event, dx, dy) => {
+    if (!dragState || dragState.type) return dragState?.type || null;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const threshold = 3;
+    if (absDx < threshold && absDy < threshold) {
+      return null;
+    }
+    if (dragState.allowTime && absDx >= absDy * 1.2 && core.isPaused()) {
+      dragState.type = 'time';
+      dragState.applied = 0;
+      dragState.startX = event.clientX;
+      return dragState.type;
+    }
+    if (dragState.allowValue) {
+      dragState.type = 'value';
+      dragState.prevClientY = event.clientY;
+      return dragState.type;
+    }
+    dragState.type = dragState.allowTime ? 'time' : null;
+    return dragState.type;
+  };
+
   const moveDrag = (event) => {
     if (!dragState || event.pointerId !== dragState.pointerId) return;
-    if (dragState.type === 'time') {
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    const currentType = dragState.type || pickDragType(event, dx, dy);
+    if (currentType === 'time') {
       if (!core.isPaused()) {
         endDrag(event);
         return;
       }
-      const dx = event.clientX - dragState.startX;
+      const localDx = event.clientX - dragState.startX;
       const secondsPerPixel = core.getWindow().duration / Math.max(1, dragState.width);
-      const targetShift = -dx * secondsPerPixel;
+      const targetShift = -localDx * secondsPerPixel;
       const delta = targetShift - dragState.applied;
       dragState.applied = targetShift;
       core.shiftWindow(delta);
       return;
     }
-    if (dragState.type === 'value') {
+    if (currentType === 'value') {
       const referenceEl = dragState.targetEl;
       const height = referenceEl?.getBoundingClientRect?.().height || referenceEl?.clientHeight || dragState.height;
-      const dy = event.clientY - dragState.lastY;
-      dragState.lastY = event.clientY;
-      if (!height || dy === 0) return;
+      const deltaY = event.clientY - (dragState.prevClientY ?? event.clientY);
+      dragState.prevClientY = event.clientY;
+      if (!height || deltaY === 0) return;
       if (dragState.signalId) {
-        core.panSignalValueAxis?.(dragState.signalId, dy, height);
+        core.panSignalValueAxis?.(dragState.signalId, deltaY, height);
       } else {
-        core.panCombinedValueAxis?.(dy, height);
+        core.panCombinedValueAxis?.(deltaY, height);
       }
     }
   };
