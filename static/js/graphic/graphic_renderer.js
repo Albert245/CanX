@@ -4,19 +4,20 @@ const COLOR_SUBGRID = 'rgba(255, 255, 255, 0.04)';
 const COLOR_TEXT = 'rgba(255, 255, 255, 0.75)';
 const SUBGRID_PARTS = 10;
 
-const niceNumber = (value) => {
-  if (!Number.isFinite(value) || value <= 0) return 1;
-  const exponent = Math.floor(Math.log10(value));
-  const fraction = value / 10 ** exponent;
-  let niceFraction;
-  if (fraction <= 1) niceFraction = 1;
-  else if (fraction <= 2) niceFraction = 2;
-  else if (fraction <= 5) niceFraction = 5;
-  else niceFraction = 10;
-  return niceFraction * 10 ** exponent;
+const computeNiceStep = (span, maxTicks = 6) => {
+  if (!Number.isFinite(span) || span <= 0) return 1;
+  const target = span / Math.max(1, maxTicks - 1);
+  const exponent = Math.floor(Math.log10(target));
+  const pow10 = 10 ** exponent;
+  const normalized = target / pow10;
+  const fractions = [1, 2, 2.5, 5, 10];
+  const chosen = fractions.find((fraction) => normalized <= fraction) ?? 10;
+  return chosen * pow10;
 };
 
-const computeTicks = (min, max, maxTicks = 6) => {
+const computeTicks = (minInput, maxInput, maxTicks = 6) => {
+  let min = Number(minInput);
+  let max = Number(maxInput);
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
     return { min: 0, max: 1, ticks: [0, 1], step: 1 };
   }
@@ -25,15 +26,32 @@ const computeTicks = (min, max, maxTicks = 6) => {
     min -= padding;
     max += padding;
   }
-  const span = max - min;
-  const step = niceNumber(span / Math.max(2, maxTicks - 1));
-  const niceMin = Math.floor(min / step) * step;
-  const niceMax = Math.ceil(max / step) * step;
-  const ticks = [];
-  for (let value = niceMin; value <= niceMax + step * 0.5; value += step) {
-    ticks.push(Number(value.toFixed(6)));
+  if (min > max) {
+    const tmp = min;
+    min = max;
+    max = tmp;
   }
-  return { min: niceMin, max: niceMax, ticks, step };
+  const span = max - min;
+  const step = computeNiceStep(span, maxTicks);
+  const ticks = [];
+  const epsilon = step * 1e-6;
+  const normalizedMin = Number(min.toFixed(6));
+  const normalizedMax = Number(max.toFixed(6));
+  ticks.push(normalizedMin);
+  let nextTick = Math.ceil((min + epsilon) / step) * step;
+  if (nextTick - min < epsilon) {
+    nextTick += step;
+  }
+  for (; nextTick < max - epsilon; nextTick += step) {
+    ticks.push(Number(nextTick.toFixed(6)));
+  }
+  if (ticks[ticks.length - 1] !== normalizedMax) {
+    ticks.push(normalizedMax);
+  }
+  if (ticks.length < 2) {
+    ticks.push(normalizedMax + step);
+  }
+  return { min: normalizedMin, max: normalizedMax, ticks, step };
 };
 
 const formatTick = (value) => {
