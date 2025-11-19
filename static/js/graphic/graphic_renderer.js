@@ -1,6 +1,8 @@
 const COLOR_BG = '#0c0f16';
 const COLOR_GRID = 'rgba(255, 255, 255, 0.08)';
+const COLOR_SUBGRID = 'rgba(255, 255, 255, 0.04)';
 const COLOR_TEXT = 'rgba(255, 255, 255, 0.75)';
+const SUBGRID_PARTS = 10;
 
 const niceNumber = (value) => {
   if (!Number.isFinite(value) || value <= 0) return 1;
@@ -194,6 +196,32 @@ export function createGraphicRenderer(core, options) {
     const tickMax = tickValues[tickValues.length - 1];
     const denom = tickMax - tickMin || 1;
     ctx2d.save();
+
+    if (SUBGRID_PARTS > 1) {
+      ctx2d.strokeStyle = COLOR_SUBGRID;
+      ctx2d.lineWidth = 0.5;
+      ctx2d.beginPath();
+      for (let i = 0; i < divisions; i += 1) {
+        for (let j = 1; j < SUBGRID_PARTS; j += 1) {
+          const x = rect.x + ((i + j / SUBGRID_PARTS) / divisions) * rect.width;
+          ctx2d.moveTo(x, rect.y);
+          ctx2d.lineTo(x, rect.y + rect.height);
+        }
+      }
+      for (let t = 0; t < tickValues.length - 1; t += 1) {
+        const start = tickValues[t];
+        const end = tickValues[t + 1];
+        for (let j = 1; j < SUBGRID_PARTS; j += 1) {
+          const value = start + ((end - start) * j) / SUBGRID_PARTS;
+          const yRatio = (value - tickMin) / denom;
+          const y = rect.y + rect.height - yRatio * rect.height;
+          ctx2d.moveTo(rect.x, y);
+          ctx2d.lineTo(rect.x + rect.width, y);
+        }
+      }
+      ctx2d.stroke();
+    }
+
     ctx2d.strokeStyle = COLOR_GRID;
     ctx2d.lineWidth = 1;
     ctx2d.beginPath();
@@ -286,8 +314,8 @@ export function createGraphicRenderer(core, options) {
       ctx2d.clearRect(0, 0, width, height);
       ctx2d.fillStyle = COLOR_BG;
       ctx2d.fillRect(0, 0, width, height);
-      const span = Math.max(signal.dataMax - signal.dataMin, 1e-6) * signal.verticalZoom;
-      const center = (signal.dataMax + signal.dataMin) / 2;
+      const span = Math.max(signal.rangeMax - signal.rangeMin, 1e-6) * signal.verticalZoom;
+      const center = (signal.rangeMax + signal.rangeMin) / 2;
       const yRange = { min: center - span / 2, max: center + span / 2 };
       const ticks = computeTicks(yRange.min, yRange.max, 5).ticks;
       drawGrid(ctx2d, rect, windowState, ticks, core.TIME_DIVISIONS || 10);

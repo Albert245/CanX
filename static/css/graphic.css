@@ -171,12 +171,6 @@
   font-weight: 600;
 }
 
-.graphic-selected-meta {
-  font-size: 12px;
-  color: var(--muted);
-  flex: 0 0 auto;
-}
-
 .graphic-remove {
   border-radius: 50%;
   width: 28px;
@@ -232,12 +226,14 @@
 .graphic-zoom-controls {
   display: inline-flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .graphic-zoom-controls button {
-  width: 48px;
+  min-width: 48px;
   height: 36px;
   font-size: 16px;
+  padding: 0 12px;
 }
 
 .graphic-stage {
