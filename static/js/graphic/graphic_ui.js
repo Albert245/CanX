@@ -64,6 +64,9 @@ export function initGraphicUi(core, renderer, elements) {
         core.resetSignalVerticalZoom(signal.id);
       });
     }
+    if (typeof core.getDefaultTimePerDivision === 'function' && typeof core.setTimePerDivision === 'function') {
+      core.setTimePerDivision(core.getDefaultTimePerDivision());
+    }
     updateReadouts();
   });
 
