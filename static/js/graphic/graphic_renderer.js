@@ -192,15 +192,8 @@ const ensurePanel = (container, panelMap, signal) => {
   zoom.className = 'graphic-panel-zoom';
   const cursor = document.createElement('span');
   cursor.className = 'graphic-panel-cursor';
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'graphic-panel-remove';
-  remove.textContent = '×';
-  remove.title = 'Remove from canvas';
-  remove.dataset.signalId = signal.id;
   headerMeta.appendChild(zoom);
   headerMeta.appendChild(cursor);
-  headerMeta.appendChild(remove);
 
   header.appendChild(headerMain);
   header.appendChild(headerMeta);
@@ -213,19 +206,7 @@ const ensurePanel = (container, panelMap, signal) => {
   container.appendChild(wrapper);
 
   const ctx = canvas.getContext('2d');
-  const panel = {
-    wrapper,
-    header,
-    name,
-    unit,
-    zoom,
-    cursor,
-    remove,
-    canvas,
-    ctx,
-    width: 0,
-    height: 0,
-  };
+  const panel = { wrapper, header, name, unit, zoom, cursor, canvas, ctx, width: 0, height: 0 };
   panelMap.set(signal.id, panel);
   return panel;
 };

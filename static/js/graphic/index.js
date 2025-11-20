@@ -17,8 +17,6 @@ export function initGraphic({ socket, onTabChange }) {
     return;
   }
 
-  let placementHintHandler = () => {};
-
   const core = createGraphicCore();
   const renderer = createGraphicRenderer(core, {
     combinedCanvas,
@@ -34,7 +32,6 @@ export function initGraphic({ socket, onTabChange }) {
     resultsList: $('#graphic-results'),
     selectedList: $('#graphic-selected'),
     statusEl: $('#graphic-status'),
-    onSignalPreview: (detail) => placementHintHandler?.(detail),
     onSignalAdded: (descriptor) => {
       core.registerSignal({
         id: descriptor.id,
@@ -64,7 +61,7 @@ export function initGraphic({ socket, onTabChange }) {
     },
   });
 
-  const ui = initGraphicUi(core, renderer, {
+  initGraphicUi(core, renderer, {
     pauseButton: $('#graphic-pause'),
     pauseBadge: $('#graphic-pause-indicator'),
     timeScaleEl: $('#graphic-time-scale'),
@@ -79,18 +76,7 @@ export function initGraphic({ socket, onTabChange }) {
     combinedContainer,
     separateContainer,
     stageEl,
-    editModeButton: $('#graphic-edit-mode'),
-    exportButton: $('#graphic-export'),
-    importButton: $('#graphic-import'),
-    importInput: $('#graphic-import-file'),
-    placementHintEl: $('#graphic-placement-hint'),
-  }, {
-    onRemoveSignal: signalManager.removeSignal,
-    addSignalByName: signalManager.addSignalByName,
-    getSelectedSignals: signalManager.getSelectedSignals,
   });
-
-  placementHintHandler = ui?.setPlacementHint || (() => {});
 
   signalManager.loadSignalIndex();
 
