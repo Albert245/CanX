@@ -30,7 +30,7 @@ const createPlaceholder = (text) => {
   return li;
 };
 
-export function initGraphicSignalManager(options) {
+export function initGraphicSignalManager(options = {}) {
   const {
     refreshButton,
     searchInput,
@@ -40,6 +40,7 @@ export function initGraphicSignalManager(options) {
     onSignalAdded,
     onSignalRemoved,
     onSignalToggled,
+    onSignalPreview,
   } = options;
 
   if (!resultsList || !selectedList) {
@@ -188,6 +189,9 @@ export function initGraphicSignalManager(options) {
       if (!signalMeta) {
         throw new Error('Signal metadata not available');
       }
+      if (typeof onSignalPreview === 'function') {
+        onSignalPreview({ entry, signalMeta });
+      }
       const aliasSet = new Set([entry.messageName]);
       [entry.idDisplay, entry.idHex, entry.idDec]
         .filter((token) => token != null && token !== '')
@@ -315,6 +319,21 @@ export function initGraphicSignalManager(options) {
     }
   };
 
+  const addSignalByName = async (messageName, signalName) => {
+    if (!messageName || !signalName) return;
+    if (!signalIndex.length) {
+      await loadSignalIndex();
+    }
+    const entry = signalIndex.find(
+      (sig) => sig.messageName === messageName && sig.signalName === signalName,
+    );
+    if (!entry) {
+      setStatus(`Signal ${signalName} not found in ${messageName}.`, 'error');
+      return;
+    }
+    await addSignal(entry);
+  };
+
   resultsList.addEventListener('click', handleResultActivate);
   resultsList.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -359,6 +378,7 @@ export function initGraphicSignalManager(options) {
     removeSignal,
     toggleSignal,
     getSelectedSignals: () => Array.from(selectedSignals.values()),
+    addSignalByName,
     setStatus,
   };
 }
