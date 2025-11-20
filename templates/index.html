@@ -214,8 +214,8 @@
                 </div>
               </div>
               <div class="graphic-main-actions">
+                <span id="graphic-pause-indicator" class="graphic-pause-indicator" aria-hidden="true">Paused</span>
                 <button id="graphic-pause" type="button">Pause</button>
-                <span id="graphic-pause-indicator" class="graphic-pause-indicator" hidden>Paused</span>
               </div>
             </div>
             <div class="graphic-controls-row">
@@ -233,6 +233,11 @@
                 <button id="graphic-zoom-out" type="button" aria-label="Zoom out time axis">−</button>
                 <button id="graphic-zoom-in" type="button" aria-label="Zoom in time axis">+</button>
                 <button id="graphic-zoom-reset" type="button">Reset</button>
+                <button id="graphic-zoom-auto" type="button">Auto</button>
+                <div class="graphic-cursor-controls">
+                  <button id="graphic-cursor-toggle" type="button" aria-pressed="false">Cursors</button>
+                  <span id="graphic-cursor-delta" class="graphic-cursor-delta" aria-live="polite">Δt —</span>
+                </div>
               </div>
             </div>
             <div class="graphic-stage" id="graphic-stage">
@@ -247,6 +252,14 @@
             </p>
           </div>
           <aside class="graphic-sidebar" aria-label="Signal browser and legend">
+            <div class="graphic-sidebar-section graphic-action-section">
+              <div class="graphic-action-group" role="group" aria-label="Graphic actions">
+                <button id="graphic-edit-mode" type="button" aria-pressed="false">Edit Mode</button>
+                <button id="graphic-export" type="button">Export</button>
+                <button id="graphic-import" type="button">Import</button>
+                <input id="graphic-import-file" type="file" accept="application/json" hidden />
+              </div>
+            </div>
             <div class="graphic-sidebar-section graphic-search-section">
               <div class="graphic-search-bar">
                 <input
@@ -263,6 +276,7 @@
               <h3>Selected Signals</h3>
               <ul id="graphic-selected" class="graphic-selected-list"></ul>
             </div>
+            <div id="graphic-placement-hint" class="graphic-placement-hint" role="status" aria-live="polite"></div>
             <div id="graphic-status" class="graphic-status" role="status" aria-live="polite"></div>
           </aside>
         </div>

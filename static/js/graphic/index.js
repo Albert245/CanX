@@ -17,6 +17,8 @@ export function initGraphic({ socket, onTabChange }) {
     return;
   }
 
+  let placementHintHandler = () => {};
+
   const core = createGraphicCore();
   const renderer = createGraphicRenderer(core, {
     combinedCanvas,
@@ -32,6 +34,7 @@ export function initGraphic({ socket, onTabChange }) {
     resultsList: $('#graphic-results'),
     selectedList: $('#graphic-selected'),
     statusEl: $('#graphic-status'),
+    onSignalPreview: (detail) => placementHintHandler?.(detail),
     onSignalAdded: (descriptor) => {
       core.registerSignal({
         id: descriptor.id,
@@ -43,6 +46,7 @@ export function initGraphic({ socket, onTabChange }) {
         minValue: descriptor.minValue,
         maxValue: descriptor.maxValue,
         frameAliases: descriptor.frameAliases,
+        initialValue: descriptor.initialValue,
       });
     },
     onSignalRemoved: (signalId) => {
@@ -53,7 +57,7 @@ export function initGraphic({ socket, onTabChange }) {
     },
   });
 
-  initGraphicUi(core, renderer, {
+  const ui = initGraphicUi(core, renderer, {
     pauseButton: $('#graphic-pause'),
     pauseBadge: $('#graphic-pause-indicator'),
     timeScaleEl: $('#graphic-time-scale'),
@@ -61,15 +65,68 @@ export function initGraphic({ socket, onTabChange }) {
     zoomInBtn: $('#graphic-zoom-in'),
     zoomOutBtn: $('#graphic-zoom-out'),
     zoomResetBtn: $('#graphic-zoom-reset'),
+    autoScaleBtn: $('#graphic-zoom-auto'),
+    cursorButton: $('#graphic-cursor-toggle'),
+    cursorDeltaEl: $('#graphic-cursor-delta'),
     modeInputs: Array.from(document.querySelectorAll('input[name="graphic-mode"]')),
     combinedContainer,
     separateContainer,
     stageEl,
+    editModeButton: $('#graphic-edit-mode'),
+    exportButton: $('#graphic-export'),
+    importButton: $('#graphic-import'),
+    importInput: $('#graphic-import-file'),
+    placementHintEl: $('#graphic-placement-hint'),
+  }, {
+    onRemoveSignal: signalManager.removeSignal,
+    addSignalByName: signalManager.addSignalByName,
+    getSelectedSignals: signalManager.getSelectedSignals,
   });
+
+  placementHintHandler = ui?.setPlacementHint || (() => {});
 
   signalManager.loadSignalIndex();
 
+  let traceRunning = true;
+  let traceStateKnown = false;
+
+  const clearGraphicSamples = () => {
+    if (typeof core.clearAllSamples === 'function') {
+      core.clearAllSamples();
+    }
+  };
+
+  const setTraceRunning = (running) => {
+    const prev = traceStateKnown ? traceRunning : null;
+    traceRunning = !!running;
+    traceStateKnown = true;
+    if (prev !== null && prev !== traceRunning) {
+      clearGraphicSamples();
+    }
+  };
+
+  if (socket && typeof socket.on === 'function') {
+    socket.on('trace_info', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'running')) {
+        setTraceRunning(!!msg.running);
+      }
+    });
+    socket.on('trace_error', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'running')) {
+        setTraceRunning(!!msg.running);
+      } else {
+        setTraceRunning(false);
+      }
+    });
+    socket.on('connected', (msg) => {
+      if (Object.prototype.hasOwnProperty.call(msg || {}, 'trace_running')) {
+        setTraceRunning(!!msg.trace_running);
+      }
+    });
+  }
+
   subscribeTraceEntries((entry) => {
+    if (traceStateKnown && !traceRunning) return;
     core.ingestTraceEntry(entry);
   });
 
