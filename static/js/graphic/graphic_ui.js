@@ -4,7 +4,7 @@ const TIME_ZOOM_STEP = 1.2;
 const CURSOR_GRAB_THRESHOLD = 12;
 const PLOT_OFFSETS = { left: 60, right: 20, top: 16, bottom: 24 };
 
-export function initGraphicUi(core, renderer, elements, options = {}) {
+export function initGraphicUi(core, renderer, elements) {
   const {
     pauseButton,
     pauseBadge,
@@ -20,23 +20,13 @@ export function initGraphicUi(core, renderer, elements, options = {}) {
     combinedContainer,
     separateContainer,
     stageEl,
-    editModeButton,
-    exportButton,
-    importButton,
-    importInput,
-    placementHintEl,
   } = elements;
-
-  const { onRemoveSignal, addSignalByName, getSelectedSignals } = options;
 
   const cursorState = {
     enabled: false,
     combined: { positions: [null, null] },
     perSignal: new Map(),
   };
-
-  let editMode = false;
-  let lastPlacementDetail = null;
 
   const getCursorPair = (signalId = null) => {
     if (!signalId) {
@@ -73,51 +63,6 @@ export function initGraphicUi(core, renderer, elements, options = {}) {
       core.getSignals().forEach((signal) => {
         ensureCursorDefaults(getCursorPair(signal.id));
       });
-    }
-  };
-
-  const setPlacementHint = (detail = null) => {
-    if (!placementHintEl) return;
-    if (!editMode) {
-      placementHintEl.textContent = '';
-      return;
-    }
-    if (detail) {
-      lastPlacementDetail = detail;
-    }
-    const activeDetail = detail || lastPlacementDetail;
-    const intro = 'Select a position on the canvas for this item.';
-    if (!activeDetail) {
-      placementHintEl.textContent = `${intro} Choose an object to view its description and usage.`;
-      return;
-    }
-    const { entry, signalMeta } = activeDetail;
-    const name = entry?.signalName && entry?.messageName ? `${entry.signalName} (${entry.messageName})` : null;
-    const description = signalMeta?.comment || signalMeta?.description || null;
-    const rangeParts = [];
-    if (Number.isFinite(signalMeta?.minimum) && Number.isFinite(signalMeta?.maximum)) {
-      rangeParts.push(`Range ${signalMeta.minimum}–${signalMeta.maximum}`);
-    }
-    if (signalMeta?.unit) {
-      rangeParts.push(`Unit ${signalMeta.unit}`);
-    }
-    const usage = description || rangeParts.join(', ');
-    const guidance = usage ? `Usage: ${usage}` : 'Drop it on the canvas, then use × to remove if needed.';
-    placementHintEl.textContent = [intro, name, guidance].filter(Boolean).join(' — ');
-  };
-
-  const setEditMode = (nextState) => {
-    editMode = !!nextState;
-    if (editModeButton) {
-      editModeButton.classList.toggle('is-active', editMode);
-      editModeButton.setAttribute('aria-pressed', editMode ? 'true' : 'false');
-      editModeButton.textContent = 'Edit Mode';
-    }
-    stageEl?.setAttribute('data-editing', editMode ? 'true' : 'false');
-    if (editMode) {
-      setPlacementHint();
-    } else if (placementHintEl) {
-      placementHintEl.textContent = '';
     }
   };
 
@@ -211,65 +156,6 @@ export function initGraphicUi(core, renderer, elements, options = {}) {
     updateReadouts();
   });
 
-  editModeButton?.addEventListener('click', () => {
-    setEditMode(!editMode);
-  });
-
-  const exportSelection = () => {
-    const signals = (typeof getSelectedSignals === 'function' && getSelectedSignals()) || [];
-    const payload = {
-      version: 1,
-      signals: signals
-        .filter((sig) => sig?.messageName && sig?.signalName)
-        .map((sig) => ({ messageName: sig.messageName, signalName: sig.signalName })),
-    };
-    if (!payload.signals.length) {
-      if (placementHintEl) {
-        placementHintEl.textContent = 'No signals to export yet.';
-      }
-      return;
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'graphic-signals.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  exportButton?.addEventListener('click', exportSelection);
-
-  importButton?.addEventListener('click', () => {
-    importInput?.click();
-  });
-
-  importInput?.addEventListener('change', async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const items = Array.isArray(parsed?.signals) ? parsed.signals : Array.isArray(parsed) ? parsed : [];
-      for (const item of items) {
-        if (item?.messageName && item?.signalName && typeof addSignalByName === 'function') {
-          await addSignalByName(item.messageName, item.signalName);
-        }
-      }
-      if (placementHintEl) {
-        placementHintEl.textContent = `Imported ${items.length} item(s).`;
-      }
-    } catch (err) {
-      if (placementHintEl) {
-        placementHintEl.textContent = `Import failed: ${err?.message || 'invalid file'}`;
-      }
-    } finally {
-      event.target.value = '';
-    }
-  });
-
   cursorButton?.addEventListener('click', () => {
     if (!core.isPaused()) return;
     cursorState.enabled = !cursorState.enabled;
@@ -311,16 +197,6 @@ export function initGraphicUi(core, renderer, elements, options = {}) {
     core.adjustTimePerDivision(timeFactor);
     updateReadouts();
   };
-
-  stageEl?.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    const removeBtn = target?.closest('.graphic-panel-remove');
-    if (!removeBtn || !editMode) return;
-    const signalId = removeBtn.dataset.signalId;
-    if (signalId && typeof onRemoveSignal === 'function') {
-      onRemoveSignal(signalId);
-    }
-  });
 
   stageEl?.addEventListener('wheel', handleWheel, { passive: false });
 
@@ -537,10 +413,5 @@ export function initGraphicUi(core, renderer, elements, options = {}) {
     updateReadouts();
   });
 
-  setEditMode(false);
   updateReadouts();
-
-  return {
-    setPlacementHint,
-  };
 }
