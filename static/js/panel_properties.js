@@ -90,6 +90,11 @@ export class PanelPropertiesPanel {
     this.enumBindings = [];
     this.signalChoices = {};
 
+    const actionsRow = this._renderActions();
+    if (actionsRow) {
+      form.appendChild(actionsRow);
+    }
+
     this._renderLayoutSection(form);
     const sections = [...(definition.propertySections || [])];
     if (definition.supportsScript && !hasScriptField(sections)) {
@@ -109,7 +114,6 @@ export class PanelPropertiesPanel {
       }
     }
 
-    this._renderActions(form);
     this.statusEl = createElement('div', 'panel-properties-status');
     form.appendChild(this.statusEl);
     this.container.appendChild(form);
@@ -161,7 +165,7 @@ export class PanelPropertiesPanel {
     });
   }
 
-  _renderActions(form) {
+  _renderActions() {
     const actionsRow = createElement('div', 'panel-actions');
     if (typeof this.onRemoveWidget === 'function' && this.widget?.id) {
       const removeBtn = document.createElement('button');
@@ -173,8 +177,9 @@ export class PanelPropertiesPanel {
         this.onRemoveWidget(this.widget.id);
       });
       actionsRow.appendChild(removeBtn);
+      return actionsRow;
     }
-    form.appendChild(actionsRow);
+    return null;
   }
 
   _createField(field) {

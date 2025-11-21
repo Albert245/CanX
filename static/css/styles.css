@@ -724,7 +724,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 .panel-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin: 0 0 10px 0;
 }
 
 .panel-danger-btn {
@@ -764,17 +764,19 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   display: grid;
   grid-template-columns: repeat(20, var(--panel-cell-size));
   grid-auto-rows: var(--panel-cell-size);
-  width: calc(20 * var(--panel-cell-size));
-  gap: 2px;
-  padding: 4px;
-  min-height: calc(var(--panel-cell-size) * 15);
+  width: calc((var(--panel-cell-size) + var(--panel-grid-gap, 2px)) * 20 - var(--panel-grid-gap, 2px));
+  gap: var(--panel-grid-gap, 2px);
+  padding: 0;
+  min-height: calc((var(--panel-cell-size) + var(--panel-grid-gap, 2px)) * 15 - var(--panel-grid-gap, 2px));
   background-image: linear-gradient(
       to right,
       rgba(79, 140, 255, 0.15) 1px,
       transparent 1px
     ),
     linear-gradient(to bottom, rgba(79, 140, 255, 0.15) 1px, transparent 1px);
-  background-size: var(--panel-cell-size) var(--panel-cell-size);
+  background-size: calc(var(--panel-cell-size) + var(--panel-grid-gap, 2px))
+    calc(var(--panel-cell-size) + var(--panel-grid-gap, 2px));
+  background-position: 0 0;
   background-color: rgba(15, 17, 21, 0.6);
   border-radius: 14px;
   border: 1px solid rgba(79, 140, 255, 0.18);

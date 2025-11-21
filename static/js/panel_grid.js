@@ -1,5 +1,6 @@
 const DEFAULT_COLUMNS = 20;
 const DEFAULT_CELL_SIZE = 60;
+const DEFAULT_GRID_GAP = 2;
 
 const clampNumber = (value, min, max) => {
   let next = Number.parseInt(value, 10);
@@ -14,6 +15,7 @@ export class PanelGrid {
     this.canvas = canvas;
     this.columns = clampNumber(options.columns ?? DEFAULT_COLUMNS, 1, 40);
     this.cellSize = clampNumber(options.cellSize ?? DEFAULT_CELL_SIZE, 30, 160);
+    this.gridGap = clampNumber(options.gridGap ?? DEFAULT_GRID_GAP, 0, 20);
     this.minimumRows = 15;
     this.extraRows = 5;
     this._syncStyles();
@@ -23,6 +25,7 @@ export class PanelGrid {
   _syncStyles() {
     if (!this.canvas) return;
     this.canvas.style.setProperty('--panel-cell-size', `${this.cellSize}px`);
+    this.canvas.style.setProperty('--panel-grid-gap', `${this.gridGap}px`);
     this.canvas.dataset.columns = String(this.columns);
   }
 
@@ -33,6 +36,7 @@ export class PanelGrid {
     if (cellSize) {
       this.cellSize = clampNumber(cellSize, 30, 200);
     }
+    this.gridGap = clampNumber(DEFAULT_GRID_GAP, 0, 20);
     this._syncStyles();
     this.ensureSpareRows();
   }
@@ -45,7 +49,9 @@ export class PanelGrid {
   ensureSpareRows(maxRow = 0) {
     if (!this.canvas) return;
     const rows = Math.max(this.minimumRows, Math.max(0, maxRow) + this.extraRows);
-    this.canvas.style.minHeight = `calc(var(--panel-cell-size) * ${rows})`;
+    const trackSize = this.cellSize + this.gridGap;
+    const minHeight = trackSize * rows - this.gridGap;
+    this.canvas.style.minHeight = `${minHeight}px`;
   }
 
   getCellFromEvent(event) {
@@ -54,8 +60,9 @@ export class PanelGrid {
     const offsetX = (event.clientX ?? 0) - rect.left;
     const offsetY = (event.clientY ?? 0) - rect.top;
     if (offsetX < 0 || offsetY < 0) return null;
-    const column = clampNumber(Math.floor(offsetX / this.cellSize) + 1, 1, this.columns);
-    const row = Math.floor(offsetY / this.cellSize) + 1;
+    const trackSize = this.cellSize + this.gridGap;
+    const column = clampNumber(Math.floor(offsetX / trackSize) + 1, 1, this.columns);
+    const row = Math.floor(offsetY / trackSize) + 1;
     return { x: column, y: row };
   }
 
