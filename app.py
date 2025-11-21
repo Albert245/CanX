@@ -12,6 +12,8 @@ from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 
+from backend.panel_api import panel_bp
+
 # Backend CAN layers
 from CANIF.CANInterface import CANInterface
 from CANTP.CANTP import CANTP
@@ -404,6 +406,8 @@ class AppState:
 
 
 state = AppState()
+app.config['CANX_STATE'] = state
+app.register_blueprint(panel_bp, url_prefix="/api/panel")
 
 
 def _msg_to_dict(msg, *, direction: str = "rx") -> Dict[str, Any]:
