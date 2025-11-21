@@ -46,11 +46,11 @@ const initPanel = () => {
   const canvas = document.getElementById('panel-canvas');
   const toolboxEl = document.getElementById('panel-toolbox');
   const propertiesEl = document.getElementById('panel-properties');
-  const editBtn = document.getElementById('panel-exit-run-mode');
   const runBtn = document.getElementById('panel-run-mode');
   const exportBtn = document.getElementById('panel-export');
   const importBtn = document.getElementById('panel-import');
   const importFile = document.getElementById('panel-import-file');
+  const clearBtn = document.getElementById('panel-clear');
   const toolboxDescription = document.getElementById('panel-toolbox-description');
 
   if (!panelTab || !canvas || !toolboxEl || !propertiesEl) {
@@ -163,6 +163,10 @@ const initPanel = () => {
         scheduleSave();
       }
     },
+    onRemoveWidget: (id) => {
+      widgetManager.removeWidget(id);
+      selectWidget(null);
+    },
     fetchMessageInfo,
   });
 
@@ -271,15 +275,21 @@ const initPanel = () => {
 
   const syncModeButtons = () => {
     if (runBtn) {
-      runBtn.textContent = state.mode === 'run' ? 'Exit Run Mode' : 'Run Mode';
-    }
-    if (editBtn) {
-      editBtn.disabled = state.mode === 'edit';
+      runBtn.textContent = state.mode === 'run' ? 'Edit Mode' : 'Run Mode';
     }
   };
 
-  editBtn?.addEventListener('click', () => setMode('edit'));
   runBtn?.addEventListener('click', () => setMode(state.mode === 'run' ? 'edit' : 'run'));
+
+  clearBtn?.addEventListener('click', () => {
+    if (state.mode === 'run') return;
+    if (!widgetManager.widgets.size) return;
+    widgetManager.clear();
+    selectWidget(null);
+    if (!state.restoring) {
+      scheduleSave();
+    }
+  });
 
   importBtn?.addEventListener('click', () => importFile?.click());
   importFile?.addEventListener('change', async () => {

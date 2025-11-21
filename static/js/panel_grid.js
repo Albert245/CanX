@@ -1,5 +1,5 @@
 const DEFAULT_COLUMNS = 20;
-const DEFAULT_CELL_SIZE = 50;
+const DEFAULT_CELL_SIZE = 60;
 
 const clampNumber = (value, min, max) => {
   let next = Number.parseInt(value, 10);
@@ -14,7 +14,7 @@ export class PanelGrid {
     this.canvas = canvas;
     this.columns = clampNumber(options.columns ?? DEFAULT_COLUMNS, 1, 40);
     this.cellSize = clampNumber(options.cellSize ?? DEFAULT_CELL_SIZE, 30, 160);
-    this.minimumRows = 10;
+    this.minimumRows = 15;
     this.extraRows = 5;
     this._syncStyles();
     this.ensureSpareRows();

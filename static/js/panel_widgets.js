@@ -495,22 +495,7 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || widget.type;
     }
-    this._attachRemoveHandle(element, widget);
     this.grid?.applyPosition(widget, element);
-  }
-
-  _attachRemoveHandle(element, widget) {
-    if (!element) return;
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'panel-widget-remove';
-    removeBtn.textContent = '×';
-    removeBtn.title = 'Remove widget';
-    removeBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.removeWidget(widget.id);
-    });
-    element.appendChild(removeBtn);
   }
 
   _renderButton(widget, element) {

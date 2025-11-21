@@ -6,7 +6,7 @@
   --accent: #4f8cff;
   --border: #2a2f3a;
   --graphic-max-width: 960px;
-  --panel-cell-size: 50px;
+  --panel-cell-size: 60px;
 }
 
 * { box-sizing: border-box; }
@@ -607,7 +607,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 #panel-left-column {
-  flex: 0 0 22%;
+  flex: 0 0 20%;
   min-width: 240px;
   display: flex;
   flex-direction: column;
@@ -721,6 +721,25 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   min-height: 80px;
 }
 
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.panel-danger-btn {
+  background: #8c2d2d;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.panel-danger-btn:hover {
+  filter: brightness(1.08);
+}
+
 .panel-enum-control {
   display: flex;
   gap: 6px;
@@ -748,7 +767,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   width: calc(20 * var(--panel-cell-size));
   gap: 2px;
   padding: 4px;
-  min-height: calc(var(--panel-cell-size) * 10);
+  min-height: calc(var(--panel-cell-size) * 15);
   background-image: linear-gradient(
       to right,
       rgba(79, 140, 255, 0.15) 1px,
@@ -980,27 +999,6 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   grid-template-columns: 150px 1fr 1fr 90px;
   gap: 6px;
   align-items: center;
-}
-
-.panel-widget-remove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-#tab-panel.is-run-mode .panel-widget-remove {
-  display: none;
 }
 
 .panel-widget button {

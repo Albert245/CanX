@@ -39,9 +39,10 @@ const parseStatesText = (text) => {
 };
 
 export class PanelPropertiesPanel {
-  constructor(container, { onChange, fetchMessageInfo } = {}) {
+  constructor(container, { onChange, onRemoveWidget, fetchMessageInfo } = {}) {
     this.container = container;
     this.onChange = onChange;
+    this.onRemoveWidget = onRemoveWidget;
     this.fetchMessageInfo = fetchMessageInfo;
     this.widget = null;
     this.enumBindings = [];
@@ -108,6 +109,7 @@ export class PanelPropertiesPanel {
       }
     }
 
+    this._renderActions(form);
     this.statusEl = createElement('div', 'panel-properties-status');
     form.appendChild(this.statusEl);
     this.container.appendChild(form);
@@ -157,6 +159,22 @@ export class PanelPropertiesPanel {
       const fieldEl = this._createField(field);
       form.appendChild(fieldEl);
     });
+  }
+
+  _renderActions(form) {
+    const actionsRow = createElement('div', 'panel-actions');
+    if (typeof this.onRemoveWidget === 'function' && this.widget?.id) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'panel-danger-btn';
+      removeBtn.textContent = 'Remove Widget';
+      removeBtn.addEventListener('click', () => {
+        if (!this.widget?.id) return;
+        this.onRemoveWidget(this.widget.id);
+      });
+      actionsRow.appendChild(removeBtn);
+    }
+    form.appendChild(actionsRow);
   }
 
   _createField(field) {
