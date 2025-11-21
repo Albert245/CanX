@@ -128,16 +128,21 @@ const initPanel = () => {
     grid,
     onAction: (widget, eventType, payload) => {
       if (state.mode !== 'run') return;
-      if (payload && Object.prototype.hasOwnProperty.call(payload, 'value')) {
-        const maybeValue = payload.value;
-        if (maybeValue !== undefined && maybeValue !== null) {
-          sendMappingValue(widget, maybeValue).catch((err) => console.warn(err));
+      const usingScript = Boolean(widget.useScript);
+      if (!usingScript) {
+        if (payload && Object.prototype.hasOwnProperty.call(payload, 'value')) {
+          const maybeValue = payload.value;
+          if (maybeValue !== undefined && maybeValue !== null) {
+            sendMappingValue(widget, maybeValue).catch((err) => console.warn(err));
+          }
+        }
+        if (eventType === 'input' && payload?.value !== undefined) {
+          sendMappingValue(widget, payload.value).catch((err) => console.warn(err));
         }
       }
-      if (eventType === 'input' && payload?.value !== undefined) {
-        sendMappingValue(widget, payload.value).catch((err) => console.warn(err));
+      if (usingScript) {
+        scriptEngine?.trigger(widget, eventType, payload);
       }
-      scriptEngine?.trigger(widget, eventType, payload);
     },
     onRemove: (id) => {
       if (state.selectedId === id) {
@@ -178,7 +183,7 @@ const initPanel = () => {
     toolboxEl.innerHTML = '';
     toolboxEl.appendChild(createElement('h3', null, 'Toolbox'));
     const list = createElement('div', 'panel-toolbox-list');
-    PANEL_WIDGET_LIBRARY.forEach((item) => {
+    PANEL_WIDGET_LIBRARY.filter((item) => item.type !== 'script').forEach((item) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'panel-tool-btn';
@@ -381,11 +386,13 @@ const initPanel = () => {
       });
       responses.forEach(({ widget }) => {
         if (!widget) return;
-        scriptEngine.trigger(widget, 'rx', {
-          value: signal.physical_value ?? signal.raw_value,
-          raw: signal.raw_value,
-          named: signal.named_value,
-        });
+        if (widget.useScript) {
+          scriptEngine.trigger(widget, 'rx', {
+            value: signal.physical_value ?? signal.raw_value,
+            raw: signal.raw_value,
+            named: signal.named_value,
+          });
+        }
       });
     });
   };

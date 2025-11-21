@@ -727,6 +727,24 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   margin: 0 0 10px 0;
 }
 
+.panel-properties .panel-behavior-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.panel-properties .panel-behavior-note {
+  font-size: 12px;
+  color: #555;
+  margin-top: 4px;
+}
+
+.panel-field .is-readonly {
+  background: #f7f7f7;
+  cursor: not-allowed;
+}
+
 .panel-danger-btn {
   background: #8c2d2d;
   border: 1px solid rgba(255, 255, 255, 0.12);

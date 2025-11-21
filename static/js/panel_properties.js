@@ -50,6 +50,7 @@ export class PanelPropertiesPanel {
     this.statusEl = null;
     this.signalDatalistId = 'panel-signal-options';
     this.customRenderers = new Map();
+    this.behaviorScriptCache = new Map();
   }
 
   registerCustomRenderer(type, renderer) {
@@ -78,6 +79,7 @@ export class PanelPropertiesPanel {
   _render() {
     if (!this.container) return;
     this.container.innerHTML = '';
+    this.behaviorScriptCache.clear();
     if (!this.widget) {
       this.container.appendChild(createElement('div', 'panel-properties-empty', 'Select a widget to edit.'));
       return;
@@ -93,6 +95,13 @@ export class PanelPropertiesPanel {
     const actionsRow = this._renderActions();
     if (actionsRow) {
       form.appendChild(actionsRow);
+    }
+
+    if (definition.supportsScript) {
+      const behaviorRow = this._renderBehaviorToggle();
+      if (behaviorRow) {
+        form.appendChild(behaviorRow);
+      }
     }
 
     this._renderLayoutSection(form);
@@ -182,15 +191,49 @@ export class PanelPropertiesPanel {
     return null;
   }
 
+  _renderBehaviorToggle() {
+    if (!this.widget) return null;
+    const row = createElement('div', 'panel-field panel-behavior-toggle');
+    const label = createElement('label', null, 'Use custom script');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = Boolean(this.widget.useScript);
+    checkbox.addEventListener('change', () => {
+      const checked = checkbox.checked;
+      this.widget.useScript = checked;
+      if (checked && (!this.widget.script || !this.widget.script.trim())) {
+        const template = this._buildBehaviorScript(this.widget);
+        this.widget.script = template;
+        this._emitChange('script', template);
+      }
+      this._emitChange('useScript', checked);
+      this._render();
+    });
+    label.prepend(checkbox);
+    row.appendChild(label);
+    const helper = createElement(
+      'div',
+      'panel-behavior-note',
+      'Toggle between mapping-driven behavior and editable scripts.',
+    );
+    row.appendChild(helper);
+    return row;
+  }
+
   _createField(field) {
     const wrapper = createElement('div', 'panel-field');
     const label = createElement('label', null, field.label || field.path);
     let input;
+    const useScript = Boolean(this.widget?.useScript);
+    const isScriptField = field.path === 'script';
+    const isMappingField = (field.path || '').startsWith('mapping.');
     if (field.type === 'textarea') {
       input = document.createElement('textarea');
       if (field.rows) input.rows = field.rows;
       if (field.path === 'images.states') {
         input.value = serializeStatesText(this.widget.images?.states);
+      } else if (isScriptField && !useScript) {
+        input.value = this._buildBehaviorScript(this.widget);
       } else {
         input.value = this._getValue(field.path) ?? '';
       }
@@ -216,23 +259,42 @@ export class PanelPropertiesPanel {
         valueInput.value = select.value;
         valueInput.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      valueInput.addEventListener('change', () => this._handleFieldChange(field, valueInput.value));
+      if (!(isScriptField && !useScript)) {
+        valueInput.addEventListener('change', () => this._handleFieldChange(field, valueInput.value));
+      }
       this.enumBindings.push({ input: valueInput, select });
       enumWrapper.append(valueInput, select);
       input = enumWrapper;
     } else {
-      input.addEventListener('change', () => {
-        this._handleFieldChange(field, input.value);
-      });
+      if (!(isScriptField && !useScript)) {
+        input.addEventListener('change', () => {
+          this._handleFieldChange(field, input.value);
+        });
+      }
     }
 
     if (field.type === 'textarea') {
-      input.addEventListener('change', () => {
-        this._handleFieldChange(field, input.value);
-      });
+      if (!(isScriptField && !useScript)) {
+        input.addEventListener('change', () => {
+          this._handleFieldChange(field, input.value);
+        });
+      }
     }
 
     const targetInput = field.enum ? input.querySelector('input') : input;
+
+    if (isScriptField && !useScript && targetInput) {
+      targetInput.readOnly = true;
+      targetInput.classList.add('is-readonly');
+    }
+
+    if (isMappingField && useScript && targetInput) {
+      targetInput.disabled = true;
+      const selectEl = field.enum ? input.querySelector('select') : null;
+      if (selectEl) {
+        selectEl.disabled = true;
+      }
+    }
 
     if (field.path === 'mapping.message' && targetInput) {
       const blurHandler = () => {
@@ -307,6 +369,73 @@ export class PanelPropertiesPanel {
       ref = ref[part];
     }
     return ref ?? '';
+  }
+
+  _buildBehaviorScript(widget) {
+    if (!widget) return '';
+    const cached = this.behaviorScriptCache.get(widget.id);
+    if (cached) return cached;
+    const mapping = widget.mapping || {};
+    const message = mapping.message || 'MESSAGE';
+    const signal = mapping.signal || 'Signal';
+    const scriptLines = [];
+    const numericOr = (val, fallback) => (Number.isFinite(Number(val)) ? Number(val) : fallback);
+    const sendLine = (value) => `  send("${message}", "${signal}", ${value});`;
+    switch (widget.type) {
+      case 'button':
+      case 'image_button':
+        scriptLines.push('on press {');
+        scriptLines.push(sendLine(numericOr(mapping.pressValue, 1)));
+        scriptLines.push('}');
+        scriptLines.push('on release {');
+        scriptLines.push(sendLine(numericOr(mapping.releaseValue, 0)));
+        scriptLines.push('}');
+        break;
+      case 'toggle':
+      case 'image_toggle':
+        scriptLines.push('on toggle {');
+        scriptLines.push('  // cycles through available states');
+        scriptLines.push(sendLine('state.value'));
+        scriptLines.push('}');
+        break;
+      case 'input':
+        scriptLines.push('on input {');
+        scriptLines.push(sendLine('state.value'));
+        scriptLines.push('}');
+        break;
+      case 'lamp':
+        scriptLines.push(`on rx value == ${numericOr(mapping.onValue, 1)} {`);
+        scriptLines.push(`  lamp("${widget.label || 'Lamp'}").on();`);
+        scriptLines.push('}');
+        scriptLines.push(`on rx value != ${numericOr(mapping.onValue, 1)} {`);
+        scriptLines.push(`  lamp("${widget.label || 'Lamp'}").off();`);
+        scriptLines.push('}');
+        break;
+      case 'progress':
+        scriptLines.push('on rx {');
+        scriptLines.push('  // display only – no transmit');
+        scriptLines.push('}');
+        break;
+      case 'label':
+        scriptLines.push('on rx {');
+        scriptLines.push('  // display incoming value');
+        scriptLines.push('}');
+        break;
+      case 'image_indicator':
+      case 'image_switch':
+        scriptLines.push('on rx {');
+        scriptLines.push('  // updates image based on incoming value');
+        scriptLines.push('}');
+        break;
+      default:
+        scriptLines.push('on press {');
+        scriptLines.push('  // add custom logic here');
+        scriptLines.push('}');
+        break;
+    }
+    const result = scriptLines.join('\n');
+    this.behaviorScriptCache.set(widget.id, result);
+    return result;
   }
 
   _emitChange(path, value) {

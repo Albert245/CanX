@@ -207,6 +207,7 @@ export const PANEL_WIDGET_LIBRARY = [
     defaults: {
       label: 'Script Block',
       script: 'on press {\n  // send("ECU", {Signal: 1});\n}',
+      useScript: true,
     },
     supportsScript: true,
     propertySections: [
@@ -353,6 +354,7 @@ export const createWidgetData = (type, overrides = {}) => {
     images: deepClone(definition.defaults?.images || {}),
     options: deepClone(definition.defaults?.options || {}),
     script: definition.defaults?.script || '',
+    useScript: Boolean(overrides.useScript ?? definition.defaults?.useScript ?? false),
     runtime: {},
   };
   if (definition.defaults) {

@@ -133,13 +133,13 @@ def _parse_commands(script, event_name, state):
     body = match.group(3) or ''
     commands = _split_commands(body)
     for command in commands:
-      parsed = _command_to_action(command)
+      parsed = _command_to_action(command, state or {})
       if parsed:
         actions.append(parsed)
   return actions
 
 
-def _command_to_action(command):
+def _command_to_action(command, state=None):
   if not command:
     return None
   trimmed = command.strip()
@@ -151,6 +151,11 @@ def _command_to_action(command):
       return None
     args = trimmed[start + 1 : end]
     normalized = _normalize_literal(args)
+    if state:
+      if 'state.value' in normalized:
+        normalized = normalized.replace('state.value', str(state.get('value', state.get('raw', 0))))
+      if 'state.raw' in normalized:
+        normalized = normalized.replace('state.raw', str(state.get('raw', state.get('value', 0))))
     try:
       parsed = ast.literal_eval(f'({normalized})')
     except Exception:

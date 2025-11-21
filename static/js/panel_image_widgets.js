@@ -131,6 +131,30 @@ const mutateDefinitionDefaults = () => {
     defaults: { label: 'Image', image: '/static/assets/white/icons8-temperature-50.png' },
     propertySections: [{ title: 'Image', fields: [{ label: 'Image', path: 'image', type: 'imagePicker' }] }],
   });
+
+  ensureDefinition('image_switch', {
+    label: 'Image Switch',
+    category: 'Images',
+    icon: '🖼',
+    description: 'Multi-state switch that chooses an image based on an enumerated signal value.',
+    defaultSize: { w: 3, h: 2 },
+    defaults: {
+      label: 'Image Switch',
+      mapping: { message: '', signal: '' },
+      images: { states: [] },
+    },
+    acceptsRx: true,
+    supportsScript: true,
+    propertySections: [
+      {
+        title: 'Mapping',
+        fields: [
+          { label: 'Message', path: 'mapping.message', type: 'text', autocomplete: 'message' },
+          { label: 'Signal', path: 'mapping.signal', type: 'text', autocomplete: 'signal' },
+        ],
+      },
+    ],
+  });
 };
 
 const pickImageFromCatalog = (folder, file, fallback = '') => {
@@ -260,6 +284,109 @@ const attachImageStateEditor = (panel) => {
       const nextStates = Array.isArray(widget.states) ? [...widget.states] : [];
       nextStates.push({ value: nextStates.length, image: '' });
       panel._emitChange('states', nextStates);
+      renderRows();
+    });
+
+    form.appendChild(list);
+    form.appendChild(addBtn);
+  });
+};
+
+const attachImageSwitchEditor = (panel) => {
+  panel.registerCustomRenderer('image_switch', async ({ form, widget }) => {
+    const catalog = await fetchImageCatalog();
+    const sectionTitle = document.createElement('div');
+    sectionTitle.className = 'panel-section-title';
+    sectionTitle.textContent = 'Image States';
+    form.appendChild(sectionTitle);
+
+    const list = document.createElement('div');
+    list.className = 'panel-image-state-list';
+
+    const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
+    const fileFromPath = (path) => {
+      const parts = (path || '').split('/');
+      return parts[parts.length - 1] || '';
+    };
+
+    const renderRows = () => {
+      list.innerHTML = '';
+      const states = Array.isArray(widget.images?.states) ? widget.images.states : [];
+      states.forEach((state, index) => {
+        const row = document.createElement('div');
+        row.className = 'panel-image-state-row';
+
+        const valueInput = document.createElement('input');
+        valueInput.type = 'number';
+        valueInput.value = state.value ?? 0;
+
+        const folderSelect = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
+        folderSelect.value = folderFromPath(state.src);
+
+        const fileSelect = document.createElement('select');
+        const refreshFiles = () => {
+          fileSelect.innerHTML = '';
+          const files = catalog?.[folderSelect.value] || [];
+          files.forEach((file) => {
+            const opt = document.createElement('option');
+            opt.value = file;
+            opt.textContent = file;
+            fileSelect.appendChild(opt);
+          });
+          const currentFile = fileFromPath(state.src);
+          if (currentFile && files.includes(currentFile)) {
+            fileSelect.value = currentFile;
+          }
+        };
+        refreshFiles();
+
+        const preview = createPreview(state.src || '').img;
+
+        const update = () => {
+          const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
+          nextStates[index] = {
+            value: Number(valueInput.value),
+            src: pickImageFromCatalog(
+              folderSelect.value,
+              fileSelect.value,
+              normalizeImagePath(folderSelect.value, fileSelect.value),
+            ),
+          };
+          panel._emitChange('images.states', nextStates);
+          preview.src = nextStates[index].src;
+        };
+
+        valueInput.addEventListener('change', update);
+        folderSelect.addEventListener('change', () => {
+          refreshFiles();
+          update();
+        });
+        fileSelect.addEventListener('change', update);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = '–';
+        deleteBtn.addEventListener('click', () => {
+          const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
+          nextStates.splice(index, 1);
+          panel._emitChange('images.states', nextStates);
+          renderRows();
+        });
+
+        row.append(valueInput, folderSelect, fileSelect, preview, deleteBtn);
+        list.appendChild(row);
+      });
+    };
+
+    renderRows();
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.textContent = 'Add State +';
+    addBtn.addEventListener('click', () => {
+      const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
+      nextStates.push({ value: nextStates.length, src: '' });
+      panel._emitChange('images.states', nextStates);
       renderRows();
     });
 
@@ -500,6 +627,7 @@ export const registerImageWidgetExtensions = ({ propertiesPanel }) => {
   extendWidgetManager();
   if (propertiesPanel) {
     attachImageStateEditor(propertiesPanel);
+    attachImageSwitchEditor(propertiesPanel);
     attachButtonToggleEditors(propertiesPanel);
   }
 };
