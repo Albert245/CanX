@@ -1068,6 +1068,17 @@ def api_diag_tester_present():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
+@app.route("/_debug/static_info/<path:filename>")
+def _debug_static_info(filename):
+    import os
+    abs_path = os.path.join(app.root_path, "static", filename)
+    return {
+        "requested": filename,
+        "absolute_path": abs_path,
+        "exists": os.path.exists(abs_path),
+        "readable": os.access(abs_path, os.R_OK),
+    }
+
 
 @socketio.on("connect")
 def on_connect():
