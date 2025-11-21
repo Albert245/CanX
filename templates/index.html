@@ -48,6 +48,7 @@
         <button class="tab-btn" data-tab="stim">Stimulation</button>
         <button class="tab-btn" data-tab="diag">Diagnostics</button>
         <button class="tab-btn" data-tab="graphic">Graphic</button>
+        <button class="tab-btn" data-tab="panel">Panel</button>
       </nav>
       <div id="socket-status" class="app-status" role="alert" hidden></div>
     </header>
@@ -272,9 +273,33 @@
           </aside>
         </div>
       </section>
+
+      <section id="tab-panel" class="tab">
+        <div id="panel-layout">
+          <div id="panel-left-column">
+            <div id="panel-sidebar-toolbar">
+              <div class="panel-toolbar-group">
+                <button id="panel-clear">Clear All</button>
+                <button id="panel-export">Export</button>
+                <button id="panel-import">Import</button>
+                <input id="panel-import-file" type="file" hidden accept="application/json" />
+              </div>
+              <button id="panel-run-mode">Run Mode</button>
+            </div>
+            <div id="panel-toolbox"></div>
+            <div id="panel-toolbox-description" hidden></div>
+            <div id="panel-properties"></div>
+          </div>
+
+          <div id="panel-canvas-container">
+            <div id="panel-canvas"></div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/static/js/main.js"></script>
+    <script type="module" src="/static/js/panel.js"></script>
   </body>
   </html>
