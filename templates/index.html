@@ -277,23 +277,23 @@
       <section id="tab-panel" class="tab">
         <div id="panel-layout">
           <div id="panel-left-column">
+            <div id="panel-sidebar-toolbar">
+              <div class="panel-toolbar-group">
+                <button id="panel-exit-run-mode">Edit Mode</button>
+                <button id="panel-export">Export</button>
+                <button id="panel-import">Import</button>
+                <input id="panel-import-file" type="file" hidden accept="application/json" />
+              </div>
+              <button id="panel-run-mode">Run Mode</button>
+            </div>
             <div id="panel-toolbox"></div>
+            <div id="panel-toolbox-description" hidden></div>
             <div id="panel-properties"></div>
           </div>
 
           <div id="panel-canvas-container">
             <div id="panel-canvas"></div>
           </div>
-        </div>
-
-        <div id="panel-bottom-toolbar">
-          <button id="panel-edit-mode">Edit Mode</button>
-          <button id="panel-run-mode">Run Mode</button>
-          <button id="panel-exit-run-mode">Exit Run Mode</button>
-
-          <button id="panel-export">Export</button>
-          <button id="panel-import">Import</button>
-          <input id="panel-import-file" type="file" hidden accept="application/json" />
         </div>
       </section>
     </main>

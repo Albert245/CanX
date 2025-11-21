@@ -43,6 +43,7 @@ const mutateDefinitionDefaults = () => {
     label: 'Image Indicator',
     category: 'Images',
     icon: '🖼',
+    description: 'Multi-state image indicator that swaps artwork based on received signal values.',
     defaultSize: { w: 2, h: 2 },
     defaults: {
       label: 'Image Indicator',
@@ -69,6 +70,7 @@ const mutateDefinitionDefaults = () => {
     label: 'Image Button (2-state)',
     category: 'Images',
     icon: '🖼',
+    description: 'Two-state image button that toggles artwork on press and sends mapped values.',
     defaultSize: { w: 2, h: 2 },
     defaults: {
       label: 'Image Button',
@@ -95,6 +97,7 @@ const mutateDefinitionDefaults = () => {
     label: 'Image Toggle (3-state)',
     category: 'Images',
     icon: '🖼',
+    description: 'Up to three-state toggle that cycles images and values on each click.',
     defaultSize: { w: 2, h: 2 },
     defaults: {
       label: 'Image Toggle',
@@ -123,6 +126,7 @@ const mutateDefinitionDefaults = () => {
     label: 'Static Image',
     category: 'Images',
     icon: '🖼',
+    description: 'Decorative static image for layout framing and legends.',
     defaultSize: { w: 2, h: 2 },
     defaults: { label: 'Image', image: '/static/assets/white/icons8-temperature-50.png' },
     propertySections: [{ title: 'Image', fields: [{ label: 'Image', path: 'image', type: 'imagePicker' }] }],

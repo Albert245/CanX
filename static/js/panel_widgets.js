@@ -45,6 +45,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Button',
     icon: '⏺',
     category: 'Standard',
+    description: 'Momentary push button that transmits press and release values mapped to a signal.',
     defaultSize: { w: 2, h: 1 },
     defaults: {
       label: 'Button',
@@ -73,6 +74,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Toggle Switch',
     icon: '↕',
     category: 'Standard',
+    description: 'Two-state toggle that flips values on click and sends mapped on/off values.',
     defaultSize: { w: 2, h: 1 },
     defaults: {
       label: 'Toggle',
@@ -96,6 +98,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Lamp / Indicator',
     icon: '💡',
     category: 'Standard',
+    description: 'Receive-only indicator that turns on when the mapped signal matches the configured value.',
     defaultSize: { w: 2, h: 1 },
     defaults: {
       label: 'Lamp',
@@ -120,6 +123,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Progress Bar',
     icon: '%',
     category: 'Standard',
+    description: 'Receive-only bar that tracks the mapped signal as a percentage.',
     defaultSize: { w: 4, h: 1 },
     defaults: {
       label: 'Progress',
@@ -144,6 +148,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Label',
     icon: 'TXT',
     category: 'Standard',
+    description: 'Receive-only text label that shows numeric and named values from the mapped signal.',
     defaultSize: { w: 3, h: 2 },
     defaults: {
       label: 'Label',
@@ -171,6 +176,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Input Box',
     icon: '✎',
     category: 'Standard',
+    description: 'Transmit text or numeric values to the mapped signal when edited.',
     defaultSize: { w: 3, h: 1 },
     defaults: {
       label: 'Input',
@@ -196,6 +202,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Script Block',
     icon: '{ }',
     category: 'Logic',
+    description: 'CAPL-style script block that reacts to widget events and signal updates.',
     defaultSize: { w: 4, h: 2 },
     defaults: {
       label: 'Script Block',
@@ -214,6 +221,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Image Button',
     icon: '🖼',
     category: 'Images',
+    description: 'Two-state image button that swaps artwork on press and sends mapped values.',
     defaultSize: { w: 3, h: 2 },
     defaults: {
       label: 'Image Button',
@@ -245,6 +253,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Image Indicator',
     icon: '🖼',
     category: 'Images',
+    description: 'Multi-state image indicator that swaps artwork based on received signal values.',
     defaultSize: { w: 3, h: 2 },
     defaults: {
       label: 'Image Indicator',
@@ -276,6 +285,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Static Image',
     icon: '🖼',
     category: 'Images',
+    description: 'Decorative static image for layout framing and labels.',
     defaultSize: { w: 4, h: 3 },
     defaults: {
       label: 'Image',
@@ -294,6 +304,7 @@ export const PANEL_WIDGET_LIBRARY = [
     label: 'Image Switch',
     icon: '🖼',
     category: 'Images',
+    description: 'Multi-state switch that chooses an image based on an enumerated signal value.',
     defaultSize: { w: 4, h: 3 },
     defaults: {
       label: 'Image Switch',
@@ -357,10 +368,11 @@ export const createWidgetData = (type, overrides = {}) => {
 };
 
 export class PanelWidgetManager {
-  constructor({ canvas, grid, onAction } = {}) {
+  constructor({ canvas, grid, onAction, onRemove } = {}) {
     this.canvas = canvas;
     this.grid = grid;
     this.onAction = onAction;
+    this.onRemove = onRemove;
     this.widgets = new Map();
     this.elements = new Map();
     this.signalIndex = new Map();
@@ -372,6 +384,7 @@ export class PanelWidgetManager {
     this.signalIndex.clear();
     this.elements.forEach((el) => el.remove());
     this.elements.clear();
+    this.grid?.ensureSpareRows();
   }
 
   setMode(mode) {
@@ -434,6 +447,7 @@ export class PanelWidgetManager {
     this._renderWidget(data);
     this._registerInteractionHandlers(data, element);
     this._updateSignalIndex(data);
+    this._refreshCanvasSpace();
     return data;
   }
 
@@ -481,7 +495,22 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || widget.type;
     }
+    this._attachRemoveHandle(element, widget);
     this.grid?.applyPosition(widget, element);
+  }
+
+  _attachRemoveHandle(element, widget) {
+    if (!element) return;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'panel-widget-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = 'Remove widget';
+    removeBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.removeWidget(widget.id);
+    });
+    element.appendChild(removeBtn);
   }
 
   _renderButton(widget, element) {
@@ -659,6 +688,7 @@ export class PanelWidgetManager {
     }
     this._updateSignalIndex(widget);
     this._renderWidget(widget);
+    this._refreshCanvasSpace();
     return widget;
   }
 
@@ -671,12 +701,49 @@ export class PanelWidgetManager {
     });
   }
 
+  _refreshCanvasSpace() {
+    let maxRow = 0;
+    this.widgets.forEach((widget) => {
+      const height = typeof widget.size?.h === 'number' ? widget.size.h : 1;
+      const start = typeof widget.pos?.y === 'number' ? widget.pos.y : 1;
+      const bottom = start + height - 1;
+      if (bottom > maxRow) {
+        maxRow = bottom;
+      }
+    });
+    this.grid?.ensureSpareRows(maxRow);
+  }
+
   loadWidgets(widgets = []) {
     this.clear();
     widgets.forEach((cfg) => {
       if (!cfg || !cfg.type) return;
       this.addWidget(cfg);
     });
+    this._refreshCanvasSpace();
+  }
+
+  removeWidget(id) {
+    const widget = this.widgets.get(id);
+    if (!widget) return;
+    const element = this.elements.get(id);
+    if (element?.parentNode) {
+      element.parentNode.removeChild(element);
+    }
+    this.widgets.delete(id);
+    this.elements.delete(id);
+    const key = widget._signalKey;
+    if (key && this.signalIndex.has(key)) {
+      const set = this.signalIndex.get(key);
+      set.delete(id);
+      if (!set.size) {
+        this.signalIndex.delete(key);
+      }
+    }
+    this._refreshCanvasSpace();
+    if (typeof this.onRemove === 'function') {
+      this.onRemove(id, widget);
+    }
   }
 
   forEach(callback) {
@@ -694,7 +761,6 @@ export class PanelWidgetManager {
       if (!widget) return;
       const didChange = this._applyRx(widget, payload);
       if (didChange) {
-        changed.push(widget);
         this._renderWidget(widget);
       }
       results.push({ widget, changed: didChange });

@@ -14,7 +14,10 @@ export class PanelGrid {
     this.canvas = canvas;
     this.columns = clampNumber(options.columns ?? DEFAULT_COLUMNS, 1, 40);
     this.cellSize = clampNumber(options.cellSize ?? DEFAULT_CELL_SIZE, 30, 160);
+    this.minimumRows = 10;
+    this.extraRows = 5;
     this._syncStyles();
+    this.ensureSpareRows();
   }
 
   _syncStyles() {
@@ -31,11 +34,18 @@ export class PanelGrid {
       this.cellSize = clampNumber(cellSize, 30, 200);
     }
     this._syncStyles();
+    this.ensureSpareRows();
   }
 
   toggleGrid(show) {
     if (!this.canvas) return;
     this.canvas.classList.toggle('panel-hide-grid', show === false);
+  }
+
+  ensureSpareRows(maxRow = 0) {
+    if (!this.canvas) return;
+    const rows = Math.max(this.minimumRows, Math.max(0, maxRow) + this.extraRows);
+    this.canvas.style.minHeight = `calc(var(--panel-cell-size) * ${rows})`;
   }
 
   getCellFromEvent(event) {

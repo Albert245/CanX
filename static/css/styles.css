@@ -614,6 +614,27 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 12px;
 }
 
+#panel-sidebar-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-toolbar-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panel-toolbar-group button {
+  flex: 1 1 auto;
+  min-width: 90px;
+}
+
+#panel-run-mode {
+  width: 100%;
+}
+
 #panel-toolbox,
 #panel-properties {
   background: rgba(255, 255, 255, 0.02);
@@ -636,6 +657,16 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+#panel-toolbox-description {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .panel-tool-btn {
@@ -717,6 +748,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   width: calc(20 * var(--panel-cell-size));
   gap: 2px;
   padding: 4px;
+  min-height: calc(var(--panel-cell-size) * 10);
   background-image: linear-gradient(
       to right,
       rgba(79, 140, 255, 0.15) 1px,
@@ -844,39 +876,18 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   object-fit: contain;
 }
 
-#panel-bottom-toolbar {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-#panel-bottom-toolbar button {
-  min-width: 120px;
-}
-
-#panel-exit-run-mode {
-  display: none;
-}
-
-#tab-panel.is-run-mode #panel-left-column {
-  display: none;
-}
-
-#tab-panel.is-run-mode #panel-exit-run-mode {
-  display: inline-flex;
-}
-
-#tab-panel.is-run-mode #panel-edit-mode {
-  display: none;
-}
-
 #tab-panel.is-run-mode #panel-canvas {
   background-image: none;
 }
 
 #tab-panel.is-run-mode .panel-widget {
   cursor: pointer;
+}
+
+#tab-panel.is-run-mode #panel-toolbox,
+#tab-panel.is-run-mode #panel-properties,
+#tab-panel.is-run-mode #panel-toolbox-description {
+  display: none;
 }
 
 #tab-panel:not(.is-run-mode) .panel-widget-input input {
@@ -969,6 +980,27 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   grid-template-columns: 150px 1fr 1fr 90px;
   gap: 6px;
   align-items: center;
+}
+
+.panel-widget-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#tab-panel.is-run-mode .panel-widget-remove {
+  display: none;
 }
 
 .panel-widget button {

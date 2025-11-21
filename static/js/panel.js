@@ -46,12 +46,12 @@ const initPanel = () => {
   const canvas = document.getElementById('panel-canvas');
   const toolboxEl = document.getElementById('panel-toolbox');
   const propertiesEl = document.getElementById('panel-properties');
-  const editBtn = document.getElementById('panel-edit-mode');
+  const editBtn = document.getElementById('panel-exit-run-mode');
   const runBtn = document.getElementById('panel-run-mode');
-  const exitRunBtn = document.getElementById('panel-exit-run-mode');
   const exportBtn = document.getElementById('panel-export');
   const importBtn = document.getElementById('panel-import');
   const importFile = document.getElementById('panel-import-file');
+  const toolboxDescription = document.getElementById('panel-toolbox-description');
 
   if (!panelTab || !canvas || !toolboxEl || !propertiesEl) {
     return;
@@ -139,6 +139,14 @@ const initPanel = () => {
       }
       scriptEngine?.trigger(widget, eventType, payload);
     },
+    onRemove: (id) => {
+      if (state.selectedId === id) {
+        selectWidget(null);
+      }
+      if (!state.restoring) {
+        scheduleSave();
+      }
+    },
   });
 
   scriptEngine = new PanelScriptEngine({
@@ -195,6 +203,25 @@ const initPanel = () => {
     toolboxButtons.forEach((btn, type) => {
       btn.classList.toggle('is-active', state.pendingTool === type);
     });
+    updateToolDescription();
+  };
+
+  const updateToolDescription = () => {
+    if (!toolboxDescription) return;
+    if (!state.pendingTool) {
+      toolboxDescription.hidden = true;
+      toolboxDescription.textContent = '';
+      return;
+    }
+    const def = PANEL_WIDGET_LIBRARY.find((entry) => entry.type === state.pendingTool);
+    const descriptionText = def?.description || 'Select a position on the grid to place this widget.';
+    toolboxDescription.hidden = false;
+    toolboxDescription.innerHTML = '';
+    const intro = document.createElement('div');
+    intro.textContent = 'Select a grid cell to place this widget.';
+    const detail = document.createElement('div');
+    detail.textContent = descriptionText;
+    toolboxDescription.append(intro, detail);
   };
 
   const selectWidget = (id) => {
@@ -239,11 +266,20 @@ const initPanel = () => {
     } else {
       grid.toggleGrid(true);
     }
+    syncModeButtons();
+  };
+
+  const syncModeButtons = () => {
+    if (runBtn) {
+      runBtn.textContent = state.mode === 'run' ? 'Exit Run Mode' : 'Run Mode';
+    }
+    if (editBtn) {
+      editBtn.disabled = state.mode === 'edit';
+    }
   };
 
   editBtn?.addEventListener('click', () => setMode('edit'));
-  runBtn?.addEventListener('click', () => setMode('run'));
-  exitRunBtn?.addEventListener('click', () => setMode('edit'));
+  runBtn?.addEventListener('click', () => setMode(state.mode === 'run' ? 'edit' : 'run'));
 
   importBtn?.addEventListener('click', () => importFile?.click());
   importFile?.addEventListener('change', async () => {
