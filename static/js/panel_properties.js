@@ -104,9 +104,9 @@ export class PanelPropertiesPanel {
       if (behaviorCard) {
         ribbonRow.appendChild(behaviorCard);
       }
-    } else {
-      ribbonRow.appendChild(this._renderLayoutCard());
     }
+
+    ribbonRow.appendChild(this._renderLayoutCard());
 
     const sections = [...(definition.propertySections || [])];
     if (definition.supportsScript && !hasScriptField(sections)) {
@@ -203,11 +203,6 @@ export class PanelPropertiesPanel {
 
   _renderLayoutCard() {
     const card = this._createRibbonCard('Layout');
-    this._appendLayoutFields(card);
-    return card;
-  }
-
-  _appendLayoutFields(target) {
     const fields = [
       { label: 'Column (X)', path: 'pos.x', value: this.widget.pos?.x ?? 1 },
       { label: 'Row (Y)', path: 'pos.y', value: this.widget.pos?.y ?? 1 },
@@ -226,7 +221,7 @@ export class PanelPropertiesPanel {
         this._emitChange(field.path, Number.isFinite(numeric) ? numeric : 1);
       });
       wrapper.append(label, input);
-      target.appendChild(wrapper);
+      card.appendChild(wrapper);
     });
     return card;
   }
@@ -265,47 +260,42 @@ export class PanelPropertiesPanel {
     const card = this._createRibbonCard('Default / Script Mode');
     const row = createElement('div', 'panel-mode-toggle');
 
-    const buttonBlock = createElement('div', 'panel-ribbon-button-block');
-    const toggleBtn = document.createElement('button');
-    toggleBtn.type = 'button';
-    toggleBtn.className = 'panel-ribbon-button panel-mode-option panel-mode-toggle-btn';
-    const icon = createElement('span', 'panel-ribbon-icon');
-    const caption = createElement('span', 'panel-ribbon-label');
-    toggleBtn.append(icon);
-    buttonBlock.append(toggleBtn, caption);
-
-    const ensureScriptTemplate = () => {
-      if (!this.widget?.useScript) return;
-      if (!this.widget.script || !this.widget.script.trim()) {
-        const template = this._buildBehaviorScript(this.widget);
-        this.widget.script = template;
-        this._emitChange('script', template);
-      }
+    const createModeButton = (label, className, useScript) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `panel-ribbon-button panel-mode-option ${className}`;
+      const icon = createElement('span', `panel-ribbon-icon ${useScript ? 'panel-icon-script' : 'panel-icon-default'}`);
+      const caption = createElement('span', 'panel-ribbon-label', label);
+      const buttonBlock = createElement('div', 'panel-ribbon-button-block');
+      btn.append(icon);
+      buttonBlock.append(btn, caption);
+      btn.addEventListener('click', () => {
+        this.widget.useScript = useScript;
+        if (useScript && (!this.widget.script || !this.widget.script.trim())) {
+          const template = this._buildBehaviorScript(this.widget);
+          this.widget.script = template;
+          this._emitChange('script', template);
+        }
+        this._emitChange('useScript', useScript);
+        this._render();
+      });
+      return { block: buttonBlock, button: btn };
     };
+
+    const defaultBtn = createModeButton('Default', 'panel-mode-default', false);
+    const scriptBtn = createModeButton('Custom Script', 'panel-mode-custom', true);
 
     const syncMode = () => {
       const useScript = Boolean(this.widget?.useScript);
-      caption.textContent = useScript ? 'Custom Script' : 'Default';
-      icon.classList.toggle('panel-icon-default', !useScript);
-      icon.classList.toggle('panel-icon-script', useScript);
-      toggleBtn.classList.toggle('is-active', useScript);
+      defaultBtn.button.classList.toggle('is-active', !useScript);
+      scriptBtn.button.classList.toggle('is-active', useScript);
+      scriptBtn.button.disabled = false;
+      defaultBtn.button.disabled = false;
     };
 
-    toggleBtn.addEventListener('click', () => {
-      this.widget.useScript = !this.widget.useScript;
-      ensureScriptTemplate();
-      this._emitChange('useScript', this.widget.useScript);
-      this._render();
-    });
-
-    ensureScriptTemplate();
     syncMode();
-    row.appendChild(buttonBlock);
-
-    const layoutSection = createElement('div', 'panel-layout-section');
-    layoutSection.appendChild(createElement('div', 'panel-ribbon-group-title', 'Layout'));
-    this._appendLayoutFields(layoutSection);
-    card.append(row, layoutSection);
+    row.append(defaultBtn.block, scriptBtn.block);
+    card.appendChild(row);
     return card;
   }
 
