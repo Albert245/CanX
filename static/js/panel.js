@@ -47,12 +47,14 @@ const initPanel = () => {
   const canvas = document.getElementById('panel-canvas');
   const toolboxEl = document.getElementById('panel-toolbox');
   const propertiesEl = document.getElementById('panel-properties');
+  const objectRibbon = document.getElementById('panel-object-ribbon');
   const runBtn = document.getElementById('panel-run-mode');
   const exportBtn = document.getElementById('panel-export');
   const importBtn = document.getElementById('panel-import');
   const importFile = document.getElementById('panel-import-file');
   const clearBtn = document.getElementById('panel-clear');
   const toolboxDescription = document.getElementById('panel-toolbox-description');
+  const panelDescription = document.getElementById('panel-description');
 
   if (!panelTab || !canvas || !toolboxEl || !propertiesEl) {
     return;
@@ -185,7 +187,6 @@ const initPanel = () => {
 
   const buildToolbox = () => {
     toolboxEl.innerHTML = '';
-    toolboxEl.appendChild(createElement('h3', null, 'Toolbox'));
     const list = createElement('div', 'panel-toolbox-list');
     PANEL_WIDGET_LIBRARY.filter((item) => item.type !== 'script').forEach((item) => {
       const btn = document.createElement('button');
@@ -211,6 +212,18 @@ const initPanel = () => {
   };
 
   buildToolbox();
+
+  const enableAutoExpand = (el) => {
+    if (!el) return;
+    const resize = () => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.max(el.scrollHeight, 48)}px`;
+    };
+    el.addEventListener('input', resize);
+    resize();
+  };
+
+  enableAutoExpand(panelDescription);
 
   const updateToolboxSelection = () => {
     toolboxButtons.forEach((btn, type) => {
@@ -244,6 +257,9 @@ const initPanel = () => {
     });
     const widget = id ? widgetManager.getWidget(id) : null;
     propertiesPanel.setWidget(widget || null);
+    if (objectRibbon) {
+      objectRibbon.hidden = !widget || state.mode === 'run';
+    }
   };
 
   const handleCanvasClick = (event) => {
@@ -284,7 +300,18 @@ const initPanel = () => {
 
   const syncModeButtons = () => {
     if (runBtn) {
-      runBtn.textContent = state.mode === 'run' ? 'Edit Mode' : 'Run Mode';
+      const label = runBtn.parentElement?.querySelector('.panel-ribbon-label');
+      const icon = runBtn.querySelector('.panel-ribbon-icon');
+      if (label) {
+        label.textContent = state.mode === 'run' ? 'Running' : 'Editing';
+      }
+      if (icon) {
+        icon.classList.toggle('panel-icon-running', state.mode === 'run');
+        icon.classList.toggle('panel-icon-editing', state.mode !== 'run');
+      }
+    }
+    if (objectRibbon) {
+      objectRibbon.hidden = state.mode === 'run' || !state.selectedId;
     }
   };
 
