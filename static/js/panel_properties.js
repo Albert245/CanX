@@ -78,33 +78,36 @@ export class PanelPropertiesPanel {
 
   _render() {
     if (!this.container) return;
+    this.container.classList.add('panel-properties');
     this.container.innerHTML = '';
     this.behaviorScriptCache.clear();
     if (!this.widget) {
       this.container.appendChild(createElement('div', 'panel-properties-empty', 'Select a widget to edit.'));
       return;
     }
+
     const definition = getWidgetDefinition(this.widget.type) || {};
-    const title = createElement('h3', null, `${definition.label || this.widget.type} Properties`);
+    const title = createElement('h3', 'panel-properties-title', `${definition.label || this.widget.type} Properties`);
     this.container.appendChild(title);
+
     const form = document.createElement('form');
+    form.className = 'panel-properties-form';
     form.addEventListener('submit', (event) => event.preventDefault());
     this.enumBindings = [];
     this.signalChoices = {};
 
-    const actionsRow = this._renderActions();
-    if (actionsRow) {
-      form.appendChild(actionsRow);
-    }
+    const ribbonRow = createElement('div', 'panel-ribbon-row');
+    form.appendChild(ribbonRow);
 
     if (definition.supportsScript) {
-      const behaviorRow = this._renderBehaviorToggle();
-      if (behaviorRow) {
-        form.appendChild(behaviorRow);
+      const behaviorCard = this._renderBehaviorButtons();
+      if (behaviorCard) {
+        ribbonRow.appendChild(behaviorCard);
       }
     }
 
-    this._renderLayoutSection(form);
+    ribbonRow.appendChild(this._renderLayoutCard());
+
     const sections = [...(definition.propertySections || [])];
     if (definition.supportsScript && !hasScriptField(sections)) {
       sections.push({
@@ -112,12 +115,60 @@ export class PanelPropertiesPanel {
         fields: [{ label: 'Script', path: 'script', type: 'textarea', rows: 6 }],
       });
     }
-    sections.forEach((section) => this._renderSection(form, section));
+
+    const mappingFields = [];
+    const valueFields = [];
+    const miscFields = [];
+    let scriptField = null;
+
+    sections.forEach((section) => {
+      section.fields?.forEach((field) => {
+        if (field.path === 'script') {
+          scriptField = field;
+          return;
+        }
+        if (field.path === 'mapping.message' || field.path === 'mapping.signal') {
+          mappingFields.push(field);
+          return;
+        }
+        if ((field.path || '').startsWith('mapping.') || (field.type || '').startsWith('image')) {
+          valueFields.push(field);
+          return;
+        }
+        miscFields.push(field);
+      });
+    });
+
+    const mappingCard = this._createRibbonCard('Mapping MSG / SIGNAL');
+    mappingFields.forEach((field) => mappingCard.appendChild(this._createField(field)));
+    ribbonRow.appendChild(mappingCard);
+
+    const mappingValueCard = this._createRibbonCard('Mapping Value / Image States', 'panel-ribbon-card--stretch');
+    valueFields.forEach((field) => mappingValueCard.appendChild(this._createField(field)));
+    if (miscFields.length) {
+      const miscLabel = createElement('div', 'panel-ribbon-group-title', 'Widget Details');
+      mappingValueCard.appendChild(miscLabel);
+      miscFields.forEach((field) => mappingValueCard.appendChild(this._createField(field)));
+    }
+    ribbonRow.appendChild(mappingValueCard);
+
+    const rendererTarget = createElement('div', 'panel-custom-renderer');
+    mappingValueCard.appendChild(rendererTarget);
+
+    const scriptCard = this._renderScriptSection(scriptField);
+    if (scriptCard) {
+      ribbonRow.appendChild(scriptCard);
+    }
+
+    const actionsCard = this._renderActions();
+    if (actionsCard) {
+      ribbonRow.appendChild(actionsCard);
+    }
 
     const renderer = this.customRenderers.get(this.widget.type);
     if (renderer) {
       try {
-        renderer({ form, widget: this.widget, definition });
+        renderer({ form: rendererTarget, widget: this.widget, definition });
       } catch (err) {
         console.warn('Panel properties renderer error', err);
       }
@@ -139,9 +190,19 @@ export class PanelPropertiesPanel {
     }
   }
 
-  _renderLayoutSection(form) {
-    const layoutTitle = createElement('div', 'panel-section-title', 'Layout');
-    form.appendChild(layoutTitle);
+  _createRibbonCard(title, extraClass) {
+    const card = createElement('div', 'panel-ribbon-card');
+    if (extraClass) {
+      card.classList.add(extraClass);
+    }
+    if (title) {
+      card.appendChild(createElement('div', 'panel-ribbon-group-title', title));
+    }
+    return card;
+  }
+
+  _renderLayoutCard() {
+    const card = this._createRibbonCard('Layout');
     const fields = [
       { label: 'Column (X)', path: 'pos.x', value: this.widget.pos?.x ?? 1 },
       { label: 'Row (Y)', path: 'pos.y', value: this.widget.pos?.y ?? 1 },
@@ -160,8 +221,9 @@ export class PanelPropertiesPanel {
         this._emitChange(field.path, Number.isFinite(numeric) ? numeric : 1);
       });
       wrapper.append(label, input);
-      form.appendChild(wrapper);
+      card.appendChild(wrapper);
     });
+    return card;
   }
 
   _renderSection(form, section) {
@@ -175,49 +237,71 @@ export class PanelPropertiesPanel {
   }
 
   _renderActions() {
-    const actionsRow = createElement('div', 'panel-actions');
-    if (typeof this.onRemoveWidget === 'function' && this.widget?.id) {
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'panel-danger-btn';
-      removeBtn.textContent = 'Remove Widget';
-      removeBtn.addEventListener('click', () => {
-        if (!this.widget?.id) return;
-        this.onRemoveWidget(this.widget.id);
-      });
-      actionsRow.appendChild(removeBtn);
-      return actionsRow;
-    }
-    return null;
+    if (typeof this.onRemoveWidget !== 'function' || !this.widget?.id) return null;
+    const card = this._createRibbonCard('Remove Widget');
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'panel-ribbon-button panel-danger-btn';
+    const icon = createElement('span', 'panel-ribbon-icon panel-icon-remove');
+    const label = createElement('span', 'panel-ribbon-label', 'Remove');
+    removeBtn.append(icon, label);
+    removeBtn.addEventListener('click', () => {
+      if (!this.widget?.id) return;
+      this.onRemoveWidget(this.widget.id);
+    });
+    card.appendChild(removeBtn);
+    return card;
   }
 
-  _renderBehaviorToggle() {
+  _renderBehaviorButtons() {
     if (!this.widget) return null;
-    const row = createElement('div', 'panel-field panel-behavior-toggle');
-    const label = createElement('label', null, 'Use custom script');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = Boolean(this.widget.useScript);
-    checkbox.addEventListener('change', () => {
-      const checked = checkbox.checked;
-      this.widget.useScript = checked;
-      if (checked && (!this.widget.script || !this.widget.script.trim())) {
-        const template = this._buildBehaviorScript(this.widget);
-        this.widget.script = template;
-        this._emitChange('script', template);
-      }
-      this._emitChange('useScript', checked);
-      this._render();
-    });
-    label.prepend(checkbox);
-    row.appendChild(label);
-    const helper = createElement(
-      'div',
-      'panel-behavior-note',
-      'Toggle between mapping-driven behavior and editable scripts.',
-    );
-    row.appendChild(helper);
-    return row;
+    const card = this._createRibbonCard('Default / Script Mode');
+    const row = createElement('div', 'panel-mode-toggle');
+
+    const createModeButton = (label, className, useScript) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `panel-ribbon-button panel-mode-option ${className}`;
+      const icon = createElement('span', `panel-ribbon-icon ${useScript ? 'panel-icon-script' : 'panel-icon-default'}`);
+      const caption = createElement('span', 'panel-ribbon-label', label);
+      btn.append(icon, caption);
+      btn.addEventListener('click', () => {
+        this.widget.useScript = useScript;
+        if (useScript && (!this.widget.script || !this.widget.script.trim())) {
+          const template = this._buildBehaviorScript(this.widget);
+          this.widget.script = template;
+          this._emitChange('script', template);
+        }
+        this._emitChange('useScript', useScript);
+        this._render();
+      });
+      return btn;
+    };
+
+    const defaultBtn = createModeButton('Default', 'panel-mode-default', false);
+    const scriptBtn = createModeButton('Custom Script', 'panel-mode-custom', true);
+
+    const syncMode = () => {
+      const useScript = Boolean(this.widget?.useScript);
+      defaultBtn.classList.toggle('is-active', !useScript);
+      scriptBtn.classList.toggle('is-active', useScript);
+      scriptBtn.disabled = false;
+      defaultBtn.disabled = false;
+    };
+
+    syncMode();
+    row.append(defaultBtn, scriptBtn);
+    card.appendChild(row);
+    return card;
+  }
+
+  _renderScriptSection(field) {
+    if (!field) return null;
+    const card = this._createRibbonCard('Script Editor', 'panel-ribbon-card--stretch');
+    const fieldEl = this._createField({ ...field, rows: Math.max(field.rows || 8, 6) });
+    fieldEl.classList.add('panel-script-field');
+    card.appendChild(fieldEl);
+    return card;
   }
 
   _createField(field) {
@@ -286,6 +370,16 @@ export class PanelPropertiesPanel {
     if (isScriptField && !useScript && targetInput) {
       targetInput.readOnly = true;
       targetInput.classList.add('is-readonly');
+    }
+
+    if (isScriptField && targetInput) {
+      targetInput.classList.add('panel-script-input');
+      const autosize = () => {
+        targetInput.style.height = 'auto';
+        targetInput.style.height = `${Math.max(targetInput.scrollHeight, 120)}px`;
+      };
+      autosize();
+      targetInput.addEventListener('input', autosize);
     }
 
     if (isMappingField && useScript && targetInput) {
