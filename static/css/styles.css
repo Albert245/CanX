@@ -978,6 +978,17 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   white-space: nowrap;
 }
 
+.panel-widget-input-button .panel-input-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 8px;
+}
+
+.panel-widget-input-button .panel-input-row input,
+.panel-widget-input-button .panel-input-row button {
+  width: 100%;
+}
+
 .panel-properties-empty {
   font-size: 12px;
   color: var(--muted);

@@ -204,7 +204,7 @@ export const PANEL_WIDGET_LIBRARY = [
     icon: '➡',
     category: 'Standard',
     description: 'Editable input with an explicit send button for mapped signals.',
-    defaultSize: { w: 4, h: 1 },
+    defaultSize: { w: 3, h: 1 },
     defaults: {
       label: 'Input',
       mapping: { ...defaultMapping() },
