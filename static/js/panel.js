@@ -3,6 +3,7 @@ import { PanelWidgetManager, PANEL_WIDGET_LIBRARY } from './panel_widgets.js';
 import { PanelPropertiesPanel } from './panel_properties.js';
 import { PanelScriptEngine } from './panel_script.js';
 import { registerImageWidgetExtensions } from './panel_image_widgets.js';
+import { notifyMessageStateChange } from './message-bus.js';
 
 const PANEL_STORAGE_FILE = 'canx_panel.json';
 
@@ -83,15 +84,14 @@ const initPanel = () => {
   };
 
   const sendSignal = async ({ message, signal, value, signals }) => {
-    if (!message) return;
-    const payload = { message };
+    if (!message) return null;
+    const payload = { message_name: message, signals: {} };
     if (signals && typeof signals === 'object') {
       payload.signals = signals;
     } else if (signal) {
-      payload.signal = signal;
-      payload.value = value;
+      payload.signals[signal] = value;
     }
-    const response = await fetch('/api/panel/send-signal', {
+    const response = await fetch('/api/stim/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -100,6 +100,10 @@ const initPanel = () => {
     if (!response.ok || !data?.ok) {
       throw new Error(data?.error || 'Signal send failed');
     }
+    if (payload.message_name && data.running !== undefined) {
+      notifyMessageStateChange(payload.message_name, !!data.running, { source: 'panel' });
+    }
+    return data;
   };
 
   const evaluateScriptRequest = async (payload) => {
