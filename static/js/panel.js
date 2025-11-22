@@ -292,11 +292,11 @@ const initPanel = () => {
     widgetManager.setMode(mode);
     if (mode === 'run') {
       state.pendingTool = null;
-      updateToolboxSelection();
       grid.toggleGrid(false);
     } else {
       grid.toggleGrid(true);
     }
+    updateToolboxSelection();
     syncModeButtons();
   };
 
