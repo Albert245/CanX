@@ -775,6 +775,11 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   font-size: 13px;
 }
 
+.panel-toolbox-select option {
+  background: var(--panel);
+  color: var(--text);
+}
+
 #tab-panel.is-run-mode .panel-toolbox-select {
   opacity: 0.65;
   cursor: not-allowed;
