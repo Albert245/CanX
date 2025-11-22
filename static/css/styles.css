@@ -795,12 +795,6 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   line-height: 1.5;
 }
 
-.panel-name-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .panel-name-group {
   flex: 1;
   min-width: 200px;
@@ -836,19 +830,11 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 .panel-mode-toggle {
   display: flex;
   gap: 10px;
-  align-items: center;
 }
 
 .panel-mode-option.is-active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.35);
-}
-
-.panel-layout-section {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 6px;
 }
 
 .panel-icon-default {
