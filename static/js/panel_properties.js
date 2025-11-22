@@ -244,12 +244,14 @@ export class PanelPropertiesPanel {
     removeBtn.className = 'panel-ribbon-button panel-danger-btn';
     const icon = createElement('span', 'panel-ribbon-icon panel-icon-remove');
     const label = createElement('span', 'panel-ribbon-label', 'Remove');
-    removeBtn.append(icon, label);
+    const buttonBlock = createElement('div', 'panel-ribbon-button-block');
+    removeBtn.append(icon);
+    buttonBlock.append(removeBtn, label);
     removeBtn.addEventListener('click', () => {
       if (!this.widget?.id) return;
       this.onRemoveWidget(this.widget.id);
     });
-    card.appendChild(removeBtn);
+    card.appendChild(buttonBlock);
     return card;
   }
 
@@ -264,7 +266,9 @@ export class PanelPropertiesPanel {
       btn.className = `panel-ribbon-button panel-mode-option ${className}`;
       const icon = createElement('span', `panel-ribbon-icon ${useScript ? 'panel-icon-script' : 'panel-icon-default'}`);
       const caption = createElement('span', 'panel-ribbon-label', label);
-      btn.append(icon, caption);
+      const buttonBlock = createElement('div', 'panel-ribbon-button-block');
+      btn.append(icon);
+      buttonBlock.append(btn, caption);
       btn.addEventListener('click', () => {
         this.widget.useScript = useScript;
         if (useScript && (!this.widget.script || !this.widget.script.trim())) {
@@ -275,7 +279,7 @@ export class PanelPropertiesPanel {
         this._emitChange('useScript', useScript);
         this._render();
       });
-      return btn;
+      return { block: buttonBlock, button: btn };
     };
 
     const defaultBtn = createModeButton('Default', 'panel-mode-default', false);
@@ -283,14 +287,14 @@ export class PanelPropertiesPanel {
 
     const syncMode = () => {
       const useScript = Boolean(this.widget?.useScript);
-      defaultBtn.classList.toggle('is-active', !useScript);
-      scriptBtn.classList.toggle('is-active', useScript);
-      scriptBtn.disabled = false;
-      defaultBtn.disabled = false;
+      defaultBtn.button.classList.toggle('is-active', !useScript);
+      scriptBtn.button.classList.toggle('is-active', useScript);
+      scriptBtn.button.disabled = false;
+      defaultBtn.button.disabled = false;
     };
 
     syncMode();
-    row.append(defaultBtn, scriptBtn);
+    row.append(defaultBtn.block, scriptBtn.block);
     card.appendChild(row);
     return card;
   }

@@ -300,7 +300,7 @@ const initPanel = () => {
 
   const syncModeButtons = () => {
     if (runBtn) {
-      const label = runBtn.querySelector('.panel-ribbon-label');
+      const label = runBtn.parentElement?.querySelector('.panel-ribbon-label');
       const icon = runBtn.querySelector('.panel-ribbon-icon');
       if (label) {
         label.textContent = state.mode === 'run' ? 'Running' : 'Editing';
