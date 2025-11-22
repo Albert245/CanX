@@ -181,12 +181,43 @@ export const PANEL_WIDGET_LIBRARY = [
     defaults: {
       label: 'Input',
       mapping: { ...defaultMapping(), submitOnEnter: true },
+      options: { placeholder: '' },
     },
     supportsScript: true,
     propertySections: [
       {
         title: 'Content',
         fields: [{ label: 'Placeholder', path: 'options.placeholder', type: 'text' }],
+      },
+      {
+        title: 'Mapping',
+        fields: [
+          { label: 'Message', path: 'mapping.message', type: 'text', autocomplete: 'message' },
+          { label: 'Signal', path: 'mapping.signal', type: 'text', autocomplete: 'signal' },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'input_button',
+    label: 'Input + Button',
+    icon: '➡',
+    category: 'Standard',
+    description: 'Editable input with an explicit send button for mapped signals.',
+    defaultSize: { w: 3, h: 1 },
+    defaults: {
+      label: 'Input',
+      mapping: { ...defaultMapping() },
+      options: { placeholder: '', buttonLabel: 'Send' },
+    },
+    supportsScript: true,
+    propertySections: [
+      {
+        title: 'Content',
+        fields: [
+          { label: 'Placeholder', path: 'options.placeholder', type: 'text' },
+          { label: 'Button label', path: 'options.buttonLabel', type: 'text' },
+        ],
       },
       {
         title: 'Mapping',
@@ -392,11 +423,15 @@ export class PanelWidgetManager {
   setMode(mode) {
     this.mode = mode === 'run' ? 'run' : 'edit';
     this.widgets.forEach((widget) => {
-      if (widget.type === 'input') {
+      if (widget.type === 'input' || widget.type === 'input_button') {
         const el = this.elements.get(widget.id);
         const input = el?.querySelector('input');
         if (input) {
           input.toggleAttribute('readonly', this.mode !== 'run');
+        }
+        const button = el?.querySelector('button');
+        if (button && widget.type === 'input_button') {
+          button.toggleAttribute('disabled', this.mode !== 'run');
         }
       }
     });
@@ -479,6 +514,9 @@ export class PanelWidgetManager {
       case 'input':
         this._renderInput(widget, element);
         break;
+      case 'input_button':
+        this._renderInputButton(widget, element);
+        break;
       case 'script':
         this._renderScript(widget, element);
         break;
@@ -508,6 +546,9 @@ export class PanelWidgetManager {
   }
 
   _renderToggle(widget, element) {
+    element.classList.add('panel-widget-with-caption');
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const toggle = document.createElement('div');
     toggle.className = 'panel-toggle-switch';
     const thumb = document.createElement('div');
@@ -516,26 +557,44 @@ export class PanelWidgetManager {
     if (widget.runtime?.isOn) {
       toggle.classList.add('is-on');
     }
-    element.appendChild(toggle);
+    body.appendChild(toggle);
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Toggle';
+    element.append(body, caption);
   }
 
   _renderLamp(widget, element) {
+    element.classList.add('panel-widget-with-caption');
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const lamp = document.createElement('div');
     lamp.className = 'panel-lamp-indicator';
     if (widget.runtime?.isOn) {
       lamp.classList.add('is-on');
     }
-    element.appendChild(lamp);
+    body.appendChild(lamp);
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Lamp';
+    element.append(body, caption);
   }
 
   _renderProgress(widget, element) {
+    element.classList.add('panel-widget-with-caption');
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const shell = document.createElement('div');
     shell.className = 'panel-progress-shell';
     const fill = document.createElement('div');
     fill.className = 'panel-progress-fill';
     fill.style.width = `${widget.runtime?.percent ?? 0}%`;
     shell.appendChild(fill);
-    element.appendChild(shell);
+    body.appendChild(shell);
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Progress';
+    element.append(body, caption);
   }
 
   _renderLabel(widget, element) {
@@ -554,15 +613,58 @@ export class PanelWidgetManager {
   }
 
   _renderInput(widget, element) {
-    element.classList.add('panel-widget-input');
+    element.classList.add('panel-widget-with-caption', 'panel-widget-input');
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Input';
+    const row = document.createElement('div');
+    row.className = 'panel-input-row';
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = widget.options?.placeholder || widget.label || 'Value';
-    input.value = '';
+    const currentValue = widget.runtime?.inputValue ?? '';
+    input.value = currentValue;
+    input.addEventListener('input', (event) => {
+      widget.runtime = widget.runtime || {};
+      widget.runtime.inputValue = event.target.value;
+    });
+    input.addEventListener('focus', () => {
+      input.select();
+    });
     if (this.mode !== 'run') {
       input.setAttribute('readonly', 'readonly');
     }
-    element.appendChild(input);
+    row.append(input);
+    element.append(caption, row);
+  }
+
+  _renderInputButton(widget, element) {
+    element.classList.add('panel-widget-with-caption', 'panel-widget-input', 'panel-widget-input-button');
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Input';
+    const row = document.createElement('div');
+    row.className = 'panel-input-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = widget.options?.placeholder || widget.label || 'Value';
+    input.value = widget.runtime?.inputValue ?? '';
+    input.addEventListener('input', (event) => {
+      widget.runtime = widget.runtime || {};
+      widget.runtime.inputValue = event.target.value;
+    });
+    input.addEventListener('focus', () => {
+      input.select();
+    });
+    if (this.mode !== 'run') {
+      input.setAttribute('readonly', 'readonly');
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = widget.options?.buttonLabel || 'Send';
+    button.toggleAttribute('disabled', this.mode !== 'run');
+    row.append(input, button);
+    element.append(caption, row);
   }
 
   _renderScript(widget, element) {
@@ -648,8 +750,29 @@ export class PanelWidgetManager {
         if (event.key !== 'Enter') return;
         const input = event.target;
         const value = input.value;
+        widget.runtime = widget.runtime || {};
+        widget.runtime.inputValue = value;
         this._emitAction('input', widget, { value });
-        input.value = '';
+      });
+    } else if (type === 'input_button') {
+      element.addEventListener('keydown', (event) => {
+        if (this.mode !== 'run') return;
+        if (event.key !== 'Enter') return;
+        const input = event.target;
+        const value = input.value;
+        widget.runtime = widget.runtime || {};
+        widget.runtime.inputValue = value;
+        this._emitAction('submit', widget, { value });
+      });
+      element.addEventListener('click', (event) => {
+        if (this.mode !== 'run') return;
+        const button = event.target.closest('button');
+        if (!button || !element.contains(button)) return;
+        const input = element.querySelector('input');
+        const value = input?.value ?? '';
+        widget.runtime = widget.runtime || {};
+        widget.runtime.inputValue = value;
+        this._emitAction('submit', widget, { value });
       });
     }
   }
