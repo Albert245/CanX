@@ -276,19 +276,64 @@
 
       <section id="tab-panel" class="tab">
         <div id="panel-layout">
-          <div id="panel-left-column">
-            <div id="panel-sidebar-toolbar">
-              <div class="panel-toolbar-group">
-                <button id="panel-clear">Clear All</button>
-                <button id="panel-export">Export</button>
-                <button id="panel-import">Import</button>
-                <input id="panel-import-file" type="file" hidden accept="application/json" />
+          <div id="panel-ribbon-stack">
+            <div class="panel-ribbon panel-main-ribbon">
+              <div class="panel-ribbon-group panel-mode-group">
+                <div class="panel-ribbon-button-block">
+                  <button id="panel-run-mode" class="panel-ribbon-button panel-ribbon-button--mode" type="button">
+                    <span class="panel-ribbon-icon panel-icon-running" aria-hidden="true"></span>
+                  </button>
+                  <span class="panel-ribbon-label">Running</span>
+                </div>
               </div>
-              <button id="panel-run-mode">Run Mode</button>
+
+              <div class="panel-ribbon-group panel-io-group">
+                <div class="panel-ribbon-group-title">Export / Import</div>
+                <div class="panel-ribbon-stack-buttons">
+                  <div class="panel-ribbon-button-block">
+                    <button id="panel-export" class="panel-ribbon-button panel-ribbon-button--export" type="button">
+                      <span class="panel-ribbon-icon panel-icon-export" aria-hidden="true"></span>
+                    </button>
+                    <span class="panel-ribbon-label">Export</span>
+                  </div>
+                  <div class="panel-ribbon-button-block">
+                    <button id="panel-import" class="panel-ribbon-button panel-ribbon-button--import" type="button">
+                      <span class="panel-ribbon-icon panel-icon-import" aria-hidden="true"></span>
+                    </button>
+                    <span class="panel-ribbon-label">Import</span>
+                  </div>
+                  <input id="panel-import-file" type="file" hidden accept="application/json" />
+                </div>
+              </div>
+
+              <div class="panel-ribbon-group panel-clear-group" data-mode="edit">
+                <div class="panel-ribbon-button-block">
+                  <button id="panel-clear" class="panel-ribbon-button" type="button">
+                    <span class="panel-ribbon-icon panel-icon-clear" aria-hidden="true"></span>
+                  </button>
+                  <span class="panel-ribbon-label">Clear All</span>
+                </div>
+              </div>
+
+              <div class="panel-ribbon-group panel-toolbox-group" data-mode="edit">
+                <div class="panel-ribbon-group-title">Toolbox</div>
+                <div class="panel-toolbox-dropdown">
+                  <div id="panel-toolbox" class="panel-toolbox-menu"></div>
+                </div>
+              </div>
+
+              <div class="panel-ribbon-group panel-name-group">
+                <div class="panel-ribbon-group-title">Description</div>
+                <div class="panel-name-stack">
+                  <input id="panel-name" type="text" placeholder="PANEL NAME" />
+                  <div id="panel-toolbox-description" class="panel-toolbox-description" hidden></div>
+                </div>
+              </div>
             </div>
-            <div id="panel-toolbox"></div>
-            <div id="panel-toolbox-description" hidden></div>
-            <div id="panel-properties"></div>
+
+            <div id="panel-object-ribbon" class="panel-ribbon panel-object-ribbon" hidden>
+              <div id="panel-properties"></div>
+            </div>
           </div>
 
           <div id="panel-canvas-container">
