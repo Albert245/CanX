@@ -970,6 +970,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 .panel-input-row input {
   flex: 1 1 auto;
   width: auto;
+  min-width: 0;
 }
 
 .panel-widget-input-button button {

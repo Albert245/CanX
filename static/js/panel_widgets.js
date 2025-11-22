@@ -613,12 +613,12 @@ export class PanelWidgetManager {
   }
 
   _renderInput(widget, element) {
-    element.classList.add('panel-widget-input');
+    element.classList.add('panel-widget-with-caption', 'panel-widget-input');
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Input';
     const row = document.createElement('div');
     row.className = 'panel-input-row';
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption panel-widget-caption--inline';
-    caption.textContent = widget.label || 'Input';
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = widget.options?.placeholder || widget.label || 'Value';
@@ -634,17 +634,17 @@ export class PanelWidgetManager {
     if (this.mode !== 'run') {
       input.setAttribute('readonly', 'readonly');
     }
-    row.append(caption, input);
-    element.appendChild(row);
+    row.append(input);
+    element.append(caption, row);
   }
 
   _renderInputButton(widget, element) {
-    element.classList.add('panel-widget-input', 'panel-widget-input-button');
+    element.classList.add('panel-widget-with-caption', 'panel-widget-input', 'panel-widget-input-button');
+    const caption = document.createElement('div');
+    caption.className = 'panel-widget-caption';
+    caption.textContent = widget.label || 'Input';
     const row = document.createElement('div');
     row.className = 'panel-input-row';
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption panel-widget-caption--inline';
-    caption.textContent = widget.label || 'Input';
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = widget.options?.placeholder || widget.label || 'Value';
@@ -663,8 +663,8 @@ export class PanelWidgetManager {
     button.type = 'button';
     button.textContent = widget.options?.buttonLabel || 'Send';
     button.toggleAttribute('disabled', this.mode !== 'run');
-    row.append(caption, input, button);
-    element.appendChild(row);
+    row.append(input, button);
+    element.append(caption, row);
   }
 
   _renderScript(widget, element) {
