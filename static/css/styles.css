@@ -822,6 +822,30 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   user-select: none;
 }
 
+.panel-widget-with-caption {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.panel-widget-body {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-widget-caption {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.panel-widget-caption--inline {
+  text-align: left;
+  min-width: 64px;
+  flex: 0 0 auto;
+}
+
 .panel-widget.is-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.35);
@@ -934,6 +958,23 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 #tab-panel:not(.is-run-mode) .panel-widget-input input {
   pointer-events: none;
+}
+
+.panel-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.panel-input-row input {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.panel-widget-input-button button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .panel-properties-empty {
