@@ -7,6 +7,14 @@
   --border: #2a2f3a;
   --graphic-max-width: 960px;
   --panel-cell-size: 60px;
+  --panel-icon-running: url('/static/img/running.png');
+  --panel-icon-editing: url('/static/img/editing.png');
+  --panel-icon-export: url('/static/img/export.png');
+  --panel-icon-import: url('/static/img/import.png');
+  --panel-icon-clear: url('/static/img/clear.png');
+  --panel-icon-remove: url('/static/img/remove.png');
+  --panel-icon-default: url('/static/img/default.png');
+  --panel-icon-custom-script: url('/static/img/custom_script.png');
 }
 
 * { box-sizing: border-box; }
@@ -690,27 +698,27 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 .panel-icon-running {
-  background-image: url('/static/assets/white/icons8-forward-50.png');
+  background-image: var(--panel-icon-running);
 }
 
 .panel-icon-editing {
-  background-image: url('/static/assets/white/icons8-wrench-50.png');
+  background-image: var(--panel-icon-editing);
 }
 
 .panel-icon-export {
-  background-image: url('/static/assets/white/icons8-right-button-50.png');
+  background-image: var(--panel-icon-export);
 }
 
 .panel-icon-import {
-  background-image: url('/static/assets/white/icons8-back-50.png');
+  background-image: var(--panel-icon-import);
 }
 
 .panel-icon-clear {
-  background-image: url('/static/assets/white/icons8-collapse-arrow-50.png');
+  background-image: var(--panel-icon-clear);
 }
 
 .panel-icon-remove {
-  background-image: url('/static/assets/white/icons8-switch-off-50.png');
+  background-image: var(--panel-icon-remove);
 }
 
 .panel-ribbon-label {
@@ -805,11 +813,11 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 .panel-icon-default {
-  background-image: url('/static/assets/white/icons8-toggle-off-50.png');
+  background-image: var(--panel-icon-default);
 }
 
 .panel-icon-script {
-  background-image: url('/static/assets/white/icons8-toggle-on-50.png');
+  background-image: var(--panel-icon-custom-script);
 }
 
 #tab-panel.is-run-mode [data-mode='edit'] {
