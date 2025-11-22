@@ -7,8 +7,8 @@
   --border: #2a2f3a;
   --graphic-max-width: 960px;
   --panel-cell-size: 60px;
-  --panel-icon-running: url('/static/img/running.png');
-  --panel-icon-editing: url('/static/img/editing.png');
+  --panel-icon-running: url('/static/img/run.png');
+  --panel-icon-editing: url('/static/img/edit.png');
   --panel-icon-export: url('/static/img/export.png');
   --panel-icon-import: url('/static/img/import.png');
   --panel-icon-clear: url('/static/img/clear.png');

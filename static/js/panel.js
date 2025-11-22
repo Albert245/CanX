@@ -54,6 +54,7 @@ const initPanel = () => {
   const importFile = document.getElementById('panel-import-file');
   const clearBtn = document.getElementById('panel-clear');
   const toolboxDescription = document.getElementById('panel-toolbox-description');
+  const panelDescription = document.getElementById('panel-description');
 
   if (!panelTab || !canvas || !toolboxEl || !propertiesEl) {
     return;
@@ -211,6 +212,18 @@ const initPanel = () => {
   };
 
   buildToolbox();
+
+  const enableAutoExpand = (el) => {
+    if (!el) return;
+    const resize = () => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.max(el.scrollHeight, 48)}px`;
+    };
+    el.addEventListener('input', resize);
+    resize();
+  };
+
+  enableAutoExpand(panelDescription);
 
   const updateToolboxSelection = () => {
     const selectEl = toolboxEl.querySelector('select');
