@@ -183,32 +183,32 @@ const initPanel = () => {
 
   registerImageWidgetExtensions({ propertiesPanel });
 
-  const toolboxButtons = new Map();
-
   const buildToolbox = () => {
     toolboxEl.innerHTML = '';
-    const list = createElement('div', 'panel-toolbox-list');
-    PANEL_WIDGET_LIBRARY.filter((item) => item.type !== 'script').forEach((item) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'panel-tool-btn';
-      btn.innerHTML = `<span>${item.label}</span><span>${item.icon || ''}</span>`;
-      btn.addEventListener('click', () => {
-        if (state.mode === 'run') return;
-        state.pendingTool = state.pendingTool === item.type ? null : item.type;
-        updateToolboxSelection();
-      });
-      toolboxButtons.set(item.type, btn);
-      list.appendChild(btn);
-    });
-    toolboxEl.appendChild(list);
-  };
+    const select = document.createElement('select');
+    select.className = 'panel-toolbox-select';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Choose a widget';
+    select.appendChild(placeholder);
 
-  const createElement = (tag, className, text) => {
-    const el = document.createElement(tag);
-    if (className) el.className = className;
-    if (text !== undefined) el.textContent = text;
-    return el;
+    PANEL_WIDGET_LIBRARY.filter((item) => item.type !== 'script').forEach((item) => {
+      const option = document.createElement('option');
+      option.value = item.type;
+      option.textContent = item.label;
+      select.appendChild(option);
+    });
+
+    select.addEventListener('change', (event) => {
+      if (state.mode === 'run') {
+        select.value = '';
+        return;
+      }
+      state.pendingTool = event.target.value || null;
+      updateToolboxSelection();
+    });
+
+    toolboxEl.appendChild(select);
   };
 
   buildToolbox();
@@ -226,9 +226,11 @@ const initPanel = () => {
   enableAutoExpand(panelDescription);
 
   const updateToolboxSelection = () => {
-    toolboxButtons.forEach((btn, type) => {
-      btn.classList.toggle('is-active', state.pendingTool === type);
-    });
+    const selectEl = toolboxEl.querySelector('select');
+    if (selectEl) {
+      selectEl.value = state.mode === 'run' ? '' : state.pendingTool || '';
+      selectEl.disabled = state.mode === 'run';
+    }
     updateToolDescription();
   };
 

@@ -762,24 +762,22 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 #panel-toolbox {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 8px;
-}
-
-.panel-toolbox-list {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
   width: 100%;
 }
 
-.panel-toolbox-menu .panel-tool-btn {
-  min-width: 110px;
+.panel-toolbox-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary, #fff);
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+#tab-panel.is-run-mode .panel-toolbox-select {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .panel-toolbox-description {
@@ -792,37 +790,36 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   line-height: 1.5;
 }
 
-.panel-tool-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px dashed var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 13px;
-  text-transform: capitalize;
+.panel-name-group {
+  flex: 1;
+  min-width: 200px;
 }
 
-.panel-tool-btn span {
-  color: var(--muted);
-  font-size: 11px;
+.panel-name-group input {
+  font-weight: 600;
 }
 
-.panel-tool-btn.is-active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.35);
+#tab-panel.is-run-mode .panel-name-group {
+  border-color: transparent;
+  background: transparent;
+}
+
+#tab-panel.is-run-mode .panel-name-group .panel-ribbon-group-title {
+  display: none;
+}
+
+#tab-panel.is-run-mode #panel-name {
+  font-size: 20px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 2px;
 }
 
 .panel-ribbon-field input,
 .panel-ribbon-field textarea {
   width: 100%;
-}
-
-.panel-description-group textarea {
-  resize: none;
-  min-height: 60px;
 }
 
 .panel-mode-toggle {
