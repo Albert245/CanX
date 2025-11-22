@@ -10,9 +10,9 @@ from COMMON.Cast import HexArr2Str
 panel_bp = Blueprint('panel_api', __name__)
 
 IMAGE_FOLDERS = {
-  'white': Path('static/assets/white'),
-  'blue': Path('static/assets/blue'),
-  'red': Path('static/assets/red'),
+    'white': Path('static/assets/white'),
+    'blue': Path('static/assets/blue'),
+    'red': Path('static/assets/red'),
 }
 
 BLOCK_PATTERN = re.compile(r'on\s+([a-zA-Z_][\w]*)\s*(?:([^\{]*))?\{([^}]*)\}', re.IGNORECASE | re.DOTALL)

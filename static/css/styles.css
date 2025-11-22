@@ -7,6 +7,14 @@
   --border: #2a2f3a;
   --graphic-max-width: 960px;
   --panel-cell-size: 60px;
+  --panel-icon-running: url('/static/img/running.png');
+  --panel-icon-editing: url('/static/img/editing.png');
+  --panel-icon-export: url('/static/img/export.png');
+  --panel-icon-import: url('/static/img/import.png');
+  --panel-icon-clear: url('/static/img/clear.png');
+  --panel-icon-remove: url('/static/img/remove.png');
+  --panel-icon-default: url('/static/img/default.png');
+  --panel-icon-custom-script: url('/static/img/custom_script.png');
 }
 
 * { box-sizing: border-box; }
@@ -600,99 +608,288 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 16px;
 }
 
-#panel-layout {
+#tab-panel {
   display: flex;
-  gap: 16px;
-  min-height: 520px;
+  flex-direction: column;
+  height: 100%;
 }
 
-#panel-left-column {
-  flex: 0 0 20%;
-  min-width: 240px;
+#panel-layout {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 520px;
+  height: 100%;
 }
 
-#panel-sidebar-toolbar {
+#panel-ribbon-stack {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding-top: 6px;
+  background: var(--page-bg);
 }
 
-.panel-toolbar-group {
+.panel-ribbon {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  align-items: stretch;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(35, 41, 55, 0.9), rgba(22, 25, 33, 0.9));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   flex-wrap: wrap;
 }
 
-.panel-toolbar-group button {
-  flex: 1 1 auto;
-  min-width: 90px;
+.panel-main-ribbon {
+  position: relative;
 }
 
-#panel-run-mode {
-  width: 100%;
-}
-
-#panel-toolbox,
-#panel-properties {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
+.panel-ribbon-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  padding: 6px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  min-width: 100px;
 }
 
-#panel-toolbox h3,
-#panel-properties h3 {
-  margin: 0;
-  font-size: 14px;
-  letter-spacing: 0.02em;
+.panel-ribbon-group-title {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-.panel-toolbox-list {
+.panel-ribbon-button-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.panel-ribbon-button {
+  padding: 8px 8px;
+  min-width: 90px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.panel-ribbon-button--mode {
+  min-width: 120px;
+  padding: 10px 10px;
+  height: 120px;
+}
+
+.panel-ribbon-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.04);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70%;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.panel-icon-running {
+  background-image: var(--panel-icon-running);
+}
+
+.panel-icon-editing {
+  background-image: var(--panel-icon-editing);
+}
+
+.panel-icon-export {
+  background-image: var(--panel-icon-export);
+}
+
+.panel-icon-import {
+  background-image: var(--panel-icon-import);
+}
+
+.panel-icon-clear {
+  background-image: var(--panel-icon-clear);
+}
+
+.panel-icon-remove {
+  background-image: var(--panel-icon-remove);
+}
+
+.panel-ribbon-label {
+  margin-top: 4px;
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.panel-ribbon-stack-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.panel-ribbon-button--export,
+.panel-ribbon-button--import {
+  min-width: 80px;
+  padding: 6px 6px;
+  height: 58px;
+}
+
+.panel-ribbon-button--export .panel-ribbon-icon,
+.panel-ribbon-button--import .panel-ribbon-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.panel-toolbox-dropdown {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-#panel-toolbox-description {
-  background: rgba(255, 255, 255, 0.02);
+#panel-toolbox {
+  width: 100%;
+}
+
+.panel-toolbox-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary, #fff);
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+#tab-panel.is-run-mode .panel-toolbox-select {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.panel-toolbox-description {
+  background: rgba(255, 255, 255, 0.03);
   border: 1px dashed var(--border);
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   font-size: 12px;
   color: var(--muted);
   line-height: 1.5;
 }
 
-.panel-tool-btn {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.panel-name-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.panel-name-group input {
+  font-weight: 600;
+}
+
+#tab-panel.is-run-mode .panel-name-group {
+  border-color: transparent;
+  background: transparent;
+}
+
+#tab-panel.is-run-mode .panel-name-group .panel-ribbon-group-title {
+  display: none;
+}
+
+#tab-panel.is-run-mode #panel-name {
+  font-size: 20px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 2px;
+}
+
+.panel-ribbon-field input,
+.panel-ribbon-field textarea {
   width: 100%;
-  border: 1px dashed var(--border);
-  background: rgba(15, 17, 21, 0.35);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  text-transform: capitalize;
 }
 
-.panel-tool-btn span {
-  color: var(--muted);
-  font-size: 11px;
+.panel-mode-toggle {
+  display: flex;
+  gap: 10px;
 }
 
-.panel-tool-btn.is-active {
+.panel-mode-option.is-active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.35);
 }
 
+.panel-icon-default {
+  background-image: var(--panel-icon-default);
+}
+
+.panel-icon-script {
+  background-image: var(--panel-icon-custom-script);
+}
+
+#tab-panel.is-run-mode [data-mode='edit'] {
+  display: none;
+}
+
+#panel-object-ribbon {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-properties {
+  width: 100%;
+}
+
+.panel-properties-title {
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 13px;
+}
+
 #panel-properties form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-properties .panel-ribbon-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.panel-properties .panel-ribbon-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-properties .panel-ribbon-card.panel-ribbon-card--stretch {
+  flex: 1 1 260px;
+}
+
+.panel-custom-renderer {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -721,23 +918,12 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   min-height: 80px;
 }
 
-.panel-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 10px 0;
-}
-
-.panel-properties .panel-behavior-toggle label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.panel-properties .panel-behavior-note {
-  font-size: 12px;
-  color: #555;
-  margin-top: 4px;
+.panel-script-field textarea,
+.panel-script-input {
+  min-height: 140px;
+  font-family: 'SFMono-Regular', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .panel-field .is-readonly {
@@ -752,9 +938,10 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   background: #8c2d2d;
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #fff;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
   cursor: pointer;
+  font-weight: 600;
 }
 
 .panel-danger-btn:hover {
@@ -777,7 +964,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   justify-content: center;
   align-items: flex-start;
   overflow: auto;
-  padding-bottom: 12px;
+  padding: 4px 4px 18px;
 }
 
 #panel-canvas {
