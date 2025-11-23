@@ -208,6 +208,47 @@ def load_panel_layout():
   return jsonify({'ok': True, 'layout': data})
 
 
+@panel_bp.route('/icons', methods=['GET'])
+def list_panel_icons():
+  """
+  Returns a grouped list of available panel icon images.
+
+  Response shape:
+  {
+    "ok": true,
+    "icons": {
+      "white": ["/static/assets/white/icons8-temp-50.png", ...],
+      "red": [...],
+      ...
+    }
+  }
+  """
+  import os
+  from pathlib import Path
+  from flask import current_app
+
+  base = Path(current_app.root_path) / 'static' / 'assets'
+
+  icons_by_color = {}
+
+  if base.is_dir():
+    for color_dir in base.iterdir():
+      if not color_dir.is_dir():
+        continue
+      color = color_dir.name
+      files = []
+      for entry in os.listdir(color_dir):
+        lower = entry.lower()
+        if not (lower.endswith('.png') or lower.endswith('.jpg') or lower.endswith('.jpeg') or lower.endswith('.gif')):
+          continue
+        files.append(f"/static/assets/{color}/{entry}")
+      files.sort()
+      if files:
+        icons_by_color[color] = files
+
+  return jsonify({'ok': True, 'icons': icons_by_color})
+
+
 @panel_bp.route('/send-signal', methods=['POST'])
 def panel_send_signal():
   state = _get_state()
