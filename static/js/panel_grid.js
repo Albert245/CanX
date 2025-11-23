@@ -1,5 +1,5 @@
-const DEFAULT_COLUMNS = 20;
-const DEFAULT_CELL_SIZE = 60;
+const DEFAULT_COLUMNS = 28;
+const DEFAULT_CELL_SIZE = 48;
 const DEFAULT_GRID_GAP = 2;
 
 const clampNumber = (value, min, max) => {
@@ -26,6 +26,7 @@ export class PanelGrid {
     if (!this.canvas) return;
     this.canvas.style.setProperty('--panel-cell-size', `${this.cellSize}px`);
     this.canvas.style.setProperty('--panel-grid-gap', `${this.gridGap}px`);
+    this.canvas.style.setProperty('--panel-columns', this.columns);
     this.canvas.dataset.columns = String(this.columns);
   }
 
