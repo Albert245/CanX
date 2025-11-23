@@ -239,7 +239,7 @@ const createImageDropdown = ({ value = '', onSelect }) => {
       section.appendChild(title);
 
       const grid = document.createElement('div');
-      grid.className = 'img-dropdown-grid';
+      grid.className = 'panel-image-dropdown-list';
 
       if (!files || !files.length) {
         const noImg = document.createElement('div');
@@ -250,17 +250,14 @@ const createImageDropdown = ({ value = '', onSelect }) => {
         files.forEach((file) => {
           const fullPath = normalizeImagePath(folder, file);
           const item = document.createElement('div');
-          item.className = 'img-dropdown-item';
+          item.className = 'img-dropdown-item panel-image-icon-only';
           item.dataset.value = fullPath;
 
           const img = document.createElement('img');
           img.src = fullPath;
           img.alt = `${folder}/${file}`;
 
-          const label = document.createElement('span');
-          label.textContent = file;
-
-          item.append(img, label);
+          item.append(img);
           item.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
