@@ -272,3 +272,21 @@ def panel_list_images():
     except Exception:
       result[color] = []
   return jsonify(result)
+
+
+@panel_bp.route('/icons', methods=['GET'])
+def panel_list_icons():
+  assets_root = Path(current_app.root_path) / 'static' / 'assets'
+  icons = {}
+  try:
+    if assets_root.exists() and assets_root.is_dir():
+      for folder in sorted([p for p in assets_root.iterdir() if p.is_dir()]):
+        files = [
+          f"/static/assets/{folder.name}/{entry.name}"
+          for entry in sorted(folder.iterdir())
+          if entry.is_file() and entry.suffix.lower() in {'.png', '.jpg', '.jpeg', '.svg'}
+        ]
+        icons[folder.name] = files
+  except Exception:
+    icons = {}
+  return jsonify({'ok': True, 'icons': icons})

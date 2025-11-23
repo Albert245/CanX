@@ -1,25 +1,24 @@
 import { PANEL_WIDGET_LIBRARY, PanelWidgetManager, getWidgetDefinition } from './panel_widgets.js';
 
-const IMAGE_COLORS = ['white', 'blue', 'red'];
+let iconLibraryCache = null;
+let iconLibraryPromise = null;
 
-let imageCatalog = null;
-
-const normalizeImagePath = (folder, file) => {
-  if (!folder || !file) return '';
-  return `/static/assets/${folder}/${file}`;
-};
-
-export const fetchImageCatalog = async () => {
-  if (imageCatalog) return imageCatalog;
-  try {
-    const response = await fetch('/api/panel/images');
-    const data = await response.json().catch(() => ({}));
-    imageCatalog = data || {};
-  } catch (err) {
-    console.warn('Unable to load image catalog', err);
-    imageCatalog = IMAGE_COLORS.reduce((acc, color) => ({ ...acc, [color]: [] }), {});
-  }
-  return imageCatalog;
+export const loadPanelIconLibrary = async () => {
+  if (iconLibraryCache) return iconLibraryCache;
+  if (iconLibraryPromise) return iconLibraryPromise;
+  iconLibraryPromise = (async () => {
+    try {
+      const response = await fetch('/api/panel/icons');
+      const data = await response.json().catch(() => ({}));
+      const icons = data?.icons;
+      iconLibraryCache = icons && typeof icons === 'object' ? icons : {};
+    } catch (err) {
+      console.warn('Unable to load icon library', err);
+      iconLibraryCache = {};
+    }
+    return iconLibraryCache;
+  })();
+  return iconLibraryPromise;
 };
 
 const ensureDefinition = (type, defaults) => {
@@ -160,7 +159,7 @@ const mutateDefinitionDefaults = () => {
 const placeholderImage =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="%23141821"/><path d="M20 20h24v24H20z" fill="none" stroke="%238aa0c0" stroke-width="2"/><circle cx="28" cy="28" r="4" fill="%238aa0c0"/><path d="M24 40l6-8 6 8 4-6 6 10H18z" fill="%238aa0c0"/></svg>';
 
-const createImageDropdown = ({ value = '', onSelect }) => {
+export const createIconDropdown = (container, { value = '', onChange } = {}) => {
   const root = document.createElement('div');
   root.className = 'img-dropdown';
 
@@ -183,7 +182,17 @@ const createImageDropdown = ({ value = '', onSelect }) => {
 
   let currentValue = value || '';
   let isOpen = false;
-  let cleanup = null;
+  const buttons = [];
+
+  const setSelected = (val) => {
+    buttons.forEach((btn) => {
+      if (btn.dataset.value === val) {
+        btn.classList.add('selected');
+      } else {
+        btn.classList.remove('selected');
+      }
+    });
+  };
 
   const closeMenu = () => {
     if (!isOpen) return;
@@ -197,62 +206,38 @@ const createImageDropdown = ({ value = '', onSelect }) => {
     }
   };
 
-  const openMenu = () => {
-    if (isOpen) {
-      closeMenu();
-      return;
-    }
-    isOpen = true;
-    root.classList.add('open');
-  };
-
-  toggle.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openMenu();
-  });
-
   const applySelection = (nextValue) => {
     currentValue = nextValue || '';
     preview.src = currentValue || placeholderImage;
-    if (typeof onSelect === 'function') {
-      onSelect(currentValue);
+    setSelected(currentValue);
+    if (typeof onChange === 'function') {
+      onChange(currentValue);
     }
     closeMenu();
   };
 
   const buildMenu = async () => {
     scrollable.innerHTML = '';
-    const catalog = await fetchImageCatalog();
-    const folders = Object.entries(catalog || {});
-    const buttons = [];
+    buttons.length = 0;
+    const catalog = (await loadPanelIconLibrary()) || {};
+    const entries = Object.entries(catalog);
 
-    const setSelected = (val) => {
-      buttons.forEach((btn) => {
-        if (btn.dataset.value === val) {
-          btn.classList.add('selected');
-        } else {
-          btn.classList.remove('selected');
-        }
-      });
-    };
+    const hasIcons = entries.some(([, files]) => Array.isArray(files) && files.length);
 
-    if (!folders.length) {
+    if (!entries.length || !hasIcons) {
       const empty = document.createElement('div');
       empty.className = 'img-dropdown-empty';
       empty.textContent = 'No images';
       scrollable.appendChild(empty);
-      return setSelected(currentValue);
+      setSelected(currentValue);
+      return;
     }
 
-    folders.forEach(([folder, files]) => {
-      const section = document.createElement('div');
-      section.className = 'img-dropdown-section';
-
+    entries.forEach(([folder, files]) => {
       const title = document.createElement('div');
       title.className = 'color-title';
       title.textContent = folder;
-      section.appendChild(title);
+      scrollable.appendChild(title);
 
       const grid = document.createElement('div');
       grid.className = 'icon-grid';
@@ -263,16 +248,15 @@ const createImageDropdown = ({ value = '', onSelect }) => {
         noImg.textContent = 'No images';
         grid.appendChild(noImg);
       } else {
-        files.forEach((file) => {
-          const fullPath = normalizeImagePath(folder, file);
+        files.forEach((src) => {
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'icon-grid-button';
-          button.dataset.value = fullPath;
+          button.dataset.value = src;
 
           const img = document.createElement('img');
-          img.src = fullPath;
-          img.alt = `${folder}/${file}`;
+          img.src = src;
+          img.alt = `${folder}`;
 
           const wrapper = document.createElement('div');
           wrapper.className = 'panel-image-icon-only';
@@ -282,8 +266,7 @@ const createImageDropdown = ({ value = '', onSelect }) => {
           button.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
-            applySelection(fullPath);
-            setSelected(fullPath);
+            applySelection(src);
           });
 
           buttons.push(button);
@@ -291,24 +274,33 @@ const createImageDropdown = ({ value = '', onSelect }) => {
         });
       }
 
-      section.appendChild(grid);
-      scrollable.appendChild(section);
+      scrollable.appendChild(grid);
     });
 
     setSelected(currentValue);
   };
 
-  buildMenu();
-
-  cleanup = () => {
-    document.removeEventListener('click', handleOutsideClick);
+  const openMenu = () => {
+    if (isOpen) {
+      closeMenu();
+      return;
+    }
+    isOpen = true;
+    root.classList.add('open');
+    buildMenu();
   };
+
+  toggle.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openMenu();
+  });
 
   document.addEventListener('click', handleOutsideClick);
 
   const observer = new MutationObserver(() => {
     if (!root.isConnected) {
-      cleanup();
+      document.removeEventListener('click', handleOutsideClick);
       observer.disconnect();
     }
   });
@@ -316,9 +308,12 @@ const createImageDropdown = ({ value = '', onSelect }) => {
   observer.observe(document.body, { childList: true, subtree: true });
 
   root.append(toggle, menu);
+  if (container) {
+    container.appendChild(root);
+  }
 
   root.destroy = () => {
-    cleanup();
+    document.removeEventListener('click', handleOutsideClick);
     observer.disconnect();
   };
 
@@ -355,9 +350,9 @@ const attachImageStateEditor = (panel) => {
 
         let currentImage = state.image || '';
 
-        const dropdown = createImageDropdown({
+        const dropdown = createIconDropdown(row, {
           value: currentImage,
-          onSelect: (nextValue) => {
+          onChange: (nextValue) => {
             currentImage = nextValue || '';
             const nextStates = Array.isArray(widget.states) ? [...widget.states] : [];
             nextStates[index] = {
@@ -447,9 +442,9 @@ const attachImageSwitchEditor = (panel) => {
 
         let currentImage = state.src || '';
 
-        const dropdown = createImageDropdown({
+        const dropdown = createIconDropdown(row, {
           value: currentImage,
-          onSelect: (nextValue) => {
+          onChange: (nextValue) => {
             currentImage = nextValue || '';
             const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
             nextStates[index] = {
@@ -514,13 +509,12 @@ const attachImageSwitchEditor = (panel) => {
 
 const attachButtonToggleEditors = (panel) => {
   const renderImagePicker = (wrapper, currentValue, onChange, registerCleanup) => {
-    const dropdown = createImageDropdown({
+    const dropdown = createIconDropdown(wrapper, {
       value: currentValue,
-      onSelect: (src) => {
+      onChange: (src) => {
         onChange(src || '');
       },
     });
-    wrapper.append(dropdown);
     if (registerCleanup && typeof dropdown.destroy === 'function') {
       registerCleanup(() => dropdown.destroy());
     }
@@ -719,4 +713,4 @@ export const registerImageWidgetExtensions = ({ propertiesPanel }) => {
   }
 };
 
-export { createImageDropdown };
+export { createIconDropdown };
