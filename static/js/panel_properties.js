@@ -1,5 +1,4 @@
 import { getWidgetDefinition } from './panel_widgets.js';
-import { createIconDropdown } from './panel_image_widgets.js';
 
 const createElement = (tag, className, textContent) => {
   const el = document.createElement(tag);
@@ -272,21 +271,6 @@ export class PanelPropertiesPanel {
   _createField(field) {
     const wrapper = createElement('div', 'panel-field');
     const label = createElement('label', null, field.label || field.path);
-    if (field.type === 'imagePicker') {
-      const host = document.createElement('div');
-      host.className = 'panel-image-icon-only';
-      const cleanup = createIconDropdown(host, {
-        value: this._getValue(field.path) || '',
-        onChange: (src) => {
-          this._handleFieldChange(field, src || '');
-        },
-      });
-      if (typeof cleanup === 'function') {
-        this.rendererCleanups.push(cleanup);
-      }
-      wrapper.append(label, host);
-      return wrapper;
-    }
     let input;
     const useScript = Boolean(this.widget?.useScript);
     const isScriptField = field.path === 'script';

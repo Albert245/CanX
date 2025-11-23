@@ -1359,6 +1359,52 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   object-fit: contain;
 }
 
+.panel-image-select {
+  width: 100%;
+  padding: 10px 12px 10px 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #0b1322;
+  color: var(--text-primary, #f5f7ff);
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 30px 30px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.panel-image-select option {
+  padding-left: 44px;
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 30px 30px;
+  color: var(--text-primary, #f5f7ff);
+  background-color: #0f1a2c;
+}
+
+.panel-image-select optgroup {
+  background-color: #0b1322;
+  font-weight: 600;
+}
+
+option.panel-image-option {
+  padding-left: 44px;
+  min-height: 38px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 32px 32px;
+}
+
+.panel-image-select--icons option.panel-image-option {
+  color: transparent;
+  text-indent: -9999px;
+}
+
+.panel-image-select--icons option.panel-image-option:focus,
+.panel-image-select--icons option.panel-image-option:hover,
+.panel-image-select--icons option.panel-image-option:checked {
+  background-color: #182746;
+}
+
 .img-dropdown {
   position: relative;
   width: 150px;
@@ -1415,6 +1461,15 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+}
+
+.panel-image-dropdown-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 48px);
+  gap: 6px;
+  padding: 8px;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .image-dropdown-container {
