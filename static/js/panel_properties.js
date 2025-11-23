@@ -47,6 +47,7 @@ export class PanelPropertiesPanel {
     this.signalDatalistId = 'panel-signal-options';
     this.customRenderers = new Map();
     this.behaviorScriptCache = new Map();
+    this.rendererCleanups = [];
     this.messageInput = document.getElementById('panel-map-message');
     this.signalInput = document.getElementById('panel-map-signal');
     this.scriptEditor = document.getElementById('panel-script-editor');
@@ -107,6 +108,7 @@ export class PanelPropertiesPanel {
     this._syncMappingInputs();
     this._syncLayoutInputs();
     this._syncScriptEditor();
+    this._runRendererCleanups();
     if (this.container) {
       this.container.innerHTML = '';
     }
@@ -128,6 +130,7 @@ export class PanelPropertiesPanel {
 
   _render() {
     if (!this.container) return;
+    this._runRendererCleanups();
     this.container.classList.add('panel-properties');
     this.container.innerHTML = '';
     this.behaviorScriptCache.clear();
@@ -180,7 +183,16 @@ export class PanelPropertiesPanel {
     const renderer = this.customRenderers.get(this.widget.type);
     if (renderer) {
       try {
-        renderer({ form: rendererTarget, widget: this.widget, definition });
+        renderer({
+          form: rendererTarget,
+          widget: this.widget,
+          definition,
+          registerCleanup: (fn) => {
+            if (typeof fn === 'function') {
+              this.rendererCleanups.push(fn);
+            }
+          },
+        });
       } catch (err) {
         console.warn('Panel properties renderer error', err);
       }
@@ -526,5 +538,17 @@ export class PanelPropertiesPanel {
         select.value = '__raw__';
       }
     });
+  }
+
+  _runRendererCleanups() {
+    if (!this.rendererCleanups?.length) return;
+    this.rendererCleanups.forEach((fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.warn('Renderer cleanup error', err);
+      }
+    });
+    this.rendererCleanups = [];
   }
 }
