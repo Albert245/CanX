@@ -12,7 +12,7 @@ const normalizeImagePath = (folder, file) => {
 export const fetchImageCatalog = async () => {
   if (imageCatalog) return imageCatalog;
   try {
-    const response = await fetch('/api/panel/list-images');
+    const response = await fetch('/api/panel/images');
     const data = await response.json().catch(() => ({}));
     imageCatalog = data || {};
   } catch (err) {
@@ -175,7 +175,11 @@ const createImageDropdown = ({ value = '', onSelect }) => {
   toggle.appendChild(preview);
 
   const menu = document.createElement('div');
-  menu.className = 'img-dropdown-menu';
+  menu.className = 'img-dropdown-menu image-dropdown-container';
+
+  const scrollable = document.createElement('div');
+  scrollable.className = 'image-dropdown-scrollable';
+  menu.appendChild(scrollable);
 
   let currentValue = value || '';
   let isOpen = false;
@@ -218,15 +222,27 @@ const createImageDropdown = ({ value = '', onSelect }) => {
   };
 
   const buildMenu = async () => {
-    menu.innerHTML = '';
+    scrollable.innerHTML = '';
     const catalog = await fetchImageCatalog();
     const folders = Object.entries(catalog || {});
+    const buttons = [];
+
+    const setSelected = (val) => {
+      buttons.forEach((btn) => {
+        if (btn.dataset.value === val) {
+          btn.classList.add('selected');
+        } else {
+          btn.classList.remove('selected');
+        }
+      });
+    };
+
     if (!folders.length) {
       const empty = document.createElement('div');
       empty.className = 'img-dropdown-empty';
       empty.textContent = 'No images';
-      menu.appendChild(empty);
-      return;
+      scrollable.appendChild(empty);
+      return setSelected(currentValue);
     }
 
     folders.forEach(([folder, files]) => {
@@ -234,12 +250,12 @@ const createImageDropdown = ({ value = '', onSelect }) => {
       section.className = 'img-dropdown-section';
 
       const title = document.createElement('div');
-      title.className = 'img-dropdown-section-title';
+      title.className = 'color-title';
       title.textContent = folder;
       section.appendChild(title);
 
       const grid = document.createElement('div');
-      grid.className = 'panel-image-dropdown-list';
+      grid.className = 'icon-grid';
 
       if (!files || !files.length) {
         const noImg = document.createElement('div');
@@ -249,28 +265,37 @@ const createImageDropdown = ({ value = '', onSelect }) => {
       } else {
         files.forEach((file) => {
           const fullPath = normalizeImagePath(folder, file);
-          const item = document.createElement('div');
-          item.className = 'img-dropdown-item panel-image-icon-only';
-          item.dataset.value = fullPath;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'icon-grid-button';
+          button.dataset.value = fullPath;
 
           const img = document.createElement('img');
           img.src = fullPath;
           img.alt = `${folder}/${file}`;
 
-          item.append(img);
-          item.addEventListener('click', (event) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'panel-image-icon-only';
+          wrapper.appendChild(img);
+          button.appendChild(wrapper);
+
+          button.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
             applySelection(fullPath);
+            setSelected(fullPath);
           });
 
-          grid.appendChild(item);
+          buttons.push(button);
+          grid.appendChild(button);
         });
       }
 
       section.appendChild(grid);
-      menu.appendChild(section);
+      scrollable.appendChild(section);
     });
+
+    setSelected(currentValue);
   };
 
   buildMenu();
