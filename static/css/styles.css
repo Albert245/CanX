@@ -1437,7 +1437,7 @@ option.panel-image-option {
   border-radius: 10px;
   padding: 0;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-  width: 320px;
+  width: 270px;
   overflow: visible;
   display: none;
   z-index: 9999;
@@ -1473,7 +1473,7 @@ option.panel-image-option {
 }
 
 .image-dropdown-container {
-  width: 320px;
+  width: 270px;
   background: #0f1624;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
