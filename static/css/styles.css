@@ -6,7 +6,8 @@
   --accent: #4f8cff;
   --border: #2a2f3a;
   --graphic-max-width: 960px;
-  --panel-cell-size: 60px;
+  --panel-cell-size: 48px;
+  --panel-columns: 28;
   --panel-icon-running: url('/static/img/run.png');
   --panel-icon-editing: url('/static/img/edit.png');
   --panel-icon-export: url('/static/img/export.png');
@@ -1072,9 +1073,12 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 #panel-canvas {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(20, var(--panel-cell-size));
+  grid-template-columns: repeat(var(--panel-columns, 28), var(--panel-cell-size));
   grid-auto-rows: var(--panel-cell-size);
-  width: calc((var(--panel-cell-size) + var(--panel-grid-gap, 2px)) * 20 - var(--panel-grid-gap, 2px));
+  width: calc(
+    (var(--panel-cell-size) + var(--panel-grid-gap, 2px)) * var(--panel-columns, 28) -
+      var(--panel-grid-gap, 2px)
+  );
   gap: var(--panel-grid-gap, 2px);
   padding: 0;
   min-height: calc((var(--panel-cell-size) + var(--panel-grid-gap, 2px)) * 15 - var(--panel-grid-gap, 2px));
