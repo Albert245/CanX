@@ -228,6 +228,7 @@ export class PanelPropertiesPanel {
       wrapper.append(label, input);
       target.appendChild(wrapper);
     });
+    return card;
   }
 
   _renderSection(form, section) {
