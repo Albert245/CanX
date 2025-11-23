@@ -633,10 +633,10 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   background: var(--page-bg);
 }
 
-.panel-ribbon {
+#panel-ribbon {
   display: flex;
   gap: 12px;
-  align-items: stretch;
+  align-items: flex-start;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -649,11 +649,12 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   position: relative;
 }
 
-.panel-ribbon-group {
+.panel-ribbon-group,
+.ribbon-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 6px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
@@ -761,6 +762,20 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 8px;
 }
 
+#panel-ribbon {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.panel-ribbon-group {
+  min-width: 100px;
+  flex: 0 0 auto;
+}
+
+.panel-ribbon-group.group-panel-info {
+  flex: 1 1 240px;
+}
+
 #panel-toolbox {
   width: 100%;
 }
@@ -795,22 +810,68 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   line-height: 1.5;
 }
 
+.panel-inline-script-toggle {
+  min-height: 58px;
+  justify-content: center;
+  padding: 6px 8px;
+  width: 100%;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.panel-inline-toggle-hint {
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.group-toolbox-layout .panel-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(70px, 120px));
+  gap: 6px 10px;
+}
+
+.group-toolbox-layout .panel-layout-field span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.group-toolbox-layout .panel-layout-field input {
+  width: 100%;
+  max-width: 70px;
+  min-width: 50px;
+}
+
+.panel-layout-placeholder {
+  grid-column: span 2;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 4px;
+  text-align: center;
+}
+
+.panel-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .panel-name-group {
   flex: 1;
   min-width: 200px;
 }
 
-.panel-name-group input {
+.panel-name-group input,
+.group-panel-info input {
   font-weight: 600;
 }
 
-#tab-panel.is-run-mode .panel-name-group {
+#tab-panel.is-run-mode .group-panel-info {
   border-color: transparent;
   background: transparent;
-}
-
-#tab-panel.is-run-mode .panel-name-group .panel-ribbon-group-title {
-  display: none;
 }
 
 #tab-panel.is-run-mode #panel-name {
@@ -822,6 +883,16 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   padding: 4px 2px;
 }
 
+.group-panel-info textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.group-panel-info input,
+.group-panel-info textarea {
+  width: 100%;
+}
+
 .panel-ribbon-field input,
 .panel-ribbon-field textarea {
   width: 100%;
@@ -830,11 +901,19 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 .panel-mode-toggle {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
 
 .panel-mode-option.is-active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.35);
+}
+
+.panel-layout-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(70px, 120px));
+  gap: 6px 10px;
+  margin-top: 6px;
 }
 
 .panel-icon-default {
@@ -879,6 +958,16 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   align-items: flex-start;
 }
 
+#panel-ribbon[data-script-mode='false'] .panel-ribbon-card:has(.panel-script-field),
+#panel-ribbon:not(:has(.panel-mode-toggle-btn.is-active)) .panel-ribbon-card:has(.panel-script-field) {
+  display: none;
+}
+
+#panel-ribbon[data-script-mode='true'] .panel-ribbon-card:not(:has(.panel-script-field)):not(:has(.panel-danger-btn)),
+#panel-ribbon:has(.panel-mode-toggle-btn.is-active) .panel-ribbon-card:not(:has(.panel-script-field)):not(:has(.panel-danger-btn)) {
+  display: none;
+}
+
 .panel-properties .panel-ribbon-card {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -913,6 +1002,11 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   color: var(--muted);
 }
 
+.panel-layout-section .panel-field input {
+  max-width: 70px;
+  min-width: 50px;
+}
+
 .panel-field input,
 .panel-field select,
 .panel-field textarea {
@@ -925,7 +1019,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .panel-script-field textarea,
 .panel-script-input {
-  min-height: 140px;
+  min-height: 96px;
   font-family: 'SFMono-Regular', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
   background: rgba(0, 0, 0, 0.3);
