@@ -53,7 +53,7 @@ const initPanel = () => {
   const importFile = document.getElementById('panel-import-file');
   const clearBtn = document.getElementById('panel-clear');
   const scriptToggle = document.getElementById('panel-script-toggle');
-  const toolboxDescription = document.getElementById('panel-toolbox-description');
+  const toolboxDescription = document.getElementById('panel-widget-description');
   const panelDescription = document.getElementById('panel-description');
 
   if (!panelTab || !canvas || !toolboxEl || !propertiesEl) {
@@ -174,10 +174,6 @@ const initPanel = () => {
         scheduleSave();
       }
     },
-    onRemoveWidget: (id) => {
-      widgetManager.removeWidget(id);
-      selectWidget(null);
-    },
     fetchMessageInfo,
   });
 
@@ -259,6 +255,7 @@ const initPanel = () => {
     });
     const widget = id ? widgetManager.getWidget(id) : null;
     propertiesPanel.setWidget(widget || null);
+    setScriptMode(Boolean(widget?.useScript), false);
     window.currentSelectedWidget = id ? widgetManager.elements.get(id) || null : null;
   };
 
@@ -312,7 +309,7 @@ const initPanel = () => {
     }
   };
 
-  const setScriptMode = (enabled) => {
+  const setScriptMode = (enabled, applyToWidget = false) => {
     if (!panelTab) return;
     const isEnabled = Boolean(enabled);
     panelTab.dataset.scriptMode = isEnabled ? 'true' : 'false';
@@ -323,13 +320,30 @@ const initPanel = () => {
     if (label) {
       label.textContent = isEnabled ? 'Script Mode' : 'Default Mode';
     }
+    if (applyToWidget && state.selectedId) {
+      const widget = widgetManager.updateWidget(state.selectedId, (data) => {
+        if (isEnabled && (!data.script || !data.script.trim())) {
+          const template = propertiesPanel.buildBehaviorScript?.(data);
+          if (template) {
+            data.script = template;
+          }
+        }
+        data.useScript = isEnabled;
+      });
+      if (widget) {
+        propertiesPanel.setWidget(widget);
+        if (!state.restoring) {
+          scheduleSave();
+        }
+      }
+    }
   };
 
   runBtn?.addEventListener('click', () => setMode(state.mode === 'run' ? 'edit' : 'run'));
 
   scriptToggle?.addEventListener('click', () => {
     const next = panelTab?.dataset.scriptMode !== 'true';
-    setScriptMode(next);
+    setScriptMode(next, true);
   });
 
   clearBtn?.addEventListener('click', () => {
