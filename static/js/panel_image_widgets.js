@@ -165,7 +165,7 @@ const parseCatalogPath = (src = '') => {
 
 const buildImageSelect = (catalog, currentSrc = '') => {
   const select = document.createElement('select');
-  select.className = 'panel-image-select';
+  select.className = 'panel-image-select panel-image-select--icons';
 
   const placeholder = document.createElement('option');
   placeholder.value = '';
@@ -181,7 +181,9 @@ const buildImageSelect = (catalog, currentSrc = '') => {
       const value = normalizeImagePath(folder, file);
       const option = document.createElement('option');
       option.value = value;
-      option.textContent = file;
+      option.textContent = '';
+      option.title = `${folder}/${file}`;
+      option.setAttribute('aria-label', `${folder}/${file}`);
       option.className = 'panel-image-option';
       option.style.backgroundImage = `url(${value})`;
       if (folder === currentFolder && file === currentFile) {
