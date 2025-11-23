@@ -275,7 +275,7 @@
       </section>
 
       <section id="tab-panel" class="tab">
-        <div id="panel-layout">
+          <div id="panel-layout">
           <div id="panel-ribbon-stack">
             <div class="panel-ribbon panel-main-ribbon">
               <div class="panel-ribbon-group panel-mode-group">
@@ -307,11 +307,19 @@
               </div>
 
               <div class="panel-ribbon-group panel-clear-group" data-mode="edit">
-                <div class="panel-ribbon-button-block">
-                  <button id="panel-clear" class="panel-ribbon-button" type="button">
-                    <span class="panel-ribbon-icon panel-icon-clear" aria-hidden="true"></span>
-                  </button>
-                  <span class="panel-ribbon-label">Clear All</span>
+                <div class="panel-ribbon-stack-buttons">
+                  <div class="panel-ribbon-button-block">
+                    <button id="panel-clear" class="panel-ribbon-button" type="button">
+                      <span class="panel-ribbon-icon panel-icon-clear" aria-hidden="true"></span>
+                    </button>
+                    <span class="panel-ribbon-label">Clear All</span>
+                  </div>
+                  <div class="panel-ribbon-button-block">
+                    <button id="panel-script-toggle" class="panel-ribbon-button" type="button">
+                      <span class="panel-ribbon-icon panel-icon-default" aria-hidden="true"></span>
+                    </button>
+                    <span class="panel-ribbon-label">Default Mode</span>
+                  </div>
                 </div>
               </div>
 
@@ -320,23 +328,41 @@
                 <div class="panel-toolbox-dropdown">
                   <div id="panel-toolbox" class="panel-toolbox-menu"></div>
                 </div>
+                <div class="panel-layout-grid">
+                  <label>Col <input id="panel-layout-col" type="number" /></label>
+                  <label>Row <input id="panel-layout-row" type="number" /></label>
+                  <label>W <input id="panel-layout-width" type="number" /></label>
+                  <label>H <input id="panel-layout-height" type="number" /></label>
+                </div>
+                <div class="panel-map-row">
+                  <label>
+                    MESSAGE
+                    <input id="panel-map-message" type="text" />
+                  </label>
+                  <label>
+                    SIGNAL
+                    <input id="panel-map-signal" type="text" />
+                  </label>
+                </div>
               </div>
 
-              <div class="panel-ribbon-group panel-name-group">
-                <label class="panel-ribbon-field">
-                  <span class="panel-ribbon-group-title">Panel Name</span>
-                  <input id="panel-name" type="text" placeholder="Untitled panel" />
-                </label>
+              <div class="panel-ribbon-group panel-object-properties-group" data-mode="edit">
+                <div class="default-properties-group">
+                  <div id="panel-properties"></div>
+                </div>
+
+                <div class="script-editor-group">
+                  <div class="panel-field panel-script-field">
+                    <label class="panel-script-label">SCRIPT</label>
+                    <textarea id="panel-script-editor" class="panel-script-input"></textarea>
+                  </div>
+                </div>
               </div>
 
-              <div class="panel-ribbon-group panel-description-group" data-mode="edit">
-                <div class="panel-ribbon-group-title">Description</div>
-                <div id="panel-toolbox-description" class="panel-toolbox-description" hidden></div>
+              <div class="panel-ribbon-group panel-name-description-group panel-name-group">
+                <input id="panel-name" type="text" placeholder="Panel Name" />
+                <div id="panel-widget-description" class="panel-toolbox-description" hidden></div>
               </div>
-            </div>
-
-            <div id="panel-object-ribbon" class="panel-ribbon panel-object-ribbon" hidden>
-              <div id="panel-properties"></div>
             </div>
           </div>
 

@@ -2,17 +2,17 @@ import { PANEL_WIDGET_LIBRARY, PanelWidgetManager, getWidgetDefinition } from '.
 
 const IMAGE_COLORS = ['white', 'blue', 'red'];
 
+let imageCatalog = null;
+
 const normalizeImagePath = (folder, file) => {
   if (!folder || !file) return '';
   return `/static/assets/${folder}/${file}`;
 };
 
-let imageCatalog = null;
-
 export const fetchImageCatalog = async () => {
   if (imageCatalog) return imageCatalog;
   try {
-    const response = await fetch('/api/panel/list-images');
+    const response = await fetch('/api/panel/images');
     const data = await response.json().catch(() => ({}));
     imageCatalog = data || {};
   } catch (err) {
@@ -157,38 +157,180 @@ const mutateDefinitionDefaults = () => {
   });
 };
 
-const pickImageFromCatalog = (folder, file, fallback = '') => {
-  if (!folder || !file) return fallback;
-  const valid = imageCatalog?.[folder]?.includes(file);
-  if (!valid) return fallback;
-  return normalizeImagePath(folder, file);
-};
+const placeholderImage =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="%23141821"/><path d="M20 20h24v24H20z" fill="none" stroke="%238aa0c0" stroke-width="2"/><circle cx="28" cy="28" r="4" fill="%238aa0c0"/><path d="M24 40l6-8 6 8 4-6 6 10H18z" fill="%238aa0c0"/></svg>';
 
-const buildSelect = (options, current) => {
-  const select = document.createElement('select');
-  options.forEach((opt) => {
-    const option = document.createElement('option');
-    option.value = opt.value;
-    option.textContent = opt.label;
-    if (current === opt.value) option.selected = true;
-    select.appendChild(option);
+const createImageDropdown = ({ value = '', onSelect }) => {
+  const root = document.createElement('div');
+  root.className = 'img-dropdown';
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'img-dropdown-toggle';
+
+  const preview = document.createElement('img');
+  preview.className = 'img-dropdown-preview';
+  preview.alt = 'selected image';
+  preview.src = value || placeholderImage;
+  toggle.appendChild(preview);
+
+  const menu = document.createElement('div');
+  menu.className = 'img-dropdown-menu image-dropdown-container';
+
+  const scrollable = document.createElement('div');
+  scrollable.className = 'image-dropdown-scrollable';
+  menu.appendChild(scrollable);
+
+  let currentValue = value || '';
+  let isOpen = false;
+  let cleanup = null;
+
+  const closeMenu = () => {
+    if (!isOpen) return;
+    isOpen = false;
+    root.classList.remove('open');
+  };
+
+  const handleOutsideClick = (event) => {
+    if (!root.contains(event.target)) {
+      closeMenu();
+    }
+  };
+
+  const openMenu = () => {
+    if (isOpen) {
+      closeMenu();
+      return;
+    }
+    isOpen = true;
+    root.classList.add('open');
+  };
+
+  toggle.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openMenu();
   });
-  return select;
-};
 
-const createPreview = (src) => {
-  const wrap = document.createElement('div');
-  wrap.className = 'panel-image-preview';
-  const img = document.createElement('img');
-  img.src = src || '';
-  img.alt = 'preview';
-  wrap.appendChild(img);
-  return { wrap, img };
+  const applySelection = (nextValue) => {
+    currentValue = nextValue || '';
+    preview.src = currentValue || placeholderImage;
+    if (typeof onSelect === 'function') {
+      onSelect(currentValue);
+    }
+    closeMenu();
+  };
+
+  const buildMenu = async () => {
+    scrollable.innerHTML = '';
+    const catalog = await fetchImageCatalog();
+    const folders = Object.entries(catalog || {});
+    const buttons = [];
+
+    const setSelected = (val) => {
+      buttons.forEach((btn) => {
+        if (btn.dataset.value === val) {
+          btn.classList.add('selected');
+        } else {
+          btn.classList.remove('selected');
+        }
+      });
+    };
+
+    if (!folders.length) {
+      const empty = document.createElement('div');
+      empty.className = 'img-dropdown-empty';
+      empty.textContent = 'No images';
+      scrollable.appendChild(empty);
+      return setSelected(currentValue);
+    }
+
+    folders.forEach(([folder, files]) => {
+      const section = document.createElement('div');
+      section.className = 'img-dropdown-section';
+
+      const title = document.createElement('div');
+      title.className = 'color-title';
+      title.textContent = folder;
+      section.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'icon-grid';
+
+      if (!files || !files.length) {
+        const noImg = document.createElement('div');
+        noImg.className = 'img-dropdown-empty';
+        noImg.textContent = 'No images';
+        grid.appendChild(noImg);
+      } else {
+        files.forEach((file) => {
+          const fullPath = normalizeImagePath(folder, file);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'icon-grid-button';
+          button.dataset.value = fullPath;
+
+          const img = document.createElement('img');
+          img.src = fullPath;
+          img.alt = `${folder}/${file}`;
+
+          const wrapper = document.createElement('div');
+          wrapper.className = 'panel-image-icon-only';
+          wrapper.appendChild(img);
+          button.appendChild(wrapper);
+
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            applySelection(fullPath);
+            setSelected(fullPath);
+          });
+
+          buttons.push(button);
+          grid.appendChild(button);
+        });
+      }
+
+      section.appendChild(grid);
+      scrollable.appendChild(section);
+    });
+
+    setSelected(currentValue);
+  };
+
+  buildMenu();
+
+  cleanup = () => {
+    document.removeEventListener('click', handleOutsideClick);
+  };
+
+  document.addEventListener('click', handleOutsideClick);
+
+  const observer = new MutationObserver(() => {
+    if (!root.isConnected) {
+      cleanup();
+      observer.disconnect();
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  root.append(toggle, menu);
+
+  root.destroy = () => {
+    cleanup();
+    observer.disconnect();
+  };
+
+  if (!currentValue) {
+    preview.src = placeholderImage;
+  }
+
+  return root;
 };
 
 const attachImageStateEditor = (panel) => {
-  panel.registerCustomRenderer('image_indicator', async ({ form, widget }) => {
-    const catalog = await fetchImageCatalog();
+  panel.registerCustomRenderer('image_indicator', async ({ form, widget, registerCleanup }) => {
     const sectionTitle = document.createElement('div');
     sectionTitle.className = 'panel-section-title';
     sectionTitle.textContent = 'Image States';
@@ -197,7 +339,11 @@ const attachImageStateEditor = (panel) => {
     const list = document.createElement('div');
     list.className = 'panel-image-state-list';
 
+    let rowCleanups = [];
+
     const renderRows = () => {
+      rowCleanups.forEach((fn) => fn?.());
+      rowCleanups = [];
       list.innerHTML = '';
       const states = Array.isArray(widget.states) ? widget.states : [];
       states.forEach((state, index) => {
@@ -207,52 +353,31 @@ const attachImageStateEditor = (panel) => {
         valueInput.type = 'number';
         valueInput.value = state.value ?? 0;
 
-        const folderSelect = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
-        const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
-        const fileFromPath = (path) => {
-          const parts = (path || '').split('/');
-          return parts[parts.length - 1] || '';
-        };
-        folderSelect.value = folderFromPath(state.image);
+        let currentImage = state.image || '';
 
-        const fileSelect = document.createElement('select');
-        const refreshFiles = () => {
-          fileSelect.innerHTML = '';
-          const folder = folderSelect.value;
-          const files = catalog?.[folder] || [];
-          files.forEach((file) => {
-            const opt = document.createElement('option');
-            opt.value = file;
-            opt.textContent = file;
-            fileSelect.appendChild(opt);
-          });
-          const currentFile = fileFromPath(state.image);
-          if (currentFile && files.includes(currentFile)) {
-            fileSelect.value = currentFile;
-          }
-        };
-        refreshFiles();
-
-        const preview = createPreview(state.image || '').img;
+        const dropdown = createImageDropdown({
+          value: currentImage,
+          onSelect: (nextValue) => {
+            currentImage = nextValue || '';
+            const nextStates = Array.isArray(widget.states) ? [...widget.states] : [];
+            nextStates[index] = {
+              value: Number(valueInput.value),
+              image: currentImage,
+            };
+            panel._emitChange('states', nextStates);
+          },
+        });
 
         const updateState = () => {
           const nextStates = Array.isArray(widget.states) ? [...widget.states] : [];
-          const folder = folderSelect.value;
-          const file = fileSelect.value;
           nextStates[index] = {
             value: Number(valueInput.value),
-            image: pickImageFromCatalog(folder, file, normalizeImagePath(folder, file)),
+            image: currentImage,
           };
           panel._emitChange('states', nextStates);
-          preview.src = nextStates[index].image;
         };
 
         valueInput.addEventListener('change', updateState);
-        folderSelect.addEventListener('change', () => {
-          refreshFiles();
-          updateState();
-        });
-        fileSelect.addEventListener('change', updateState);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
@@ -264,16 +389,19 @@ const attachImageStateEditor = (panel) => {
           renderRows();
         });
 
-        row.append(
-          valueInput,
-          folderSelect,
-          fileSelect,
-          preview,
-          deleteBtn,
-        );
+        row.append(valueInput, dropdown, deleteBtn);
         list.appendChild(row);
+
+        if (typeof dropdown.destroy === 'function') {
+          rowCleanups.push(() => dropdown.destroy());
+        }
       });
     };
+
+    registerCleanup?.(() => {
+      rowCleanups.forEach((fn) => fn?.());
+      rowCleanups = [];
+    });
 
     renderRows();
 
@@ -293,8 +421,7 @@ const attachImageStateEditor = (panel) => {
 };
 
 const attachImageSwitchEditor = (panel) => {
-  panel.registerCustomRenderer('image_switch', async ({ form, widget }) => {
-    const catalog = await fetchImageCatalog();
+  panel.registerCustomRenderer('image_switch', async ({ form, widget, registerCleanup }) => {
     const sectionTitle = document.createElement('div');
     sectionTitle.className = 'panel-section-title';
     sectionTitle.textContent = 'Image States';
@@ -303,13 +430,11 @@ const attachImageSwitchEditor = (panel) => {
     const list = document.createElement('div');
     list.className = 'panel-image-state-list';
 
-    const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
-    const fileFromPath = (path) => {
-      const parts = (path || '').split('/');
-      return parts[parts.length - 1] || '';
-    };
+    let rowCleanups = [];
 
     const renderRows = () => {
+      rowCleanups.forEach((fn) => fn?.());
+      rowCleanups = [];
       list.innerHTML = '';
       const states = Array.isArray(widget.images?.states) ? widget.images.states : [];
       states.forEach((state, index) => {
@@ -320,48 +445,31 @@ const attachImageSwitchEditor = (panel) => {
         valueInput.type = 'number';
         valueInput.value = state.value ?? 0;
 
-        const folderSelect = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
-        folderSelect.value = folderFromPath(state.src);
+        let currentImage = state.src || '';
 
-        const fileSelect = document.createElement('select');
-        const refreshFiles = () => {
-          fileSelect.innerHTML = '';
-          const files = catalog?.[folderSelect.value] || [];
-          files.forEach((file) => {
-            const opt = document.createElement('option');
-            opt.value = file;
-            opt.textContent = file;
-            fileSelect.appendChild(opt);
-          });
-          const currentFile = fileFromPath(state.src);
-          if (currentFile && files.includes(currentFile)) {
-            fileSelect.value = currentFile;
-          }
-        };
-        refreshFiles();
-
-        const preview = createPreview(state.src || '').img;
+        const dropdown = createImageDropdown({
+          value: currentImage,
+          onSelect: (nextValue) => {
+            currentImage = nextValue || '';
+            const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
+            nextStates[index] = {
+              value: Number(valueInput.value),
+              src: currentImage,
+            };
+            panel._emitChange('images.states', nextStates);
+          },
+        });
 
         const update = () => {
           const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
           nextStates[index] = {
             value: Number(valueInput.value),
-            src: pickImageFromCatalog(
-              folderSelect.value,
-              fileSelect.value,
-              normalizeImagePath(folderSelect.value, fileSelect.value),
-            ),
+            src: currentImage,
           };
           panel._emitChange('images.states', nextStates);
-          preview.src = nextStates[index].src;
         };
 
         valueInput.addEventListener('change', update);
-        folderSelect.addEventListener('change', () => {
-          refreshFiles();
-          update();
-        });
-        fileSelect.addEventListener('change', update);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
@@ -373,10 +481,19 @@ const attachImageSwitchEditor = (panel) => {
           renderRows();
         });
 
-        row.append(valueInput, folderSelect, fileSelect, preview, deleteBtn);
+        row.append(valueInput, dropdown, deleteBtn);
         list.appendChild(row);
+
+        if (typeof dropdown.destroy === 'function') {
+          rowCleanups.push(() => dropdown.destroy());
+        }
       });
     };
+
+    registerCleanup?.(() => {
+      rowCleanups.forEach((fn) => fn?.());
+      rowCleanups = [];
+    });
 
     renderRows();
 
@@ -396,51 +513,21 @@ const attachImageSwitchEditor = (panel) => {
 };
 
 const attachButtonToggleEditors = (panel) => {
-  const renderImagePicker = async (wrapper, currentValue, onChange) => {
-    const catalog = await fetchImageCatalog();
-    const folder = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
-    const file = document.createElement('select');
-    const preview = createPreview(currentValue || '').img;
-
-    const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
-    const fileFromPath = (path) => {
-      const parts = (path || '').split('/');
-      return parts[parts.length - 1] || '';
-    };
-
-    folder.value = folderFromPath(currentValue);
-    const refreshFiles = () => {
-      file.innerHTML = '';
-      const files = catalog?.[folder.value] || [];
-      files.forEach((name) => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        file.appendChild(opt);
-      });
-      const existing = fileFromPath(currentValue);
-      if (existing && files.includes(existing)) {
-        file.value = existing;
-      }
-    };
-    refreshFiles();
-
-    const update = () => {
-      const src = pickImageFromCatalog(folder.value, file.value, normalizeImagePath(folder.value, file.value));
-      preview.src = src;
-      onChange(src);
-    };
-
-    folder.addEventListener('change', () => {
-      refreshFiles();
-      update();
+  const renderImagePicker = (wrapper, currentValue, onChange, registerCleanup) => {
+    const dropdown = createImageDropdown({
+      value: currentValue,
+      onSelect: (src) => {
+        onChange(src || '');
+      },
     });
-    file.addEventListener('change', update);
-
-    wrapper.append(folder, file, preview);
+    wrapper.append(dropdown);
+    if (registerCleanup && typeof dropdown.destroy === 'function') {
+      registerCleanup(() => dropdown.destroy());
+    }
+    return dropdown;
   };
 
-  panel.registerCustomRenderer('image_button', ({ form, widget }) => {
+  panel.registerCustomRenderer('image_button', ({ form, widget, registerCleanup }) => {
     const title = document.createElement('div');
     title.className = 'panel-section-title';
     title.textContent = 'Images';
@@ -450,7 +537,7 @@ const attachButtonToggleEditors = (panel) => {
     normalRow.appendChild(document.createElement('label')).textContent = 'Normal image';
     renderImagePicker(normalRow, widget.normalImage || widget.images?.normal, (src) => {
       panel._emitChange('normalImage', src);
-    });
+    }, registerCleanup);
     form.appendChild(normalRow);
 
     const pressedRow = document.createElement('div');
@@ -458,11 +545,11 @@ const attachButtonToggleEditors = (panel) => {
     pressedRow.appendChild(document.createElement('label')).textContent = 'Pressed image';
     renderImagePicker(pressedRow, widget.pressedImage || widget.images?.pressed, (src) => {
       panel._emitChange('pressedImage', src);
-    });
+    }, registerCleanup);
     form.appendChild(pressedRow);
   });
 
-  panel.registerCustomRenderer('image_toggle', ({ form, widget }) => {
+  panel.registerCustomRenderer('image_toggle', ({ form, widget, registerCleanup }) => {
     const title = document.createElement('div');
     title.className = 'panel-section-title';
     title.textContent = 'Images';
@@ -476,12 +563,12 @@ const attachButtonToggleEditors = (panel) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'panel-field panel-image-inline';
       wrapper.appendChild(document.createElement('label')).textContent = row.label;
-      renderImagePicker(wrapper, widget[row.key], (src) => panel._emitChange(row.key, src));
+      renderImagePicker(wrapper, widget[row.key], (src) => panel._emitChange(row.key, src), registerCleanup);
       form.appendChild(wrapper);
     });
   });
 
-  panel.registerCustomRenderer('static_image', ({ form, widget }) => {
+  panel.registerCustomRenderer('static_image', ({ form, widget, registerCleanup }) => {
     const title = document.createElement('div');
     title.className = 'panel-section-title';
     title.textContent = 'Image';
@@ -489,7 +576,7 @@ const attachButtonToggleEditors = (panel) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'panel-field panel-image-inline';
     wrapper.appendChild(document.createElement('label')).textContent = 'Image';
-    renderImagePicker(wrapper, widget.image || widget.images?.src, (src) => panel._emitChange('image', src));
+    renderImagePicker(wrapper, widget.image || widget.images?.src, (src) => panel._emitChange('image', src), registerCleanup);
     form.appendChild(wrapper);
   });
 };
@@ -631,3 +718,5 @@ export const registerImageWidgetExtensions = ({ propertiesPanel }) => {
     attachButtonToggleEditors(propertiesPanel);
   }
 };
+
+export { createImageDropdown };
