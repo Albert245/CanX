@@ -7,9 +7,6 @@ const createElement = (tag, className, textContent) => {
   return el;
 };
 
-const hasScriptField = (sections = []) =>
-  sections.some((section) => section.fields?.some((field) => field.path === 'script'));
-
 const serializeStatesText = (states = []) =>
   states
     .map((entry) => {
@@ -39,10 +36,9 @@ const parseStatesText = (text) => {
 };
 
 export class PanelPropertiesPanel {
-  constructor(container, { onChange, onRemoveWidget, fetchMessageInfo } = {}) {
+  constructor(container, { onChange, fetchMessageInfo } = {}) {
     this.container = container;
     this.onChange = onChange;
-    this.onRemoveWidget = onRemoveWidget;
     this.fetchMessageInfo = fetchMessageInfo;
     this.widget = null;
     this.enumBindings = [];
@@ -51,6 +47,55 @@ export class PanelPropertiesPanel {
     this.signalDatalistId = 'panel-signal-options';
     this.customRenderers = new Map();
     this.behaviorScriptCache = new Map();
+    this.rendererCleanups = [];
+    this.messageInput = document.getElementById('panel-map-message');
+    this.signalInput = document.getElementById('panel-map-signal');
+    this.scriptEditor = document.getElementById('panel-script-editor');
+    this.layoutInputs = {
+      col: document.getElementById('panel-layout-col'),
+      row: document.getElementById('panel-layout-row'),
+      width: document.getElementById('panel-layout-width'),
+      height: document.getElementById('panel-layout-height'),
+    };
+
+    this._handleMessageChange = () => {
+      if (!this.widget || !this.messageInput) return;
+      const value = this.messageInput.value;
+      this._emitChange('mapping.message', value);
+      this._loadMessageInfo(value);
+    };
+
+    this._handleSignalChange = () => {
+      if (!this.widget || !this.signalInput) return;
+      const value = this.signalInput.value;
+      this._emitChange('mapping.signal', value);
+      this._refreshEnumBindings();
+    };
+
+    this._handleScriptChange = () => {
+      if (!this.widget || !this.scriptEditor) return;
+      this._emitChange('script', this.scriptEditor.value);
+    };
+
+    this._handleLayoutChange = (path, inputKey) => () => {
+      if (!this.widget) return;
+      const input = this.layoutInputs[inputKey];
+      if (!input) return;
+      const numeric = Number(input.value);
+      this._emitChange(path, Number.isFinite(numeric) ? numeric : 1);
+    };
+
+    this._attachStaticListeners();
+  }
+
+  _attachStaticListeners() {
+    this.messageInput?.addEventListener('change', this._handleMessageChange);
+    this.signalInput?.addEventListener('change', this._handleSignalChange);
+    this.scriptEditor?.addEventListener('change', this._handleScriptChange);
+    this.layoutInputs.col?.addEventListener('change', this._handleLayoutChange('pos.x', 'col'));
+    this.layoutInputs.row?.addEventListener('change', this._handleLayoutChange('pos.y', 'row'));
+    this.layoutInputs.width?.addEventListener('change', this._handleLayoutChange('size.w', 'width'));
+    this.layoutInputs.height?.addEventListener('change', this._handleLayoutChange('size.h', 'height'));
   }
 
   registerCustomRenderer(type, renderer) {
@@ -60,6 +105,10 @@ export class PanelPropertiesPanel {
 
   clear() {
     this.widget = null;
+    this._syncMappingInputs();
+    this._syncLayoutInputs();
+    this._syncScriptEditor();
+    this._runRendererCleanups();
     if (this.container) {
       this.container.innerHTML = '';
     }
@@ -67,6 +116,9 @@ export class PanelPropertiesPanel {
 
   setWidget(widget) {
     this.widget = widget;
+    this._syncMappingInputs();
+    this._syncLayoutInputs();
+    this._syncScriptEditor();
     this._render();
     if (widget?.mapping?.message) {
       this._loadMessageInfo(widget.mapping.message);
@@ -78,6 +130,7 @@ export class PanelPropertiesPanel {
 
   _render() {
     if (!this.container) return;
+    this._runRendererCleanups();
     this.container.classList.add('panel-properties');
     this.container.innerHTML = '';
     this.behaviorScriptCache.clear();
@@ -99,36 +152,12 @@ export class PanelPropertiesPanel {
     const ribbonRow = createElement('div', 'panel-ribbon-row');
     form.appendChild(ribbonRow);
 
-    if (definition.supportsScript) {
-      const behaviorCard = this._renderBehaviorButtons();
-      if (behaviorCard) {
-        ribbonRow.appendChild(behaviorCard);
-      }
-    }
-
-    ribbonRow.appendChild(this._renderLayoutCard());
-
     const sections = [...(definition.propertySections || [])];
-    if (definition.supportsScript && !hasScriptField(sections)) {
-      sections.push({
-        title: 'Script',
-        fields: [{ label: 'Script', path: 'script', type: 'textarea', rows: 6 }],
-      });
-    }
-
-    const mappingFields = [];
     const valueFields = [];
     const miscFields = [];
-    let scriptField = null;
-
     sections.forEach((section) => {
       section.fields?.forEach((field) => {
-        if (field.path === 'script') {
-          scriptField = field;
-          return;
-        }
-        if (field.path === 'mapping.message' || field.path === 'mapping.signal') {
-          mappingFields.push(field);
+        if (field.path === 'mapping.message' || field.path === 'mapping.signal' || field.path === 'script') {
           return;
         }
         if ((field.path || '').startsWith('mapping.') || (field.type || '').startsWith('image')) {
@@ -138,10 +167,6 @@ export class PanelPropertiesPanel {
         miscFields.push(field);
       });
     });
-
-    const mappingCard = this._createRibbonCard('Mapping MSG / SIGNAL');
-    mappingFields.forEach((field) => mappingCard.appendChild(this._createField(field)));
-    ribbonRow.appendChild(mappingCard);
 
     const mappingValueCard = this._createRibbonCard('Mapping Value / Image States', 'panel-ribbon-card--stretch');
     valueFields.forEach((field) => mappingValueCard.appendChild(this._createField(field)));
@@ -155,20 +180,19 @@ export class PanelPropertiesPanel {
     const rendererTarget = createElement('div', 'panel-custom-renderer');
     mappingValueCard.appendChild(rendererTarget);
 
-    const scriptCard = this._renderScriptSection(scriptField);
-    if (scriptCard) {
-      ribbonRow.appendChild(scriptCard);
-    }
-
-    const actionsCard = this._renderActions();
-    if (actionsCard) {
-      ribbonRow.appendChild(actionsCard);
-    }
-
     const renderer = this.customRenderers.get(this.widget.type);
     if (renderer) {
       try {
-        renderer({ form: rendererTarget, widget: this.widget, definition });
+        renderer({
+          form: rendererTarget,
+          widget: this.widget,
+          definition,
+          registerCleanup: (fn) => {
+            if (typeof fn === 'function') {
+              this.rendererCleanups.push(fn);
+            }
+          },
+        });
       } catch (err) {
         console.warn('Panel properties renderer error', err);
       }
@@ -201,111 +225,47 @@ export class PanelPropertiesPanel {
     return card;
   }
 
-  _renderLayoutCard() {
-    const card = this._createRibbonCard('Layout');
-    const fields = [
-      { label: 'Column (X)', path: 'pos.x', value: this.widget.pos?.x ?? 1 },
-      { label: 'Row (Y)', path: 'pos.y', value: this.widget.pos?.y ?? 1 },
-      { label: 'Width (columns)', path: 'size.w', value: this.widget.size?.w ?? 1 },
-      { label: 'Height (rows)', path: 'size.h', value: this.widget.size?.h ?? 1 },
-    ];
-    fields.forEach((field) => {
-      const wrapper = createElement('div', 'panel-field');
-      const label = createElement('label', null, field.label);
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.min = '1';
-      input.value = field.value;
-      input.addEventListener('change', () => {
-        const numeric = Number(input.value);
-        this._emitChange(field.path, Number.isFinite(numeric) ? numeric : 1);
-      });
-      wrapper.append(label, input);
-      card.appendChild(wrapper);
-    });
-    return card;
+  _syncMappingInputs() {
+    if (!this.messageInput || !this.signalInput) return;
+    const mapping = this.widget?.mapping || {};
+    this.messageInput.value = mapping.message || '';
+    this.signalInput.value = mapping.signal || '';
+    const disabled = !this.widget;
+    this.messageInput.disabled = disabled;
+    this.signalInput.disabled = disabled;
   }
 
-  _renderSection(form, section) {
-    if (!section.fields || !section.fields.length) return;
-    const title = createElement('div', 'panel-section-title', section.title || 'Section');
-    form.appendChild(title);
-    section.fields.forEach((field) => {
-      const fieldEl = this._createField(field);
-      form.appendChild(fieldEl);
+  _syncScriptEditor() {
+    if (!this.scriptEditor) return;
+    if (this.widget) {
+      this.scriptEditor.disabled = false;
+      this.scriptEditor.value = this.widget.script || '';
+    } else {
+      this.scriptEditor.disabled = true;
+      this.scriptEditor.value = '';
+    }
+  }
+
+  _syncLayoutInputs() {
+    const defaults = { col: '', row: '', width: '', height: '' };
+    const values = this.widget
+      ? {
+          col: this.widget.pos?.x ?? '',
+          row: this.widget.pos?.y ?? '',
+          width: this.widget.size?.w ?? '',
+          height: this.widget.size?.h ?? '',
+        }
+      : defaults;
+    const disabled = !this.widget;
+    Object.entries(this.layoutInputs).forEach(([key, input]) => {
+      if (!input) return;
+      input.disabled = disabled;
+      input.value = values[key] ?? '';
     });
   }
 
   _renderActions() {
-    if (typeof this.onRemoveWidget !== 'function' || !this.widget?.id) return null;
-    const card = this._createRibbonCard('Remove Widget');
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'panel-ribbon-button panel-danger-btn';
-    const icon = createElement('span', 'panel-ribbon-icon panel-icon-remove');
-    const label = createElement('span', 'panel-ribbon-label', 'Remove');
-    const buttonBlock = createElement('div', 'panel-ribbon-button-block');
-    removeBtn.append(icon);
-    buttonBlock.append(removeBtn, label);
-    removeBtn.addEventListener('click', () => {
-      if (!this.widget?.id) return;
-      this.onRemoveWidget(this.widget.id);
-    });
-    card.appendChild(buttonBlock);
-    return card;
-  }
-
-  _renderBehaviorButtons() {
-    if (!this.widget) return null;
-    const card = this._createRibbonCard('Default / Script Mode');
-    const row = createElement('div', 'panel-mode-toggle');
-
-    const createModeButton = (label, className, useScript) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `panel-ribbon-button panel-mode-option ${className}`;
-      const icon = createElement('span', `panel-ribbon-icon ${useScript ? 'panel-icon-script' : 'panel-icon-default'}`);
-      const caption = createElement('span', 'panel-ribbon-label', label);
-      const buttonBlock = createElement('div', 'panel-ribbon-button-block');
-      btn.append(icon);
-      buttonBlock.append(btn, caption);
-      btn.addEventListener('click', () => {
-        this.widget.useScript = useScript;
-        if (useScript && (!this.widget.script || !this.widget.script.trim())) {
-          const template = this._buildBehaviorScript(this.widget);
-          this.widget.script = template;
-          this._emitChange('script', template);
-        }
-        this._emitChange('useScript', useScript);
-        this._render();
-      });
-      return { block: buttonBlock, button: btn };
-    };
-
-    const defaultBtn = createModeButton('Default', 'panel-mode-default', false);
-    const scriptBtn = createModeButton('Custom Script', 'panel-mode-custom', true);
-
-    const syncMode = () => {
-      const useScript = Boolean(this.widget?.useScript);
-      defaultBtn.button.classList.toggle('is-active', !useScript);
-      scriptBtn.button.classList.toggle('is-active', useScript);
-      scriptBtn.button.disabled = false;
-      defaultBtn.button.disabled = false;
-    };
-
-    syncMode();
-    row.append(defaultBtn.block, scriptBtn.block);
-    card.appendChild(row);
-    return card;
-  }
-
-  _renderScriptSection(field) {
-    if (!field) return null;
-    const card = this._createRibbonCard('Script Editor', 'panel-ribbon-card--stretch');
-    const fieldEl = this._createField({ ...field, rows: Math.max(field.rows || 8, 6) });
-    fieldEl.classList.add('panel-script-field');
-    card.appendChild(fieldEl);
-    return card;
+    return null;
   }
 
   _createField(field) {
@@ -536,6 +496,10 @@ export class PanelPropertiesPanel {
     return result;
   }
 
+  buildBehaviorScript(widget) {
+    return this._buildBehaviorScript(widget);
+  }
+
   _emitChange(path, value) {
     if (typeof this.onChange === 'function' && this.widget) {
       this.onChange(this.widget.id, path, value);
@@ -574,5 +538,17 @@ export class PanelPropertiesPanel {
         select.value = '__raw__';
       }
     });
+  }
+
+  _runRendererCleanups() {
+    if (!this.rendererCleanups?.length) return;
+    this.rendererCleanups.forEach((fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.warn('Renderer cleanup error', err);
+      }
+    });
+    this.rendererCleanups = [];
   }
 }
