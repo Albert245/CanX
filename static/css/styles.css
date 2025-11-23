@@ -897,6 +897,10 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   flex-direction: column;
 }
 
+#panel-map-message {
+  width: 80%;
+}
+
 #tab-panel.is-run-mode [data-mode='edit'] {
   display: none;
 }
@@ -1357,11 +1361,27 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .panel-image-select {
   width: 100%;
-  padding: 8px 10px;
+  padding: 10px 12px 10px 48px;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(8, 16, 32, 0.75);
   color: var(--text-primary, #fff);
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 28px 28px;
+}
+
+.panel-image-select option {
+  padding-left: 44px;
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 28px 28px;
+  color: var(--text-primary, #fff);
+  background-color: rgba(14, 24, 38, 0.95);
+}
+
+.panel-image-select optgroup {
+  background-color: rgba(8, 16, 32, 0.95);
 }
 
 .panel-image-select optgroup {

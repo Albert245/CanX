@@ -200,6 +200,18 @@ const buildImageSelect = (catalog, currentSrc = '') => {
     select.appendChild(custom);
   }
 
+  const applyPreviewBackground = () => {
+    const src = select.value || '';
+    if (src) {
+      select.style.backgroundImage = `url(${src})`;
+    } else {
+      select.style.backgroundImage = 'none';
+    }
+  };
+
+  applyPreviewBackground();
+  select.addEventListener('change', applyPreviewBackground);
+
   return select;
 };
 
