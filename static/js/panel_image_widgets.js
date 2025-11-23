@@ -157,22 +157,63 @@ const mutateDefinitionDefaults = () => {
   });
 };
 
-const pickImageFromCatalog = (folder, file, fallback = '') => {
-  if (!folder || !file) return fallback;
-  const valid = imageCatalog?.[folder]?.includes(file);
-  if (!valid) return fallback;
-  return normalizeImagePath(folder, file);
+const parseCatalogPath = (src = '') => {
+  const folder = (src.split('/') || []).find((part) => IMAGE_COLORS.includes(part)) || '';
+  const file = src.split('/').filter(Boolean).pop() || '';
+  return { folder, file };
 };
 
-const buildSelect = (options, current) => {
+const buildImageSelect = (catalog, currentSrc = '') => {
   const select = document.createElement('select');
-  options.forEach((opt) => {
-    const option = document.createElement('option');
-    option.value = opt.value;
-    option.textContent = opt.label;
-    if (current === opt.value) option.selected = true;
-    select.appendChild(option);
+  select.className = 'panel-image-select panel-image-select--icons';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Choose image';
+  select.appendChild(placeholder);
+
+  const { folder: currentFolder, file: currentFile } = parseCatalogPath(currentSrc);
+
+  Object.entries(catalog || {}).forEach(([folder, files]) => {
+    const group = document.createElement('optgroup');
+    group.label = folder;
+    (files || []).forEach((file) => {
+      const value = normalizeImagePath(folder, file);
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = '';
+      option.title = `${folder}/${file}`;
+      option.setAttribute('aria-label', `${folder}/${file}`);
+      option.className = 'panel-image-option';
+      option.style.backgroundImage = `url(${value})`;
+      if (folder === currentFolder && file === currentFile) {
+        option.selected = true;
+      }
+      group.appendChild(option);
+    });
+    select.appendChild(group);
   });
+
+  if (currentSrc && !select.value) {
+    const custom = document.createElement('option');
+    custom.value = currentSrc;
+    custom.textContent = 'Custom image';
+    custom.selected = true;
+    select.appendChild(custom);
+  }
+
+  const applyPreviewBackground = () => {
+    const src = select.value || '';
+    if (src) {
+      select.style.backgroundImage = `url(${src})`;
+    } else {
+      select.style.backgroundImage = 'none';
+    }
+  };
+
+  applyPreviewBackground();
+  select.addEventListener('change', applyPreviewBackground);
+
   return select;
 };
 
@@ -207,52 +248,22 @@ const attachImageStateEditor = (panel) => {
         valueInput.type = 'number';
         valueInput.value = state.value ?? 0;
 
-        const folderSelect = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
-        const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
-        const fileFromPath = (path) => {
-          const parts = (path || '').split('/');
-          return parts[parts.length - 1] || '';
-        };
-        folderSelect.value = folderFromPath(state.image);
-
-        const fileSelect = document.createElement('select');
-        const refreshFiles = () => {
-          fileSelect.innerHTML = '';
-          const folder = folderSelect.value;
-          const files = catalog?.[folder] || [];
-          files.forEach((file) => {
-            const opt = document.createElement('option');
-            opt.value = file;
-            opt.textContent = file;
-            fileSelect.appendChild(opt);
-          });
-          const currentFile = fileFromPath(state.image);
-          if (currentFile && files.includes(currentFile)) {
-            fileSelect.value = currentFile;
-          }
-        };
-        refreshFiles();
+        const imageSelect = buildImageSelect(catalog, state.image);
 
         const preview = createPreview(state.image || '').img;
 
         const updateState = () => {
           const nextStates = Array.isArray(widget.states) ? [...widget.states] : [];
-          const folder = folderSelect.value;
-          const file = fileSelect.value;
           nextStates[index] = {
             value: Number(valueInput.value),
-            image: pickImageFromCatalog(folder, file, normalizeImagePath(folder, file)),
+            image: imageSelect.value || '',
           };
           panel._emitChange('states', nextStates);
           preview.src = nextStates[index].image;
         };
 
         valueInput.addEventListener('change', updateState);
-        folderSelect.addEventListener('change', () => {
-          refreshFiles();
-          updateState();
-        });
-        fileSelect.addEventListener('change', updateState);
+        imageSelect.addEventListener('change', updateState);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
@@ -266,8 +277,7 @@ const attachImageStateEditor = (panel) => {
 
         row.append(
           valueInput,
-          folderSelect,
-          fileSelect,
+          imageSelect,
           preview,
           deleteBtn,
         );
@@ -303,12 +313,6 @@ const attachImageSwitchEditor = (panel) => {
     const list = document.createElement('div');
     list.className = 'panel-image-state-list';
 
-    const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
-    const fileFromPath = (path) => {
-      const parts = (path || '').split('/');
-      return parts[parts.length - 1] || '';
-    };
-
     const renderRows = () => {
       list.innerHTML = '';
       const states = Array.isArray(widget.images?.states) ? widget.images.states : [];
@@ -320,25 +324,7 @@ const attachImageSwitchEditor = (panel) => {
         valueInput.type = 'number';
         valueInput.value = state.value ?? 0;
 
-        const folderSelect = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
-        folderSelect.value = folderFromPath(state.src);
-
-        const fileSelect = document.createElement('select');
-        const refreshFiles = () => {
-          fileSelect.innerHTML = '';
-          const files = catalog?.[folderSelect.value] || [];
-          files.forEach((file) => {
-            const opt = document.createElement('option');
-            opt.value = file;
-            opt.textContent = file;
-            fileSelect.appendChild(opt);
-          });
-          const currentFile = fileFromPath(state.src);
-          if (currentFile && files.includes(currentFile)) {
-            fileSelect.value = currentFile;
-          }
-        };
-        refreshFiles();
+        const imageSelect = buildImageSelect(catalog, state.src);
 
         const preview = createPreview(state.src || '').img;
 
@@ -346,22 +332,14 @@ const attachImageSwitchEditor = (panel) => {
           const nextStates = Array.isArray(widget.images?.states) ? [...widget.images.states] : [];
           nextStates[index] = {
             value: Number(valueInput.value),
-            src: pickImageFromCatalog(
-              folderSelect.value,
-              fileSelect.value,
-              normalizeImagePath(folderSelect.value, fileSelect.value),
-            ),
+            src: imageSelect.value || '',
           };
           panel._emitChange('images.states', nextStates);
           preview.src = nextStates[index].src;
         };
 
         valueInput.addEventListener('change', update);
-        folderSelect.addEventListener('change', () => {
-          refreshFiles();
-          update();
-        });
-        fileSelect.addEventListener('change', update);
+        imageSelect.addEventListener('change', update);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
@@ -373,7 +351,7 @@ const attachImageSwitchEditor = (panel) => {
           renderRows();
         });
 
-        row.append(valueInput, folderSelect, fileSelect, preview, deleteBtn);
+        row.append(valueInput, imageSelect, preview, deleteBtn);
         list.appendChild(row);
       });
     };
@@ -398,46 +376,18 @@ const attachImageSwitchEditor = (panel) => {
 const attachButtonToggleEditors = (panel) => {
   const renderImagePicker = async (wrapper, currentValue, onChange) => {
     const catalog = await fetchImageCatalog();
-    const folder = buildSelect(IMAGE_COLORS.map((c) => ({ value: c, label: c })), '');
-    const file = document.createElement('select');
+    const imageSelect = buildImageSelect(catalog, currentValue);
     const preview = createPreview(currentValue || '').img;
 
-    const folderFromPath = (path) => (path || '').split('/').find((part) => IMAGE_COLORS.includes(part)) || '';
-    const fileFromPath = (path) => {
-      const parts = (path || '').split('/');
-      return parts[parts.length - 1] || '';
-    };
-
-    folder.value = folderFromPath(currentValue);
-    const refreshFiles = () => {
-      file.innerHTML = '';
-      const files = catalog?.[folder.value] || [];
-      files.forEach((name) => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        file.appendChild(opt);
-      });
-      const existing = fileFromPath(currentValue);
-      if (existing && files.includes(existing)) {
-        file.value = existing;
-      }
-    };
-    refreshFiles();
-
     const update = () => {
-      const src = pickImageFromCatalog(folder.value, file.value, normalizeImagePath(folder.value, file.value));
+      const src = imageSelect.value || '';
       preview.src = src;
       onChange(src);
     };
 
-    folder.addEventListener('change', () => {
-      refreshFiles();
-      update();
-    });
-    file.addEventListener('change', update);
+    imageSelect.addEventListener('change', update);
 
-    wrapper.append(folder, file, preview);
+    wrapper.append(imageSelect, preview);
   };
 
   panel.registerCustomRenderer('image_button', ({ form, widget }) => {
