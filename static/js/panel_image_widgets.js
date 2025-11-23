@@ -12,7 +12,7 @@ const normalizeImagePath = (folder, file) => {
 export const fetchImageCatalog = async () => {
   if (imageCatalog) return imageCatalog;
   try {
-    const response = await fetch('/api/panel/images');
+    const response = await fetch('/api/panel/list-images');
     const data = await response.json().catch(() => ({}));
     imageCatalog = data || {};
   } catch (err) {
