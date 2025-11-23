@@ -812,6 +812,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   line-height: 1.5;
   max-height: 72px;
   overflow-y: auto;
+  width: 100%;
 }
 
 #panel-widget-description {
@@ -820,8 +821,9 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 .panel-name-group {
-  flex: 1;
-  min-width: 200px;
+  flex: 0 0 380px;
+  max-width: 380px;
+  width: 380px;
 }
 
 .panel-name-group input {
@@ -834,8 +836,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 6px;
 }
 
-.panel-name-description-group input,
-.panel-name-description-group textarea {
+.panel-name-description-group input {
   width: 100%;
 }
 
