@@ -237,22 +237,7 @@ export class PanelPropertiesPanel {
   }
 
   _renderActions() {
-    if (typeof this.onRemoveWidget !== 'function' || !this.widget?.id) return null;
-    const card = this._createRibbonCard('Remove Widget');
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'panel-ribbon-button panel-danger-btn';
-    const icon = createElement('span', 'panel-ribbon-icon panel-icon-remove');
-    const label = createElement('span', 'panel-ribbon-label', 'Remove');
-    const buttonBlock = createElement('div', 'panel-ribbon-button-block');
-    removeBtn.append(icon);
-    buttonBlock.append(removeBtn, label);
-    removeBtn.addEventListener('click', () => {
-      if (!this.widget?.id) return;
-      this.onRemoveWidget(this.widget.id);
-    });
-    card.appendChild(buttonBlock);
-    return card;
+    return null;
   }
 
   _renderBehaviorButtons() {

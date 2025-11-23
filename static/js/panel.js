@@ -47,12 +47,12 @@ const initPanel = () => {
   const canvas = document.getElementById('panel-canvas');
   const toolboxEl = document.getElementById('panel-toolbox');
   const propertiesEl = document.getElementById('panel-properties');
-  const objectRibbon = document.getElementById('panel-object-ribbon');
   const runBtn = document.getElementById('panel-run-mode');
   const exportBtn = document.getElementById('panel-export');
   const importBtn = document.getElementById('panel-import');
   const importFile = document.getElementById('panel-import-file');
   const clearBtn = document.getElementById('panel-clear');
+  const scriptToggle = document.getElementById('panel-script-toggle');
   const toolboxDescription = document.getElementById('panel-toolbox-description');
   const panelDescription = document.getElementById('panel-description');
 
@@ -259,9 +259,7 @@ const initPanel = () => {
     });
     const widget = id ? widgetManager.getWidget(id) : null;
     propertiesPanel.setWidget(widget || null);
-    if (objectRibbon) {
-      objectRibbon.hidden = !widget || state.mode === 'run';
-    }
+    window.currentSelectedWidget = id ? widgetManager.elements.get(id) || null : null;
   };
 
   const handleCanvasClick = (event) => {
@@ -312,12 +310,27 @@ const initPanel = () => {
         icon.classList.toggle('panel-icon-editing', state.mode !== 'run');
       }
     }
-    if (objectRibbon) {
-      objectRibbon.hidden = state.mode === 'run' || !state.selectedId;
+  };
+
+  const setScriptMode = (enabled) => {
+    if (!panelTab) return;
+    const isEnabled = Boolean(enabled);
+    panelTab.dataset.scriptMode = isEnabled ? 'true' : 'false';
+    const icon = scriptToggle?.querySelector('.panel-ribbon-icon');
+    const label = scriptToggle?.parentElement?.querySelector('.panel-ribbon-label');
+    icon?.classList.toggle('panel-icon-default', !isEnabled);
+    icon?.classList.toggle('panel-icon-script', isEnabled);
+    if (label) {
+      label.textContent = isEnabled ? 'Script Mode' : 'Default Mode';
     }
   };
 
   runBtn?.addEventListener('click', () => setMode(state.mode === 'run' ? 'edit' : 'run'));
+
+  scriptToggle?.addEventListener('click', () => {
+    const next = panelTab?.dataset.scriptMode !== 'true';
+    setScriptMode(next);
+  });
 
   clearBtn?.addEventListener('click', () => {
     if (state.mode === 'run') return;
@@ -436,6 +449,17 @@ const initPanel = () => {
     socket.on('trace', handleTrace);
   };
 
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (window.currentSelectedWidget) {
+        const id = window.currentSelectedWidget.dataset.widgetId;
+        widgetManager.removeWidget(id);
+        window.currentSelectedWidget = null;
+      }
+    }
+  });
+
+  setScriptMode(false);
   loadLayout();
   setMode('edit');
   setupSocketBridge();
