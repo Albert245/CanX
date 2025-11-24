@@ -6,8 +6,8 @@
   --accent: #4f8cff;
   --border: #2a2f3a;
   --graphic-max-width: 960px;
-  --panel-cell-size: 48px;
-  --panel-columns: 28;
+  --panel-cell-size: 40px;
+  --panel-columns: 32;
   --panel-icon-running: url('/static/img/run.png');
   --panel-icon-editing: url('/static/img/edit.png');
   --panel-icon-export: url('/static/img/export.png');
