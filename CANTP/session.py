@@ -132,6 +132,7 @@ class CANTPSession:
                 return []
             remaining_ms = timeout_ms
             start = time.monotonic()
+            expected_sn = 1
 
             while len(data) < total_length:
                 remaining_ms = self._remaining_ms(start, timeout_ms)
@@ -143,6 +144,15 @@ class CANTPSession:
                 if not cf:
                     logger.warning("Timeout retrieving consecutive frame from %s", self._tester_id)
                     return []
+
+                seq_num = int(cf[0], 16) & 0x0F
+                if seq_num != expected_sn:
+                    logger.warning(
+                        "Out-of-order CF (expected %s got %s) from %s", expected_sn, seq_num, self._tester_id
+                    )
+                    continue
+
+                expected_sn = increaseSN(expected_sn)
                 data.extend(cf[1:])
 
             return data[:total_length]
@@ -229,10 +239,14 @@ class CANTPSession:
 
     @staticmethod
     def _is_transport_payload(frame: List[str]) -> bool:
+        """Return True only for SF/FF frames used to start a reception."""
         if not frame:
             return False
         pci = int(frame[0], 16) >> 4
-        return pci in (0x0, 0x1, 0x2)
+        # Guard against stray Consecutive Frames that may linger in the
+        # receive queue from a prior session. Starting a new reception with a
+        # CF would immediately fail, so ignore them here.
+        return pci in (0x0, 0x1)
 
     @staticmethod
     def _is_consecutive_frame(frame: List[str]) -> bool:

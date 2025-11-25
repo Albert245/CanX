@@ -15,7 +15,10 @@ class CANReaderThread(threading.Thread):
         # traffic do not evict older frames before downstream consumers can
         # process them.
         self.default_queue = queue.Queue()
-        self.id_queues = defaultdict(lambda:deque(maxlen=3))
+        # Avoid dropping multi-frame bursts by keeping per-ID queues
+        # unbounded; eviction of older frames caused out-of-order CF handling
+        # in the CAN-TP layer.
+        self.id_queues = defaultdict(deque)
         self.latest_msgs = {}
         self.subscribe_ids = set()
         self.callbacks = defaultdict(list)

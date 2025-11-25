@@ -113,9 +113,14 @@ def nextCF(SN,data,chunk_length=8):
     ret = []
     extend_data = []
     remain_data = None
-    data.extend([0]*(7-len(data)))
+
+    # Work on a copy to avoid mutating the caller's remaining payload and pad
+    # up to the expected payload size for this bus type.
+    payload = list(data)
+    payload.extend([0]*((chunk_length-1)-len(payload)))
+
     Byte_0 = 0x20 | SN
     extend_data.extend([Byte_0])
-    extend_data.extend(data)
+    extend_data.extend(payload)
     ret, remain_data = slice1stChunk(extend_data,chunk_length)
     return HexArr2Str(ret), remain_data
