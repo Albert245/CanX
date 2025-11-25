@@ -62,6 +62,7 @@ class CANTPSession:
         self._canif = canif
         self._ecu_id = ecu_id.upper()
         self._tester_id = tester_id.upper()
+        self._tester_id_key = int(self._tester_id, 16)
         self._chunk_length = chunk_length
         self._padding = padding
         self._rx_flow_control = rx_flow_control
@@ -79,21 +80,21 @@ class CANTPSession:
     # ------------------------------------------------------------------
     def _register_callback(self) -> None:
         def _on_frame(message) -> None:
-            payload = HexArr2StrArr(message.data)
+            # Frames are pulled from the reader's per-ID queue; we only use the
+            # callback to wake up waiters when new data arrives.
+            if self._closed:
+                return
             with self._buffer_cond:
-                if self._closed:
-                    return
-                self._rx_buffer.append(payload)
                 self._buffer_cond.notify_all()
 
-        self._canif.subscribe_id_queue(self._tester_id, callback=_on_frame)
+        self._canif.subscribe_id_queue(self._tester_id, callback=_on_frame, queue_name="cantp")
 
     def close(self) -> None:
         with self._buffer_cond:
             self._closed = True
             self._buffer_cond.notify_all()
         try:
-            self._canif.unsubscribe_id_queue(self._tester_id)
+            self._canif.unsubscribe_id_queue(self._tester_id, queue_name="cantp")
         except Exception:
             logger.exception("Failed to unsubscribe CAN ID %s", self._tester_id)
 
@@ -132,6 +133,7 @@ class CANTPSession:
                 return []
             remaining_ms = timeout_ms
             start = time.monotonic()
+            expected_sn = 1
 
             while len(data) < total_length:
                 remaining_ms = self._remaining_ms(start, timeout_ms)
@@ -143,6 +145,15 @@ class CANTPSession:
                 if not cf:
                     logger.warning("Timeout retrieving consecutive frame from %s", self._tester_id)
                     return []
+
+                seq_num = int(cf[0], 16) & 0x0F
+                if seq_num != expected_sn:
+                    logger.warning(
+                        "Out-of-order CF (expected %s got %s) from %s", expected_sn, seq_num, self._tester_id
+                    )
+                    continue
+
+                expected_sn = increaseSN(expected_sn)
                 data.extend(cf[1:])
 
             return data[:total_length]
@@ -219,6 +230,7 @@ class CANTPSession:
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         with self._buffer_cond:
             while True:
+                self._drain_rx_queue()
                 for index, payload in enumerate(self._rx_buffer):
                     if predicate(payload):
                         return self._rx_buffer.pop(index)
@@ -227,12 +239,26 @@ class CANTPSession:
                     return None
                 self._buffer_cond.wait(timeout=remaining)
 
+    def _drain_rx_queue(self) -> None:
+        """Move any queued frames for this tester ID into the session buffer."""
+
+        while True:
+            msg = self._canif.reader.get_from_id(self._tester_id_key, pop=True, queue_name="cantp")
+            if msg is None:
+                return
+            payload = HexArr2StrArr(msg.data)
+            self._rx_buffer.append(payload)
+
     @staticmethod
     def _is_transport_payload(frame: List[str]) -> bool:
+        """Return True only for SF/FF frames used to start a reception."""
         if not frame:
             return False
         pci = int(frame[0], 16) >> 4
-        return pci in (0x0, 0x1, 0x2)
+        # Guard against stray Consecutive Frames that may linger in the
+        # receive queue from a prior session. Starting a new reception with a
+        # CF would immediately fail, so ignore them here.
+        return pci in (0x0, 0x1)
 
     @staticmethod
     def _is_consecutive_frame(frame: List[str]) -> bool:
