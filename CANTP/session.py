@@ -62,6 +62,7 @@ class CANTPSession:
         self._canif = canif
         self._ecu_id = ecu_id.upper()
         self._tester_id = tester_id.upper()
+        self._tester_id_key = int(self._tester_id, 16)
         self._chunk_length = chunk_length
         self._padding = padding
         self._rx_flow_control = rx_flow_control
@@ -79,11 +80,11 @@ class CANTPSession:
     # ------------------------------------------------------------------
     def _register_callback(self) -> None:
         def _on_frame(message) -> None:
-            payload = HexArr2StrArr(message.data)
+            # Frames are pulled from the reader's per-ID queue; we only use the
+            # callback to wake up waiters when new data arrives.
+            if self._closed:
+                return
             with self._buffer_cond:
-                if self._closed:
-                    return
-                self._rx_buffer.append(payload)
                 self._buffer_cond.notify_all()
 
         self._canif.subscribe_id_queue(self._tester_id, callback=_on_frame)
@@ -229,6 +230,7 @@ class CANTPSession:
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         with self._buffer_cond:
             while True:
+                self._drain_rx_queue()
                 for index, payload in enumerate(self._rx_buffer):
                     if predicate(payload):
                         return self._rx_buffer.pop(index)
@@ -236,6 +238,16 @@ class CANTPSession:
                 if remaining <= 0:
                     return None
                 self._buffer_cond.wait(timeout=remaining)
+
+    def _drain_rx_queue(self) -> None:
+        """Move any queued frames for this tester ID into the session buffer."""
+
+        while True:
+            msg = self._canif.reader.get_from_id(self._tester_id_key, pop=True)
+            if msg is None:
+                return
+            payload = HexArr2StrArr(msg.data)
+            self._rx_buffer.append(payload)
 
     @staticmethod
     def _is_transport_payload(frame: List[str]) -> bool:
