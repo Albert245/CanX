@@ -44,7 +44,14 @@ class CANReaderThread(threading.Thread):
             if callback:
                 self.callbacks[msg_key].append(callback)
             if queue_name:
-                _ = self.named_id_queues[msg_key][queue_name]
+                # Ensure each subscriber starts from a clean buffer; reuse the
+                # existing queue if present but clear any stale frames from a
+                # prior session.
+                queues_for_id = self.named_id_queues[msg_key]
+                if queue_name in queues_for_id:
+                    queues_for_id[queue_name].clear()
+                else:
+                    queues_for_id[queue_name] = deque()
    
     def unsubscribe(self, msg_id, queue_name=None):
         """
@@ -128,8 +135,18 @@ class CANReaderThread(threading.Thread):
                 for msg_id in list(self.id_last_seen):
                     msg_timeout = self.id_timeout[msg_id] if msg_id in self.id_timeout else self.id_timeout_default
                     if now - self.id_last_seen[msg_id] > msg_timeout:
-                        self.id_queues.pop(msg_id,None)
-                        self.named_id_queues.pop(msg_id, None)
+                        # Preserve queues for active subscribers but drop stale
+                        # data to avoid starving consumers like CAN-TP when idle
+                        # periods exceed the timeout window.
+                        if msg_id in self.subscribe_ids:
+                            if msg_id in self.id_queues:
+                                self.id_queues[msg_id].clear()
+                            for queue in self.named_id_queues.get(msg_id, {}).values():
+                                queue.clear()
+                        else:
+                            self.id_queues.pop(msg_id, None)
+                            self.named_id_queues.pop(msg_id, None)
+                            self.subscribe_ids.discard(msg_id)
                         self.latest_msgs.pop(msg_id,None)
                         self.id_last_seen.pop(msg_id,None)
             time.sleep(5)
