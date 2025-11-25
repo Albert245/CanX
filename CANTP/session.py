@@ -107,6 +107,7 @@ class CANTPSession:
     def receive(self, timeout_ms: int) -> List[str]:
         """Receive a single PDU (list of hex strings) from the ECU."""
         with self._rx_lock:
+            self._reset_receive_state()
             first_frame = self._pop_matching(self._is_transport_payload, timeout_ms)
             if not first_frame:
                 logger.debug("Timeout waiting for first frame on %s", self._tester_id)
@@ -132,11 +133,11 @@ class CANTPSession:
                 logger.error("Failed to transmit Flow Control frame to %s", self._ecu_id)
                 return []
             remaining_ms = timeout_ms
-            start = time.monotonic()
+            last_activity = time.monotonic()
             expected_sn = 1
 
             while len(data) < total_length:
-                remaining_ms = self._remaining_ms(start, timeout_ms)
+                remaining_ms = self._remaining_ms(last_activity, timeout_ms)
                 if remaining_ms <= 0:
                     logger.warning("Timeout while waiting for CF frames from %s", self._tester_id)
                     return []
@@ -145,6 +146,8 @@ class CANTPSession:
                 if not cf:
                     logger.warning("Timeout retrieving consecutive frame from %s", self._tester_id)
                     return []
+
+                last_activity = time.monotonic()
 
                 seq_num = int(cf[0], 16) & 0x0F
                 if seq_num != expected_sn:
@@ -238,6 +241,15 @@ class CANTPSession:
                 if remaining <= 0:
                     return None
                 self._buffer_cond.wait(timeout=remaining)
+
+    def _reset_receive_state(self) -> None:
+        """Clear stale buffered data before starting a new reception."""
+        with self._buffer_cond:
+            self._rx_buffer.clear()
+        try:
+            self._canif.reset_id_queue(self._tester_id, queue_name="cantp")
+        except Exception:
+            logger.exception("Failed to reset queue for tester %s", self._tester_id)
 
     def _drain_rx_queue(self) -> None:
         """Move any queued frames for this tester ID into the session buffer."""

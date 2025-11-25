@@ -73,6 +73,23 @@ class CANReaderThread(threading.Thread):
             else:
                 self.id_queues.pop(msg_key,None)
             self.latest_msgs.pop(msg_key,None)
+
+    def reset_queue(self, msg_id, queue_name=None):
+        """Clear buffered frames for the given CAN ID and queue namespace."""
+        try:
+            message_id = self._normalize_id(msg_id)
+        except (TypeError, ValueError):
+            raise ValueError(f"Unsupported CAN ID: {msg_id!r}") from None
+        with self.lock:
+            if queue_name:
+                queues_for_id = self.named_id_queues[message_id]
+                queue = queues_for_id.get(queue_name)
+                if queue is None:
+                    queues_for_id[queue_name] = deque()
+                else:
+                    queue.clear()
+            else:
+                self.id_queues[message_id].clear()
    
     def get_from_default(self, pop=True, block=False, timeout=None):
         """Get a message from the default queue"""

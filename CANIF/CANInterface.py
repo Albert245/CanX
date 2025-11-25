@@ -457,7 +457,21 @@ class CANInterface:
             self.reader.unsubscribe(msg_id, queue_name=queue_name)
         except ValueError as exc:
             logger.error(f"ERROR: CANInterface - {exc}")
-   
+
+    def reset_id_queue(self, msg_id, queue_name: str | None = None):
+        """
+        Clear buffered frames for a message id queue to avoid stale data.
+        Args:   msg_id (str|int) : message id
+                queue_name (str|None): optional dedicated queue namespace.
+        """
+        if not self.reader:
+            logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
+            return
+        try:
+            self.reader.reset_queue(msg_id, queue_name=queue_name)
+        except ValueError as exc:
+            logger.error(f"ERROR: CANInterface - {exc}")
+
     def read_all(self, timeout = 1000):
         """
         Read function: Read any message on CAN bus from the default queue.
