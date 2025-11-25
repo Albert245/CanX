@@ -428,30 +428,33 @@ class CANInterface:
     def Tranceiver_status(self):
         return self.scheduler.get_status()
    
-    def subscribe_id_queue(self, msg_id, callback = None):
+    def subscribe_id_queue(self, msg_id, callback = None, queue_name: str | None = None):
         """
         Subscribe to a message ID queue so the frame is buffered separately from the default queue.
         Args:   msg_id (str|int) : message id
                 callback (callable|None): optional callback invoked on reception.
+                queue_name (str|None): optional dedicated queue namespace to avoid sharing
+                    frames with other consumers.
         """
         if not self.reader:
             logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
             return
         try:
-            self.reader.subscribe(msg_id, callback)
+            self.reader.subscribe(msg_id, callback, queue_name=queue_name)
         except ValueError as exc:
             logger.error(f"ERROR: CANInterface - {exc}")
 
-    def unsubscribe_id_queue(self, msg_id):
+    def unsubscribe_id_queue(self, msg_id, queue_name: str | None = None):
         """
         Unsubscribe a message id queue.
         Args:   msg_id (str|int) : message id
+                queue_name (str|None): optional dedicated queue namespace.
         """
         if not self.reader:
             logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
             return
         try:
-            self.reader.unsubscribe(msg_id)
+            self.reader.unsubscribe(msg_id, queue_name=queue_name)
         except ValueError as exc:
             logger.error(f"ERROR: CANInterface - {exc}")
    

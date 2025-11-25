@@ -87,14 +87,14 @@ class CANTPSession:
             with self._buffer_cond:
                 self._buffer_cond.notify_all()
 
-        self._canif.subscribe_id_queue(self._tester_id, callback=_on_frame)
+        self._canif.subscribe_id_queue(self._tester_id, callback=_on_frame, queue_name="cantp")
 
     def close(self) -> None:
         with self._buffer_cond:
             self._closed = True
             self._buffer_cond.notify_all()
         try:
-            self._canif.unsubscribe_id_queue(self._tester_id)
+            self._canif.unsubscribe_id_queue(self._tester_id, queue_name="cantp")
         except Exception:
             logger.exception("Failed to unsubscribe CAN ID %s", self._tester_id)
 
@@ -243,7 +243,7 @@ class CANTPSession:
         """Move any queued frames for this tester ID into the session buffer."""
 
         while True:
-            msg = self._canif.reader.get_from_id(self._tester_id_key, pop=True)
+            msg = self._canif.reader.get_from_id(self._tester_id_key, pop=True, queue_name="cantp")
             if msg is None:
                 return
             payload = HexArr2StrArr(msg.data)
