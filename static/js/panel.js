@@ -67,7 +67,25 @@ const initPanel = () => {
     restoring: false,
   };
 
+  const history = {
+    snapshots: [],
+    index: -1,
+  };
+
   const messageCache = new Map();
+  let knownMessages = [];
+
+  const loadMessageSuggestions = async () => {
+    try {
+      const response = await fetch('/api/dbc/messages');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(data?.messages)) return;
+      knownMessages = data.messages.map((entry) => entry.name).filter(Boolean);
+      propertiesPanel.setMessageOptions(knownMessages);
+    } catch (err) {
+      console.warn('Failed to load message suggestions', err);
+    }
+  };
 
   const fetchMessageInfo = async (messageName) => {
     const key = messageName.trim();
@@ -354,6 +372,7 @@ const initPanel = () => {
         throw new Error('Invalid panel layout');
       }
       applyLayout(layout);
+      recordSnapshot();
       await saveLayout();
     } catch (err) {
       console.error('Panel import failed', err);
@@ -380,6 +399,24 @@ const initPanel = () => {
 
   const validateLayout = (layout) => layout && typeof layout === 'object' && Array.isArray(layout.widgets);
 
+  let snapshotTimer = null;
+  let saveTimer = null;
+
+  const recordSnapshot = () => {
+    if (state.restoring) return;
+    const serialized = JSON.stringify(buildLayout());
+    if (history.snapshots[history.index] === serialized) return;
+    history.snapshots = history.snapshots.slice(0, history.index + 1);
+    history.snapshots.push(serialized);
+    history.index = history.snapshots.length - 1;
+  };
+
+  const scheduleSnapshot = () => {
+    if (state.restoring) return;
+    clearTimeout(snapshotTimer);
+    snapshotTimer = setTimeout(recordSnapshot, 150);
+  };
+
   const applyLayout = (layout) => {
     state.restoring = true;
     if (layout.grid) {
@@ -390,8 +427,19 @@ const initPanel = () => {
     state.restoring = false;
   };
 
-  let saveTimer = null;
+  const restoreSnapshot = (direction) => {
+    if (!history.snapshots.length) return;
+    const nextIndex = history.index + direction;
+    if (nextIndex < 0 || nextIndex >= history.snapshots.length) return;
+    state.restoring = true;
+    applyLayout(JSON.parse(history.snapshots[nextIndex]));
+    history.index = nextIndex;
+    state.restoring = false;
+    scheduleSave();
+  };
+
   const scheduleSave = () => {
+    scheduleSnapshot();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveLayout().catch((err) => console.warn(err));
@@ -451,7 +499,24 @@ const initPanel = () => {
   };
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (e.ctrlKey && e.shiftKey) {
+      const key = e.key?.toLowerCase();
+      if (key === 'z') {
+        e.preventDefault();
+        restoreSnapshot(-1);
+        return;
+      }
+      if (key === 'y') {
+        e.preventDefault();
+        restoreSnapshot(1);
+        return;
+      }
+    }
+
+    if (e.key === 'Delete') {
+      if (state.mode !== 'edit') return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
       if (window.currentSelectedWidget) {
         const id = window.currentSelectedWidget.dataset.widgetId;
         widgetManager.removeWidget(id);
@@ -461,7 +526,8 @@ const initPanel = () => {
   });
 
   setScriptMode(false);
-  loadLayout();
+  loadLayout().finally(() => recordSnapshot());
+  loadMessageSuggestions();
   setMode('edit');
   setupSocketBridge();
 };
