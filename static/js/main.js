@@ -8,6 +8,8 @@ import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
 import { initDiag } from './diag.js';
 import { initGraphic } from './graphic/index.js';
+import { initBusloadMonitor } from './busload.js';
+import { initProfileManager } from './profile.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
@@ -17,15 +19,12 @@ const SOCKET_SOURCES = ['/socket.io/socket.io.js', 'https://cdn.socket.io/4.7.5/
 const setSocketStatus = (message, tone = 'info') => {
   const el = $('#socket-status');
   if (!el) return;
-  if (!message) {
-    el.textContent = '';
-    el.hidden = true;
+  el.textContent = message || '—';
+  if (tone) {
+    el.dataset.tone = tone;
+  } else {
     el.removeAttribute('data-tone');
-    return;
   }
-  el.textContent = message;
-  el.hidden = false;
-  el.dataset.tone = tone;
 };
 
 const loadScript = (src) =>
@@ -262,7 +261,7 @@ const bootstrap = async () => {
 
   if (socketReady) {
     socket.on('connect', () => {
-      setSocketStatus('', 'info');
+      setSocketStatus('Connected', 'success');
     });
     socket.on('disconnect', () => {
       setSocketStatus('Socket disconnected. Live updates paused.', 'warning');
@@ -285,6 +284,8 @@ const bootstrap = async () => {
   initMessages({ socket, ...tabContext, stimApi });
   initDiag({ socket, ...tabContext });
   initGraphic({ socket, ...tabContext });
+  initBusloadMonitor();
+  initProfileManager();
 
   setActiveTab(activeTab);
 };
