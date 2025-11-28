@@ -24,6 +24,11 @@ export function initBusloadMonitor({ targetId = '#busload-status', windowSec = 5
   if (!target) return () => {};
 
   const buffer = [];
+  const busRateKbps = (() => {
+    const raw = target.dataset.rateKbps;
+    const value = Number(raw === undefined ? 500 : raw);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  })();
 
   const prune = (now) => {
     while (buffer.length && now - buffer[0].ts > windowSec) {
@@ -34,16 +39,17 @@ export function initBusloadMonitor({ targetId = '#busload-status', windowSec = 5
   const render = () => {
     const now = monotonicSeconds();
     prune(now);
-    if (!buffer.length) {
+    if (!buffer.length || !busRateKbps) {
       target.textContent = '—';
       target.removeAttribute('data-tone');
       return;
     }
     const duration = Math.max(now - buffer[0].ts, 0.5);
     const bits = buffer.reduce((sum, item) => sum + item.bits, 0);
-    const kbps = (bits / duration) / 1000;
-    target.textContent = `${kbps.toFixed(1)} kbps`;
-    target.dataset.tone = kbps > 750 ? 'warning' : 'info';
+    const bitsPerSecond = bits / duration;
+    const loadPct = (bitsPerSecond / (busRateKbps * 1000)) * 100;
+    target.textContent = `${Math.min(loadPct, 999).toFixed(1)}%`;
+    target.dataset.tone = loadPct > 85 ? 'warning' : 'info';
   };
 
   const onEntry = (entry) => {

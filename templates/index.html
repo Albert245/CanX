@@ -116,25 +116,12 @@
       </section>
 
       <section id="tab-diag" class="tab">
-        <div class="toolbar diag-toolbar">
-          <label>ECU ID <input id="ecu-id" type="text" value="7E0" /></label>
-          <label>Tester ID <input id="tester-id" type="text" value="7E8" /></label>
-          <div class="diag-dll-picker">
-            <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
-            <button id="btn-dll-browse" type="button">Browse…</button>
-            <input id="diag-dll-file" type="file" accept=".dll" hidden />
-          </div>
-          <button id="btn-diag-config">Configure</button>
-        </div>
-
         <div class="diag-columns">
           <div class="diag-pane" data-group="functional">
             <div class="toolbar diag-toolbar" data-group="functional">
               <label>Functional Request (HEX)
                 <textarea id="diag-functional-raw" rows="2" wrap="soft" placeholder="e.g. 10 01"></textarea>
               </label>
-              <label>Target ID <input id="diag-functional-id" type="text" value="7DF" /></label>
-              <label>Timeout (ms) <input id="diag-functional-timeout" type="number" value="500" /></label>
               <button id="btn-functional-send">Send</button>
               <button id="btn-functional-add" class="diag-add-btn">Add</button>
             </div>
@@ -146,8 +133,6 @@
               <label>Physical Request (HEX)
                 <textarea id="diag-physical-raw" rows="2" wrap="soft" placeholder="e.g. 22 F1 90"></textarea>
               </label>
-              <label>Target ID <input id="diag-physical-id" type="text" value="7E0" /></label>
-              <label>Timeout (ms) <input id="diag-physical-timeout" type="number" value="500" /></label>
               <button id="btn-physical-send">Send</button>
               <button id="btn-physical-add" class="diag-add-btn">Add</button>
             </div>
@@ -164,15 +149,14 @@
         </div>
 
         <div class="toolbar diag-toolbar">
-          <label>Unlock ECU ID <input id="diag-unlock-ecu" type="text" placeholder="(defaults to ECU ID)" /></label>
           <button id="btn-diag-unlock">Unlock Security</button>
           <span id="diag-unlock-status"></span>
+          <div class="diag-toolbar-note">Uses configured Physical/Functional IDs</div>
         </div>
 
-        <div class="toolbar diag-toolbar">
-          <label>Tester Present every <input id="tp-interval" type="number" value="2000" /> ms</label>
-          <button id="btn-tp-start">Start</button>
-          <button id="btn-tp-stop">Stop</button>
+        <div class="toolbar diag-toolbar tp-toolbar">
+          <button id="btn-tp-toggle" class="toggle-btn tp-toggle" type="button" aria-pressed="false">Start TP</button>
+          <div class="diag-toolbar-note">Interval configured in Settings</div>
         </div>
 
         <div class="diag-log" id="diag-log"></div>
@@ -407,11 +391,48 @@
             </div>
             <span id="init-status" class="init-status" role="status" aria-live="polite"></span>
           </div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <h3>Diagnostics</h3>
+              <p>Configure IDs, timeouts, and security helper settings.</p>
+            </div>
+            <div class="settings-fields diag-settings-grid">
+              <label>Functional ID
+                <input id="diag-functional-id" type="text" value="7DF" />
+              </label>
+              <label>Functional Timeout (ms)
+                <input id="diag-functional-timeout" type="number" value="500" />
+              </label>
+              <label>Physical ID
+                <input id="diag-physical-id" type="text" value="7E0" />
+              </label>
+              <label>Physical Timeout (ms)
+                <input id="diag-physical-timeout" type="number" value="500" />
+              </label>
+              <label>Tester ID
+                <input id="tester-id" type="text" value="7E8" />
+              </label>
+              <div class="diag-dll-picker">
+                <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
+                <button id="btn-dll-browse" type="button">Browse…</button>
+                <input id="diag-dll-file" type="file" accept=".dll" hidden />
+              </div>
+              <label>Tester Present Interval (ms)
+                <input id="tp-interval" type="number" value="2000" />
+              </label>
+            </div>
+            <div class="diag-settings-actions">
+              <button id="btn-diag-config" type="button">Configure Diagnostics</button>
+              <span class="diag-settings-hint">Configure uses Physical ID, or Functional ID if Physical is empty.</span>
+            </div>
+          </div>
         </div>
       </section>
     </main>
 
     <footer class="app-footer" aria-label="Status bar">
+      <div class="footer-spacer" aria-hidden="true"></div>
       <div class="footer-slot">
         <span class="footer-label">Device</span>
         <span id="device-status" class="footer-value" aria-live="polite">Disconnected</span>
@@ -422,7 +443,7 @@
       </div>
       <div class="footer-slot">
         <span class="footer-label">Bus Load</span>
-        <span id="busload-status" class="footer-value" aria-live="polite">—</span>
+        <span id="busload-status" class="footer-value" aria-live="polite" data-rate-kbps="500">—</span>
       </div>
     </footer>
 
