@@ -17,6 +17,13 @@ import {
 } from './message-bus.js';
 import { configureDiagnosticsFromSettings } from './diag.js';
 import { startReceiverNodeFromSettings } from './node_control.js';
+import {
+  applyStoredSignalsToForm,
+  reapplyStoreToVisibleForms,
+  saveMessageSignals,
+  seedMessagesFromSnapshots,
+  syncStoredSignals,
+} from './message-store.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -39,6 +46,7 @@ export function initMessages({ socket, stimApi } = {}) {
   const deviceStatusEl = $('#device-status');
   const dbcStatusEl = $('#dbc-status');
   const diagStatusEl = $('#diag-status');
+  const detailsEl = $('#msg-details');
 
   const setInitStatus = (text, tone = 'info') => {
     if (!initStatusEl) return;
@@ -152,6 +160,9 @@ export function initMessages({ socket, stimApi } = {}) {
     if (form) {
       form.innerHTML = '';
     }
+    if (detailsEl) {
+      detailsEl.removeAttribute('data-message');
+    }
     setStatusText(null);
     setToggleState(null);
     renderMeta();
@@ -187,6 +198,9 @@ export function initMessages({ socket, stimApi } = {}) {
     if (titleEl) {
       titleEl.textContent = `${message.name} - ${message.id_hex}`;
     }
+    if (detailsEl) {
+      detailsEl.dataset.message = message.name;
+    }
     if (form) {
       form.innerHTML = '';
     }
@@ -209,6 +223,9 @@ export function initMessages({ socket, stimApi } = {}) {
       }
     }
     currentMessageInfo = json.ok ? json.message || {} : {};
+    if (form) {
+      applyStoredSignalsToForm(message.name, form);
+    }
     setRunningState(message.name, !!currentMessageInfo.running);
     renderMessageList();
   }
@@ -327,6 +344,8 @@ export function initMessages({ socket, stimApi } = {}) {
       Object.entries(snapshots).forEach(([msgName, applied]) => {
         notifyMessageSignalsUpdated(msgName, applied, { source: 'reset' });
       });
+      seedMessagesFromSnapshots(snapshots);
+      reapplyStoreToVisibleForms();
       setInitStatus('Messages reset to default values.', 'success');
     } catch (err) {
       setInitStatus(err.message || 'Failed to reset messages.', 'error');
@@ -387,6 +406,9 @@ export function initMessages({ socket, stimApi } = {}) {
         throw new Error('Failed to toggle message');
       }
       await selectMessage(currentMessage);
+      if (!isRunning && currentMessage?.name) {
+        await syncStoredSignals(currentMessage.name);
+      }
       notifyMessageStateChange(currentMessage.name, !isRunning, { source: 'messages' });
     } catch (err) {
       window.alert(err.message || 'Failed to toggle message');
@@ -408,28 +430,36 @@ export function initMessages({ socket, stimApi } = {}) {
       message_name: currentMessage.name,
       signals,
     };
+    let applied = null;
+    let succeeded = false;
     const res = await fetch('/api/periodic/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     const js = await res.json().catch(() => ({ ok: false }));
-    if (!js.ok) {
-      window.alert(js.error || 'Failed to update signals');
-      return;
-    }
-    applySignalUpdates(form, js.applied || {});
-    let applied = js.applied;
-    if (!applied || !Object.keys(applied).length) {
-      const derived = {};
-      Object.entries(signals).forEach(([name, info]) => {
-        if (!info) return;
-        derived[name] = { ...info };
-      });
-      applied = Object.keys(derived).length ? derived : null;
-    }
-    if (applied) {
-      notifyMessageSignalsUpdated(currentMessage.name, applied, { source: 'messages' });
+    try {
+      if (!js.ok) {
+        throw new Error(js.error || 'Failed to update signals');
+      }
+      applySignalUpdates(form, js.applied || {});
+      applied = js.applied;
+      if (!applied || !Object.keys(applied).length) {
+        const derived = {};
+        Object.entries(signals).forEach(([name, info]) => {
+          if (!info) return;
+          derived[name] = { ...info };
+        });
+        applied = Object.keys(derived).length ? derived : null;
+      }
+      if (applied) {
+        notifyMessageSignalsUpdated(currentMessage.name, applied, { source: 'messages' });
+      }
+      succeeded = true;
+    } catch (err) {
+      window.alert(err.message || 'Failed to update signals');
+    } finally {
+      saveMessageSignals(currentMessage.name, { signals, applied, pending: !succeeded });
     }
   });
 
@@ -462,10 +492,14 @@ export function initMessages({ socket, stimApi } = {}) {
   onMessageStateChange(({ message, running, source }) => {
     if (source === 'messages' || !message) return;
     setRunningState(message, !!running);
+    if (running) {
+      syncStoredSignals(message);
+    }
   });
 
   onMessageSignalsUpdated(({ message, applied, source }) => {
     if (source === 'messages' || !message || !applied) return;
+    saveMessageSignals(message, { applied, pending: false });
     if (!currentMessage || currentMessage.name !== message || !form) return;
     applySignalUpdates(form, applied);
   });

@@ -9,6 +9,7 @@ import { initStim } from './stim.js';
 import { initDiag } from './diag.js';
 import { initGraphic } from './graphic/index.js';
 import { initBusloadMonitor } from './busload.js';
+import { initProfileManager } from './profile.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
@@ -284,6 +285,7 @@ const bootstrap = async () => {
   initDiag({ socket, ...tabContext });
   initGraphic({ socket, ...tabContext });
   initBusloadMonitor();
+  initProfileManager();
 
   setActiveTab(activeTab);
 };

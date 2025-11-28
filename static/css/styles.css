@@ -242,6 +242,13 @@ main {
   align-items: center;
 }
 
+.profile-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .channel-padding-row,
 .dbc-node-row {
   align-items: center;
