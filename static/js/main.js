@@ -8,6 +8,7 @@ import { initMessages } from './messages.js';
 import { initStim } from './stim.js';
 import { initDiag } from './diag.js';
 import { initGraphic } from './graphic/index.js';
+import { initBusloadMonitor } from './busload.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 const $$ = (selector, ctx = document) => Array.from(ctx.querySelectorAll(selector));
@@ -285,6 +286,7 @@ const bootstrap = async () => {
   initMessages({ socket, ...tabContext, stimApi });
   initDiag({ socket, ...tabContext });
   initGraphic({ socket, ...tabContext });
+  initBusloadMonitor();
 
   setActiveTab(activeTab);
 };
