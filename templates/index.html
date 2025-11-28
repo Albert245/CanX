@@ -417,19 +417,6 @@
 
           <div class="settings-card">
             <div class="settings-card-header">
-              <h3>Profiles</h3>
-              <p>Export or import settings, message values, and panels.</p>
-            </div>
-            <div class="settings-fields profile-actions">
-              <button id="profile-export" type="button">Export Profile</button>
-              <button id="profile-import" type="button">Import Profile</button>
-              <input id="profile-import-file" type="file" accept="application/json" hidden />
-            </div>
-            <p class="field-note">Profiles include message overrides, settings, and panel layouts.</p>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-card-header">
               <h3>Diagnostics</h3>
               <p>Configure IDs, timeouts, and security helper settings.</p>
             </div>
@@ -468,6 +455,21 @@
                 </label>
               </div>
             </div>
+          </div>
+
+          <div class="settings-card settings-spacer" aria-hidden="true"></div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <h3>Profiles</h3>
+              <p>Export or import settings, message values, and panels.</p>
+            </div>
+            <div class="settings-fields profile-actions">
+              <button id="profile-export" type="button">Export Profile</button>
+              <button id="profile-import" type="button">Import Profile</button>
+              <input id="profile-import-file" type="file" accept="application/json" hidden />
+            </div>
+            <p class="field-note">Profiles include message overrides, settings, and panel layouts.</p>
           </div>
         </div>
       </section>
