@@ -15,6 +15,11 @@ import {
   onMessageSignalsUpdated,
   onMessageStateChange,
 } from './message-bus.js';
+import {
+  applyStoredSignalsToForm,
+  saveMessageSignals,
+  syncStoredSignals,
+} from './message-store.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -91,6 +96,9 @@ export function initStim({ onTabChange } = {}) {
         throw new Error(error);
       }
       await loadMessageSignals(detail, messageName);
+      if (!running) {
+        await syncStoredSignals(messageName, { endpoint: '/api/stim/update' });
+      }
       updateNodeStatusFromMessages(detail.closest('.stim-node'));
     } catch (err) {
       if (status) {
@@ -125,6 +133,11 @@ export function initStim({ onTabChange } = {}) {
           setMessageRunning(msgDetail, !!statuses[name]);
         }
       });
+      for (const [name, isRunning] of Object.entries(statuses)) {
+        if (isRunning) {
+          await syncStoredSignals(name, { endpoint: '/api/stim/update' });
+        }
+      }
       updateNodeStatusFromMessages(detail);
       setStimStatus('');
     } catch (err) {
@@ -220,6 +233,7 @@ export function initStim({ onTabChange } = {}) {
           .forEach((sig) => {
             body.appendChild(buildSignalRow(sig));
           });
+        applyStoredSignalsToForm(messageName, body);
       }
     } catch (err) {
       if (body) {
@@ -241,6 +255,8 @@ export function initStim({ onTabChange } = {}) {
     if (status) status.textContent = 'updating';
     const signals = collectSignalValues(wrapper);
     const payload = { message_name: messageName, signals };
+    let applied = null;
+    let succeeded = false;
     try {
       const res = await fetch('/api/stim/update', {
         method: 'POST',
@@ -255,15 +271,19 @@ export function initStim({ onTabChange } = {}) {
       if (signalsContainer) {
         applySignalUpdates(signalsContainer, js.applied || {});
       }
+      applied = js.applied || null;
       if (typeof js.running === 'boolean') {
         setMessageRunning(wrapper, js.running);
       }
-      if (js.applied && Object.keys(js.applied).length) {
-        notifyMessageSignalsUpdated(messageName, js.applied, { source: 'stim' });
+      if (applied && Object.keys(applied).length) {
+        notifyMessageSignalsUpdated(messageName, applied, { source: 'stim' });
       }
       updateNodeStatusFromMessages(wrapper.closest('.stim-node'));
+      succeeded = true;
     } catch (err) {
       if (status) status.textContent = `error: ${err.message}`;
+    } finally {
+      saveMessageSignals(messageName, { signals, applied, pending: !succeeded });
     }
   };
 
@@ -444,10 +464,14 @@ export function initStim({ onTabChange } = {}) {
     if (!detail) return;
     setMessageRunning(detail, !!running, { silent: true });
     updateNodeStatusFromMessages(detail.closest('.stim-node'));
+    if (running) {
+      syncStoredSignals(message, { endpoint: '/api/stim/update' });
+    }
   });
 
   onMessageSignalsUpdated(({ message, applied, source }) => {
     if (source === 'stim' || !message || !applied) return;
+    saveMessageSignals(message, { applied, pending: false });
     const detail = stimContainer?.querySelector(`.stim-message[data-message="${message}"]`);
     if (!detail) return;
     const body = detail.querySelector('.stim-signals');
