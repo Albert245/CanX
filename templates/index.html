@@ -354,9 +354,14 @@
                   <option value="MockCAN">MockCAN</option>
                 </select>
               </label>
-              <label>Channel
-                <input id="channel" type="number" value="0" min="0" />
-              </label>
+              <div class="settings-inline channel-padding-row">
+                <label>Channel
+                  <input id="channel" type="number" value="0" min="0" />
+                </label>
+                <label>Padding
+                  <input id="padding" type="text" value="00" size="3" />
+                </label>
+              </div>
               <div class="mode-field">
                 <span class="mode-label">Mode</span>
                 <div class="mode-options" role="radiogroup" aria-label="Bus mode">
@@ -368,9 +373,6 @@
                   </label>
                 </div>
               </div>
-              <label>Padding
-                <input id="padding" type="text" value="00" size="3" />
-              </label>
             </div>
           </div>
 
@@ -387,18 +389,18 @@
                 </div>
                 <input id="dbc-file" type="file" accept=".dbc" hidden />
               </label>
-              <div class="settings-inline">
+              <div class="settings-inline dbc-node-row">
                 <label>Node
                   <input id="dbc-node" type="text" placeholder="e.g. CGW_CCU" />
                 </label>
-                <div class="field-note-block">
-                  <label class="toggle-inline">
-                    <input id="receiver-activate-all" type="checkbox" checked />
-                    Active all receiver's messages
-                  </label>
-                  <p class="field-note">All messages this node receives will auto-activate when active.</p>
-                </div>
+                <label class="settings-toggle" aria-label="Activate all receiver messages">
+                  <input id="receiver-activate-all" type="checkbox" checked />
+                  <span class="settings-toggle-track" aria-hidden="true">
+                    <span class="settings-toggle-thumb"></span>
+                  </span>
+                </label>
               </div>
+              <p class="field-note dbc-node-note">All messages this node receives will auto-activate when active.</p>
             </div>
           </div>
 

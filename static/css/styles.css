@@ -190,14 +190,14 @@ main {
 
 .settings-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 220px));
+  grid-template-columns: repeat(auto-fill, minmax(176px, 176px));
   gap: 8px;
   align-items: flex-end;
   justify-content: flex-start;
 }
 
 .diag-settings-grid {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 230px));
+  grid-template-columns: repeat(auto-fill, minmax(184px, 184px));
 }
 
 .diag-settings-actions {
@@ -216,7 +216,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: 220px;
+  max-width: 176px;
 }
 
 .settings-fields label.wide {
@@ -232,7 +232,7 @@ main {
 
 .settings-inline {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 220px));
+  grid-template-columns: repeat(auto-fit, minmax(176px, 176px));
   gap: 8px;
   align-items: end;
   grid-column: 1 / -1;
@@ -242,11 +242,69 @@ main {
   align-items: center;
 }
 
+.channel-padding-row,
+.dbc-node-row {
+  align-items: center;
+}
+
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-toggle-track {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  box-sizing: border-box;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.settings-toggle-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.settings-toggle input:checked + .settings-toggle-track {
+  background: rgba(122, 199, 255, 0.15);
+  border-color: var(--accent);
+}
+
+.settings-toggle input:checked + .settings-toggle-track .settings-toggle-thumb {
+  transform: translateX(20px);
+  background: var(--accent);
+}
+
+.dbc-node-note {
+  grid-column: 1 / -1;
+}
+
 .field-note-block {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: 220px;
+  max-width: 176px;
   align-self: stretch;
   justify-content: center;
 }
@@ -282,7 +340,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 220px;
+  max-width: 176px;
 }
 
 .mode-options {
