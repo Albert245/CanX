@@ -18,7 +18,7 @@ import {
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
-export function initMessages({ stimApi } = {}) {
+export function initMessages({ socket, stimApi } = {}) {
   let currentMessage = null;
   let currentMessageInfo = null;
   let messages = [];
@@ -34,6 +34,8 @@ export function initMessages({ stimApi } = {}) {
   const initStatusEl = $('#init-status');
   const connectionToggle = $('#btn-connection-toggle');
   const resetMessagesBtn = $('#btn-reset-signals');
+  const deviceStatusEl = $('#device-status');
+  const dbcStatusEl = $('#dbc-status');
 
   const setInitStatus = (text, tone = 'info') => {
     if (!initStatusEl) return;
@@ -44,6 +46,29 @@ export function initMessages({ stimApi } = {}) {
     }
     initStatusEl.textContent = text;
     initStatusEl.dataset.tone = tone;
+  };
+
+  const setFooterValue = (el, text, tone = 'info') => {
+    if (!el) return;
+    el.textContent = text || '—';
+    if (!tone) {
+      el.removeAttribute('data-tone');
+    } else {
+      el.dataset.tone = tone;
+    }
+  };
+
+  const updateDeviceStatus = () => {
+    const deviceName = $('#device')?.value || 'Device';
+    const label = busConnected ? `${deviceName} connected` : 'Disconnected';
+    const tone = busConnected ? 'success' : 'info';
+    setFooterValue(deviceStatusEl, label, tone);
+  };
+
+  const updateDbcStatus = () => {
+    const tone = dbcLoaded ? 'success' : 'warning';
+    const label = dbcLoaded ? 'DBC loaded' : 'Not loaded';
+    setFooterValue(dbcStatusEl, label, tone);
   };
 
   const updateConnectionButton = () => {
@@ -214,6 +239,8 @@ export function initMessages({ stimApi } = {}) {
       connectionToggle.disabled = false;
       updateConnectionButton();
       updateResetButtonState();
+      updateDeviceStatus();
+      updateDbcStatus();
     }
   };
 
@@ -221,6 +248,13 @@ export function initMessages({ stimApi } = {}) {
     if (!connectionToggle) return;
     connectionToggle.disabled = true;
     connectionToggle.textContent = 'Disconnecting…';
+    if (socket && typeof socket.emit === 'function') {
+      try {
+        socket.emit('stop_trace');
+      } catch (err) {
+        console.warn('Failed to stop log during disconnect', err);
+      }
+    }
     try {
       const response = await fetch('/api/shutdown', { method: 'POST' });
       const json = await response.json().catch(() => ({}));
@@ -237,6 +271,8 @@ export function initMessages({ stimApi } = {}) {
       connectionToggle.disabled = false;
       updateConnectionButton();
       updateResetButtonState();
+      updateDeviceStatus();
+      updateDbcStatus();
     }
   };
 
@@ -278,6 +314,8 @@ export function initMessages({ stimApi } = {}) {
 
   updateConnectionButton();
   updateResetButtonState();
+  updateDeviceStatus();
+  updateDbcStatus();
 
   const loadDbcButton = $('#btn-load-dbc');
   loadDbcButton?.addEventListener('click', async () => {
@@ -289,6 +327,8 @@ export function initMessages({ stimApi } = {}) {
     clearCurrentMessageView();
     dbcLoaded = true;
     updateResetButtonState();
+    updateDbcStatus();
+    updateDeviceStatus();
     if (stimApi) {
       stimApi.resetNodes?.();
       await stimApi.loadNodes?.();

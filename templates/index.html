@@ -16,30 +16,10 @@
           <img src="{{ url_for('static', filename='img/logo.png') }}" alt="CanX logo" />
           <span>CanX</span>
         </a>
-      </div>
-      <div class="init-form">
-        <select id="device">
-          <option value="PCAN">PCAN</option>
-          <option value="CANalyzer">CANalyzer</option>
-          <option value="CANoe">CANoe</option>
-          <option value="CANape">CANape</option>
-          <option value="VirtualCAN">VirtualCAN</option>
-          <option value="MockCAN">MockCAN</option>
-        </select>
-        <label>Channel <input id="channel" type="number" value="0" min="0" /></label>
-        <label>CAN FD <input id="is_fd" type="checkbox" /></label>
-        <label>Padding <input id="padding" type="text" value="00" size="3" /></label>
-        <div class="dbc-picker">
-          <label>DBC <input id="dbc_path" type="text" placeholder="path/to/file.dbc" size="28" /></label>
-          <button id="btn-dbc-browse" type="button">Browse…</button>
-          <input id="dbc-file" type="file" accept=".dbc" hidden />
-        </div>
-        <div class="init-actions">
+        <div class="connection-actions" role="group" aria-label="Connection controls">
           <button id="btn-connection-toggle" type="button" aria-pressed="false">Connect</button>
-          <button id="btn-reset-signals" type="button" disabled>Initialize</button>
           <button id="btn-log-toggle" type="button" aria-pressed="false">Start Log</button>
         </div>
-        <span id="init-status" class="init-status" role="status" aria-live="polite"></span>
       </div>
       <nav>
         <button class="tab-btn active" data-tab="trace">Trace</button>
@@ -49,6 +29,7 @@
         <button class="tab-btn" data-tab="diag">Diagnostics</button>
         <button class="tab-btn" data-tab="graphic">Graphic</button>
         <button class="tab-btn" data-tab="panel">Panel</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
       </nav>
       <div id="socket-status" class="app-status" role="alert" hidden></div>
     </header>
@@ -371,7 +352,79 @@
           </div>
         </div>
       </section>
+
+      <section id="tab-settings" class="tab">
+        <div class="settings-grid">
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <h3>Device Configuration</h3>
+              <p>Choose the CAN interface and defaults.</p>
+            </div>
+            <div class="settings-fields">
+              <label>Device
+                <select id="device">
+                  <option value="PCAN">PCAN</option>
+                  <option value="CANalyzer">CANalyzer</option>
+                  <option value="CANoe">CANoe</option>
+                  <option value="CANape">CANape</option>
+                  <option value="VirtualCAN">VirtualCAN</option>
+                  <option value="MockCAN">MockCAN</option>
+                </select>
+              </label>
+              <label>Channel
+                <input id="channel" type="number" value="0" min="0" />
+              </label>
+              <label>CAN FD
+                <input id="is_fd" type="checkbox" />
+              </label>
+              <label>Padding
+                <input id="padding" type="text" value="00" size="3" />
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <h3>DBC</h3>
+              <p>Select and upload your DBC file.</p>
+            </div>
+            <div class="dbc-picker">
+              <label>DBC Path
+                <input id="dbc_path" type="text" placeholder="path/to/file.dbc" size="28" />
+              </label>
+              <button id="btn-dbc-browse" type="button">Browse…</button>
+              <input id="dbc-file" type="file" accept=".dbc" hidden />
+            </div>
+          </div>
+
+          <div class="settings-card settings-actions">
+            <div class="settings-card-header">
+              <h3>Actions</h3>
+              <p>Apply configuration and prepare message defaults.</p>
+            </div>
+            <div class="init-actions">
+              <button id="btn-reset-signals" type="button" disabled>Initialize</button>
+            </div>
+            <span id="init-status" class="init-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <footer class="app-footer" aria-label="Status bar">
+      <div class="footer-slot">
+        <span class="footer-label">Device</span>
+        <span id="device-status" class="footer-value" aria-live="polite">Disconnected</span>
+      </div>
+      <div class="footer-slot">
+        <span class="footer-label">DBC</span>
+        <span id="dbc-status" class="footer-value" aria-live="polite">Not loaded</span>
+      </div>
+      <div class="footer-slot">
+        <span class="footer-label">Bus Load</span>
+        <span id="busload-status" class="footer-value" aria-live="polite">—</span>
+      </div>
+    </footer>
 
     <script src="https://cdn.socket.io/3.1.3/socket.io.min.js"></script>
     <script type="module" src="/static/js/main.js"></script>
