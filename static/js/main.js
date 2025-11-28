@@ -61,6 +61,23 @@ const ensureSocketIo = async () => {
   return null;
 };
 
+const equalizeSettingsCardHeights = () => {
+  const cards = $$('.settings-card');
+  if (!cards.length) return;
+
+  cards.forEach((card) => {
+    card.style.minHeight = '';
+  });
+
+  const maxHeight = Math.max(
+    ...cards.map((card) => Math.ceil(card.getBoundingClientRect().height)),
+  );
+
+  cards.forEach((card) => {
+    card.style.minHeight = `${maxHeight}px`;
+  });
+};
+
 const createSocketStub = () => {
   const warned = new Set();
   const warn = (method) => {
@@ -286,6 +303,11 @@ const bootstrap = async () => {
   initGraphic({ socket, ...tabContext });
   initBusloadMonitor();
   initProfileManager();
+
+  equalizeSettingsCardHeights();
+  window.addEventListener('resize', () => {
+    requestAnimationFrame(equalizeSettingsCardHeights);
+  });
 
   setActiveTab(activeTab);
 };
