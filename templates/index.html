@@ -387,9 +387,18 @@
                 </div>
                 <input id="dbc-file" type="file" accept=".dbc" hidden />
               </label>
-              <label>Node
-                <input id="dbc-node" type="text" placeholder="e.g. DATC" />
-              </label>
+              <div class="settings-inline">
+                <label>Node
+                  <input id="dbc-node" type="text" placeholder="e.g. CGW_CCU" />
+                </label>
+                <div class="field-note-block">
+                  <label class="toggle-inline">
+                    <input id="receiver-activate-all" type="checkbox" checked />
+                    Active all receiver's messages
+                  </label>
+                  <p class="field-note">All messages this node receives will auto-activate when active.</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -410,21 +419,30 @@
               <p>Configure IDs, timeouts, and security helper settings.</p>
             </div>
             <div class="settings-fields diag-settings-grid">
-              <label>Functional ID
-                <input id="diag-functional-id" type="text" value="7DF" />
-              </label>
-              <label>Functional Timeout (ms)
-                <input id="diag-functional-timeout" type="number" value="500" />
-              </label>
-              <label>Physical ID
-                <input id="diag-physical-id" type="text" value="7E0" />
-              </label>
-              <label>Physical Timeout (ms)
-                <input id="diag-physical-timeout" type="number" value="500" />
-              </label>
-              <label>Tester ID
-                <input id="tester-id" type="text" value="7E8" />
-              </label>
+              <div class="settings-inline diag-inline">
+                <label>Functional ID
+                  <input id="diag-functional-id" type="text" value="7DF" />
+                </label>
+                <label>Timeout (ms)
+                  <input id="diag-functional-timeout" type="number" value="500" />
+                </label>
+              </div>
+              <div class="settings-inline diag-inline">
+                <label>Physical ID
+                  <input id="diag-physical-id" type="text" value="7E0" />
+                </label>
+                <label>Timeout (ms)
+                  <input id="diag-physical-timeout" type="number" value="500" />
+                </label>
+              </div>
+              <div class="settings-inline diag-inline">
+                <label>Tester ID
+                  <input id="tester-id" type="text" value="7E8" />
+                </label>
+                <label>Tester Present Interval (ms)
+                  <input id="tp-interval" type="number" value="2000" />
+                </label>
+              </div>
               <div class="diag-dll-picker">
                 <label class="wide">Security DLL
                   <div class="picker-row">
@@ -434,9 +452,6 @@
                   <input id="diag-dll-file" type="file" accept=".dll" hidden />
                 </label>
               </div>
-              <label>Tester Present Interval (ms)
-                <input id="tp-interval" type="number" value="2000" />
-              </label>
             </div>
           </div>
         </div>

@@ -1,6 +1,10 @@
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
 export async function startReceiverNodeFromSettings() {
+  const featureToggle = document.querySelector('#receiver-activate-all');
+  if (featureToggle && !featureToggle.checked) {
+    return { ok: false, reason: 'feature-disabled' };
+  }
   const nodeName = $('#dbc-node')?.value.trim();
   if (!nodeName) return { ok: false, reason: 'missing-node' };
   try {
