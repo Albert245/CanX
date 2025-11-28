@@ -18,15 +18,12 @@ const SOCKET_SOURCES = ['/socket.io/socket.io.js', 'https://cdn.socket.io/4.7.5/
 const setSocketStatus = (message, tone = 'info') => {
   const el = $('#socket-status');
   if (!el) return;
-  if (!message) {
-    el.textContent = '';
-    el.hidden = true;
+  el.textContent = message || '—';
+  if (tone) {
+    el.dataset.tone = tone;
+  } else {
     el.removeAttribute('data-tone');
-    return;
   }
-  el.textContent = message;
-  el.hidden = false;
-  el.dataset.tone = tone;
 };
 
 const loadScript = (src) =>
@@ -263,7 +260,7 @@ const bootstrap = async () => {
 
   if (socketReady) {
     socket.on('connect', () => {
-      setSocketStatus('', 'info');
+      setSocketStatus('Connected', 'success');
     });
     socket.on('disconnect', () => {
       setSocketStatus('Socket disconnected. Live updates paused.', 'warning');

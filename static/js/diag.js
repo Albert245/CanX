@@ -21,6 +21,8 @@ const diagGroups = {
   },
 };
 
+let diagLogAppender = null;
+
 const getConfiguredEcuId = () => {
   const physical = $('#diag-physical-id')?.value.trim();
   if (physical) return physical;
@@ -119,6 +121,52 @@ const attachHexFormatter = (selector) => {
   handler();
 };
 
+export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
+  const ecuId = getConfiguredEcuId();
+  if (!ecuId) {
+    diagLogAppender?.({
+      label: 'Diagnostics Config',
+      error: 'Provide a Physical or Functional ID in Settings',
+    });
+    reportStatus?.('Diagnostics not configured', 'error');
+    return { ok: false, error: 'Missing ECU ID' };
+  }
+  const testerId = $('#tester-id')?.value.trim();
+  const payload = { ecu_id: ecuId };
+  if (testerId) payload.tester_id = testerId;
+  const dllInput = $('#diag-dll');
+  if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
+  reportStatus?.('Configuring…', 'info');
+  try {
+    const res = await fetch('/api/diag/configure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const js = await res.json().catch(() => ({ ok: false }));
+    if (js.ok) {
+      const ecu = js.ecu_id || payload.ecu_id;
+      const tester = js.tester_id || payload.tester_id || '—';
+      diagLogAppender?.({
+        label: 'Diagnostics Configured',
+        ecuId: `${ecu}/${tester}`,
+        request: js.dll ? `DLL: ${js.dll}` : payload.dll ? `DLL: ${payload.dll}` : undefined,
+      });
+      reportStatus?.(`Configured (${ecu})`, 'success');
+      return { ok: true, ecuId: ecu, testerId: tester, dll: js.dll || payload.dll };
+    }
+    const error = js.error || 'ERR';
+    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    reportStatus?.(error, 'error');
+    return { ok: false, error };
+  } catch (err) {
+    const error = err?.message || 'ERR';
+    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    reportStatus?.(error, 'error');
+    return { ok: false, error };
+  }
+}
+
 /**
  * Initialize the Diagnostics tab module.
  * @param {object} options
@@ -200,6 +248,8 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     renderDiagEntry(entry);
     diagLogScroll();
   };
+
+  diagLogAppender = addDiagLogEntry;
 
   /**
    * Re-render buffered entries when returning to the Diagnostics tab.
@@ -321,38 +371,6 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     });
     container.appendChild(btn);
   };
-
-  $('#btn-diag-config')?.addEventListener('click', async () => {
-    const ecuId = getConfiguredEcuId();
-    if (!ecuId) {
-      addDiagLogEntry({ label: 'Diagnostics Config', error: 'Provide a Physical or Functional ID in Settings' });
-      return;
-    }
-    const testerId = $('#tester-id')?.value.trim();
-    const payload = { ecu_id: ecuId };
-    if (testerId) payload.tester_id = testerId;
-    const dllInput = $('#diag-dll');
-    if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
-    try {
-      const res = await fetch('/api/diag/configure', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const js = await res.json().catch(() => ({ ok: false }));
-      if (js.ok) {
-        addDiagLogEntry({
-          label: 'Diagnostics Configured',
-          ecuId: `${js.ecu_id || payload.ecu_id}/${js.tester_id || payload.tester_id || '—'}`,
-          request: js.dll ? `DLL: ${js.dll}` : undefined,
-        });
-      } else {
-        addDiagLogEntry({ label: 'Diagnostics Config', error: js.error || 'ERR' });
-      }
-    } catch (err) {
-      addDiagLogEntry({ label: 'Diagnostics Config', error: err.message || 'ERR' });
-    }
-  });
 
   $('#btn-functional-send')?.addEventListener('click', () =>
     sendDiagRequest({ group: 'functional' }),

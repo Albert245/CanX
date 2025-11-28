@@ -31,7 +31,6 @@
         <button class="tab-btn" data-tab="panel">Panel</button>
         <button class="tab-btn" data-tab="settings">Settings</button>
       </nav>
-      <div id="socket-status" class="app-status" role="alert" hidden></div>
     </header>
 
     <main>
@@ -358,9 +357,17 @@
               <label>Channel
                 <input id="channel" type="number" value="0" min="0" />
               </label>
-              <label>CAN FD
-                <input id="is_fd" type="checkbox" />
-              </label>
+              <div class="mode-field">
+                <span class="mode-label">Mode</span>
+                <div class="mode-options" role="radiogroup" aria-label="Bus mode">
+                  <label>
+                    <input type="radio" name="bus-mode" value="can" checked /> CAN
+                  </label>
+                  <label>
+                    <input type="radio" name="bus-mode" value="iso-can-fd" /> ISO CAN FD
+                  </label>
+                </div>
+              </div>
               <label>Padding
                 <input id="padding" type="text" value="00" size="3" />
               </label>
@@ -372,12 +379,17 @@
               <h3>DBC</h3>
               <p>Select and upload your DBC file.</p>
             </div>
-            <div class="dbc-picker">
-              <label>DBC Path
-                <input id="dbc_path" type="text" placeholder="path/to/file.dbc" size="28" />
+            <div class="settings-fields">
+              <label class="wide">DBC Path
+                <div class="picker-row">
+                  <input id="dbc_path" type="text" placeholder="path/to/file.dbc" />
+                  <button id="btn-dbc-browse" type="button">Browse…</button>
+                </div>
+                <input id="dbc-file" type="file" accept=".dbc" hidden />
               </label>
-              <button id="btn-dbc-browse" type="button">Browse…</button>
-              <input id="dbc-file" type="file" accept=".dbc" hidden />
+              <label>Node
+                <input id="dbc-node" type="text" placeholder="e.g. DATC" />
+              </label>
             </div>
           </div>
 
@@ -414,17 +426,17 @@
                 <input id="tester-id" type="text" value="7E8" />
               </label>
               <div class="diag-dll-picker">
-                <label>Security DLL <input id="diag-dll" type="text" placeholder="path/to/security.dll" size="28" /></label>
-                <button id="btn-dll-browse" type="button">Browse…</button>
-                <input id="diag-dll-file" type="file" accept=".dll" hidden />
+                <label class="wide">Security DLL
+                  <div class="picker-row">
+                    <input id="diag-dll" type="text" placeholder="path/to/security.dll" />
+                    <button id="btn-dll-browse" type="button">Browse…</button>
+                  </div>
+                  <input id="diag-dll-file" type="file" accept=".dll" hidden />
+                </label>
               </div>
               <label>Tester Present Interval (ms)
                 <input id="tp-interval" type="number" value="2000" />
               </label>
-            </div>
-            <div class="diag-settings-actions">
-              <button id="btn-diag-config" type="button">Configure Diagnostics</button>
-              <span class="diag-settings-hint">Configure uses Physical ID, or Functional ID if Physical is empty.</span>
             </div>
           </div>
         </div>
@@ -440,6 +452,14 @@
       <div class="footer-slot">
         <span class="footer-label">DBC</span>
         <span id="dbc-status" class="footer-value" aria-live="polite">Not loaded</span>
+      </div>
+      <div class="footer-slot">
+        <span class="footer-label">Diagnostics</span>
+        <span id="diag-status" class="footer-value" aria-live="polite">Not configured</span>
+      </div>
+      <div class="footer-slot">
+        <span class="footer-label">Socket</span>
+        <span id="socket-status" class="footer-value" role="alert" aria-live="polite">Idle</span>
       </div>
       <div class="footer-slot">
         <span class="footer-label">Bus Load</span>
