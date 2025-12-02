@@ -593,6 +593,7 @@ def api_dbc_messages():
                 "is_extended": getattr(m, "is_extended_frame", False),
                 "senders": getattr(m, "senders", []),
                 "signals": [s.name for s in getattr(m, "signals", [])],
+                "running": _message_is_running(m),
             })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

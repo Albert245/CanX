@@ -368,6 +368,11 @@ export function initMessages({ socket, stimApi } = {}) {
     if (!json.ok) return;
     messages = json.messages || [];
     activeMessages.clear();
+    messages.forEach((msg) => {
+      if (msg?.name) {
+        activeMessages.set(msg.name, !!msg.running);
+      }
+    });
     clearCurrentMessageView();
     dbcLoaded = true;
     updateResetButtonState();

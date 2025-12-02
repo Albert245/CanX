@@ -258,6 +258,14 @@ main {
   align-items: center;
 }
 
+.dbc-node-row {
+  column-gap: 20px;
+}
+
+.dbc-node-row .settings-toggle {
+  align-self: end;
+}
+
 .settings-toggle {
   display: inline-flex;
   align-items: center;
