@@ -15,10 +15,19 @@ import {
   onMessageSignalsUpdated,
   onMessageStateChange,
 } from './message-bus.js';
+import { configureDiagnosticsFromSettings } from './diag.js';
+import { startReceiverNodeFromSettings } from './node_control.js';
+import {
+  applyStoredSignalsToForm,
+  reapplyStoreToVisibleForms,
+  saveMessageSignals,
+  seedMessagesFromSnapshots,
+  syncStoredSignals,
+} from './message-store.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
-export function initMessages({ stimApi } = {}) {
+export function initMessages({ socket, stimApi } = {}) {
   let currentMessage = null;
   let currentMessageInfo = null;
   let messages = [];
@@ -34,6 +43,10 @@ export function initMessages({ stimApi } = {}) {
   const initStatusEl = $('#init-status');
   const connectionToggle = $('#btn-connection-toggle');
   const resetMessagesBtn = $('#btn-reset-signals');
+  const deviceStatusEl = $('#device-status');
+  const dbcStatusEl = $('#dbc-status');
+  const diagStatusEl = $('#diag-status');
+  const detailsEl = $('#msg-details');
 
   const setInitStatus = (text, tone = 'info') => {
     if (!initStatusEl) return;
@@ -44,6 +57,33 @@ export function initMessages({ stimApi } = {}) {
     }
     initStatusEl.textContent = text;
     initStatusEl.dataset.tone = tone;
+  };
+
+  const setFooterValue = (el, text, tone = 'info') => {
+    if (!el) return;
+    el.textContent = text || '—';
+    if (!tone) {
+      el.removeAttribute('data-tone');
+    } else {
+      el.dataset.tone = tone;
+    }
+  };
+
+  const updateDeviceStatus = () => {
+    const deviceName = $('#device')?.value || 'Device';
+    const label = busConnected ? `${deviceName} connected` : 'Disconnected';
+    const tone = busConnected ? 'success' : 'info';
+    setFooterValue(deviceStatusEl, label, tone);
+  };
+
+  const updateDbcStatus = () => {
+    const tone = dbcLoaded ? 'success' : 'warning';
+    const label = dbcLoaded ? 'DBC loaded' : 'Not loaded';
+    setFooterValue(dbcStatusEl, label, tone);
+  };
+
+  const setDiagStatus = (text, tone = 'info') => {
+    setFooterValue(diagStatusEl, text || '—', tone);
   };
 
   const updateConnectionButton = () => {
@@ -120,6 +160,9 @@ export function initMessages({ stimApi } = {}) {
     if (form) {
       form.innerHTML = '';
     }
+    if (detailsEl) {
+      detailsEl.removeAttribute('data-message');
+    }
     setStatusText(null);
     setToggleState(null);
     renderMeta();
@@ -155,6 +198,9 @@ export function initMessages({ stimApi } = {}) {
     if (titleEl) {
       titleEl.textContent = `${message.name} - ${message.id_hex}`;
     }
+    if (detailsEl) {
+      detailsEl.dataset.message = message.name;
+    }
     if (form) {
       form.innerHTML = '';
     }
@@ -177,6 +223,9 @@ export function initMessages({ stimApi } = {}) {
       }
     }
     currentMessageInfo = json.ok ? json.message || {} : {};
+    if (form) {
+      applyStoredSignalsToForm(message.name, form);
+    }
     setRunningState(message.name, !!currentMessageInfo.running);
     renderMessageList();
   }
@@ -184,10 +233,21 @@ export function initMessages({ stimApi } = {}) {
   const buildInitPayload = () => ({
     device: $('#device')?.value,
     channel: Number($('#channel')?.value || 0),
-    is_fd: !!$('#is_fd')?.checked,
+    is_fd: document.querySelector('input[name="bus-mode"]:checked')?.value === 'iso-can-fd',
     padding: $('#padding')?.value || '00',
     dbc_path: $('#dbc_path')?.value || null,
   });
+
+  const maybeConfigureDiagnostics = async () => {
+    setDiagStatus('Configuring…', 'info');
+    const result = await configureDiagnosticsFromSettings({ reportStatus: setDiagStatus });
+    if (!result?.ok) {
+      setDiagStatus(result?.error || 'Diagnostics not configured', 'error');
+      return false;
+    }
+    setDiagStatus(`Configured (${result.ecuId})`, 'success');
+    return true;
+  };
 
   const connectBus = async () => {
     if (!connectionToggle) return;
@@ -208,12 +268,19 @@ export function initMessages({ stimApi } = {}) {
       dbcLoaded = !!json.dbc_loaded;
       setInitStatus(`Connected - DBC: ${json.dbc_loaded ? 'yes' : 'no'}`, json.dbc_loaded ? 'success' : 'warning');
       stimApi?.resetNodes?.();
+      await maybeConfigureDiagnostics();
+      if (dbcLoaded) {
+        await startReceiverNodeFromSettings();
+      }
     } catch (err) {
       setInitStatus(err.message || 'Failed to connect to CAN bus.', 'error');
+      setDiagStatus('Diagnostics not configured', 'error');
     } finally {
       connectionToggle.disabled = false;
       updateConnectionButton();
       updateResetButtonState();
+      updateDeviceStatus();
+      updateDbcStatus();
     }
   };
 
@@ -221,6 +288,13 @@ export function initMessages({ stimApi } = {}) {
     if (!connectionToggle) return;
     connectionToggle.disabled = true;
     connectionToggle.textContent = 'Disconnecting…';
+    if (socket && typeof socket.emit === 'function') {
+      try {
+        socket.emit('stop_trace');
+      } catch (err) {
+        console.warn('Failed to stop log during disconnect', err);
+      }
+    }
     try {
       const response = await fetch('/api/shutdown', { method: 'POST' });
       const json = await response.json().catch(() => ({}));
@@ -237,6 +311,9 @@ export function initMessages({ stimApi } = {}) {
       connectionToggle.disabled = false;
       updateConnectionButton();
       updateResetButtonState();
+      updateDeviceStatus();
+      updateDbcStatus();
+      setDiagStatus('Not configured', 'info');
     }
   };
 
@@ -267,6 +344,8 @@ export function initMessages({ stimApi } = {}) {
       Object.entries(snapshots).forEach(([msgName, applied]) => {
         notifyMessageSignalsUpdated(msgName, applied, { source: 'reset' });
       });
+      seedMessagesFromSnapshots(snapshots);
+      reapplyStoreToVisibleForms();
       setInitStatus('Messages reset to default values.', 'success');
     } catch (err) {
       setInitStatus(err.message || 'Failed to reset messages.', 'error');
@@ -278,6 +357,9 @@ export function initMessages({ stimApi } = {}) {
 
   updateConnectionButton();
   updateResetButtonState();
+  updateDeviceStatus();
+  updateDbcStatus();
+  setDiagStatus('Not configured', 'info');
 
   const loadDbcButton = $('#btn-load-dbc');
   loadDbcButton?.addEventListener('click', async () => {
@@ -286,9 +368,16 @@ export function initMessages({ stimApi } = {}) {
     if (!json.ok) return;
     messages = json.messages || [];
     activeMessages.clear();
+    messages.forEach((msg) => {
+      if (msg?.name) {
+        activeMessages.set(msg.name, !!msg.running);
+      }
+    });
     clearCurrentMessageView();
     dbcLoaded = true;
     updateResetButtonState();
+    updateDbcStatus();
+    updateDeviceStatus();
     if (stimApi) {
       stimApi.resetNodes?.();
       await stimApi.loadNodes?.();
@@ -322,6 +411,9 @@ export function initMessages({ stimApi } = {}) {
         throw new Error('Failed to toggle message');
       }
       await selectMessage(currentMessage);
+      if (!isRunning && currentMessage?.name) {
+        await syncStoredSignals(currentMessage.name);
+      }
       notifyMessageStateChange(currentMessage.name, !isRunning, { source: 'messages' });
     } catch (err) {
       window.alert(err.message || 'Failed to toggle message');
@@ -343,28 +435,36 @@ export function initMessages({ stimApi } = {}) {
       message_name: currentMessage.name,
       signals,
     };
+    let applied = null;
+    let succeeded = false;
     const res = await fetch('/api/periodic/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     const js = await res.json().catch(() => ({ ok: false }));
-    if (!js.ok) {
-      window.alert(js.error || 'Failed to update signals');
-      return;
-    }
-    applySignalUpdates(form, js.applied || {});
-    let applied = js.applied;
-    if (!applied || !Object.keys(applied).length) {
-      const derived = {};
-      Object.entries(signals).forEach(([name, info]) => {
-        if (!info) return;
-        derived[name] = { ...info };
-      });
-      applied = Object.keys(derived).length ? derived : null;
-    }
-    if (applied) {
-      notifyMessageSignalsUpdated(currentMessage.name, applied, { source: 'messages' });
+    try {
+      if (!js.ok) {
+        throw new Error(js.error || 'Failed to update signals');
+      }
+      applySignalUpdates(form, js.applied || {});
+      applied = js.applied;
+      if (!applied || !Object.keys(applied).length) {
+        const derived = {};
+        Object.entries(signals).forEach(([name, info]) => {
+          if (!info) return;
+          derived[name] = { ...info };
+        });
+        applied = Object.keys(derived).length ? derived : null;
+      }
+      if (applied) {
+        notifyMessageSignalsUpdated(currentMessage.name, applied, { source: 'messages' });
+      }
+      succeeded = true;
+    } catch (err) {
+      window.alert(err.message || 'Failed to update signals');
+    } finally {
+      saveMessageSignals(currentMessage.name, { signals, applied, pending: !succeeded });
     }
   });
 
@@ -397,10 +497,14 @@ export function initMessages({ stimApi } = {}) {
   onMessageStateChange(({ message, running, source }) => {
     if (source === 'messages' || !message) return;
     setRunningState(message, !!running);
+    if (running) {
+      syncStoredSignals(message);
+    }
   });
 
   onMessageSignalsUpdated(({ message, applied, source }) => {
     if (source === 'messages' || !message || !applied) return;
+    saveMessageSignals(message, { applied, pending: false });
     if (!currentMessage || currentMessage.name !== message || !form) return;
     applySignalUpdates(form, applied);
   });
