@@ -477,6 +477,8 @@ export class PanelWidgetManager {
     element.className = `panel-widget panel-widget--${widget.type}`;
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
+    element.setAttribute('data-widget-id', widget.id);
+    element.setAttribute('data-widget-type', widget.type);
     while (element.firstChild) {
       element.removeChild(element.firstChild);
     }
@@ -986,11 +988,13 @@ export class PanelWidgetManager {
       this.canvas.removeChild(this.canvas.firstChild);
     }
     this.elements.clear();
+    const fragment = document.createDocumentFragment();
     this.widgets.forEach((widget) => {
       const element = this._createElement(widget);
       this.elements.set(widget.id, element);
-      this.canvas.appendChild(element);
+      fragment.appendChild(element);
     });
+    this.canvas.appendChild(fragment);
     this._refreshCanvasSpace();
     if (typeof this.onRender === 'function') {
       this.onRender();
