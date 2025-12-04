@@ -177,6 +177,10 @@ const initPanel = () => {
     },
   });
 
+  widgetManager.setRenderCallback(() => {
+    selectWidget(state.selectedId);
+  });
+
   scriptEngine = new PanelScriptEngine({
     evaluateScript: evaluateScriptRequest,
     sendSignal,
@@ -268,7 +272,13 @@ const initPanel = () => {
     if (state.mode === 'run') return;
     const widgetEl = event.target.closest('.panel-widget');
     if (widgetEl) {
-      selectWidget(widgetEl.dataset.widgetId);
+      const widgetId = widgetEl.dataset?.widgetId;
+      if (!widgetId || !widgetManager.getWidget(widgetId)) {
+        widgetEl.remove();
+        widgetManager.renderAll();
+        return;
+      }
+      selectWidget(widgetId);
       return;
     }
     if (!state.pendingTool) {
@@ -419,6 +429,7 @@ const initPanel = () => {
 
   const applyLayout = (layout) => {
     state.restoring = true;
+    state.selectedId = null;
     if (layout.grid) {
       grid.setConfig(layout.grid);
     }
