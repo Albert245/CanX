@@ -45,6 +45,8 @@ export class PanelPropertiesPanel {
     this.signalChoices = {};
     this.statusEl = null;
     this.signalDatalistId = 'panel-signal-options';
+    this.messageDatalistId = 'panel-message-options';
+    this.messageOptions = [];
     this.customRenderers = new Map();
     this.behaviorScriptCache = new Map();
     this.rendererCleanups = [];
@@ -57,6 +59,12 @@ export class PanelPropertiesPanel {
       width: document.getElementById('panel-layout-width'),
       height: document.getElementById('panel-layout-height'),
     };
+
+    this.messageInput?.setAttribute('list', this.messageDatalistId);
+    this.signalInput?.setAttribute('list', this.signalDatalistId);
+
+    this._ensureMessageDatalist();
+    this._ensureSignalDatalist();
 
     this._handleMessageChange = () => {
       if (!this.widget || !this.messageInput) return;
@@ -202,6 +210,7 @@ export class PanelPropertiesPanel {
     form.appendChild(this.statusEl);
     this.container.appendChild(form);
     this._ensureSignalDatalist();
+    this._ensureMessageDatalist();
   }
 
   _ensureSignalDatalist() {
@@ -210,6 +219,16 @@ export class PanelPropertiesPanel {
     if (!datalist) {
       datalist = document.createElement('datalist');
       datalist.id = this.signalDatalistId;
+      document.body.appendChild(datalist);
+    }
+  }
+
+  _ensureMessageDatalist() {
+    if (!this.container) return;
+    let datalist = document.getElementById(this.messageDatalistId);
+    if (!datalist) {
+      datalist = document.createElement('datalist');
+      datalist.id = this.messageDatalistId;
       document.body.appendChild(datalist);
     }
   }
@@ -292,6 +311,9 @@ export class PanelPropertiesPanel {
       input.value = value ?? '';
       if (field.autocomplete === 'signal') {
         input.setAttribute('list', this.signalDatalistId);
+      }
+      if (field.autocomplete === 'message') {
+        input.setAttribute('list', this.messageDatalistId);
       }
       if (field.placeholder) {
         input.placeholder = field.placeholder;
@@ -416,6 +438,22 @@ export class PanelPropertiesPanel {
       return;
     }
     this._emitChange(field.path, value);
+  }
+
+  setMessageOptions(messages = []) {
+    this.messageOptions = Array.from(new Set(messages.filter(Boolean)));
+    this._updateMessageOptions();
+  }
+
+  _updateMessageOptions() {
+    const datalist = document.getElementById(this.messageDatalistId);
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    this.messageOptions.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      datalist.appendChild(option);
+    });
   }
 
   _getValue(path) {
