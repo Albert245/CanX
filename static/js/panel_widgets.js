@@ -1,5 +1,11 @@
-const idPrefix = 'panel_widget_';
-let widgetCounter = 0;
+const idPrefix = 'widget-';
+
+const generateId = () => {
+  const suffix = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+  return `${idPrefix}${suffix}`;
+};
 
 const deepMerge = (target, source) => {
   if (!source || typeof source !== 'object') return target;
@@ -374,7 +380,7 @@ export const getWidgetDefinition = (type) => PANEL_WIDGET_LIBRARY.find((entry) =
 export const createWidgetData = (type, overrides = {}) => {
   const definition = getWidgetDefinition(type);
   if (!definition) return null;
-  const id = overrides.id || `${idPrefix}${String(++widgetCounter).padStart(3, '0')}`;
+  const id = overrides.id || generateId();
   const base = {
     id,
     type,
@@ -406,35 +412,26 @@ export class PanelWidgetManager {
     this.grid = grid;
     this.onAction = onAction;
     this.onRemove = onRemove;
+    this.onRender = null;
     this.widgets = new Map();
     this.elements = new Map();
     this.signalIndex = new Map();
     this.mode = 'edit';
   }
 
+  setRenderCallback(callback) {
+    this.onRender = typeof callback === 'function' ? callback : null;
+  }
+
   clear() {
     this.widgets.clear();
     this.signalIndex.clear();
-    this.elements.forEach((el) => el.remove());
-    this.elements.clear();
-    this.grid?.ensureSpareRows();
+    this.renderAll();
   }
 
   setMode(mode) {
     this.mode = mode === 'run' ? 'run' : 'edit';
-    this.widgets.forEach((widget) => {
-      if (widget.type === 'input' || widget.type === 'input_button') {
-        const el = this.elements.get(widget.id);
-        const input = el?.querySelector('input');
-        if (input) {
-          input.toggleAttribute('readonly', this.mode !== 'run');
-        }
-        const button = el?.querySelector('button');
-        if (button && widget.type === 'input_button') {
-          button.toggleAttribute('disabled', this.mode !== 'run');
-        }
-      }
-    });
+    this.renderAll();
   }
 
   _buildSignalKey(message, signal) {
@@ -470,31 +467,21 @@ export class PanelWidgetManager {
     const data = createWidgetData(config.type, config);
     if (!data) return null;
     this.widgets.set(data.id, data);
-    const element = document.createElement('div');
-    element.className = `panel-widget panel-widget--${data.type}`;
-    element.dataset.widgetId = data.id;
-    element.dataset.widgetType = data.type;
-    element.setAttribute('role', 'group');
-    element.style.touchAction = 'none';
-    this.elements.set(data.id, element);
-    if (this.canvas) {
-      this.canvas.appendChild(element);
-    }
-    this.grid?.applyPosition(data, element);
-    this._renderWidget(data);
-    this._registerInteractionHandlers(data, element);
     this._updateSignalIndex(data);
-    this._refreshCanvasSpace();
+    this.renderAll();
     return data;
   }
 
-  _renderWidget(widget) {
-    const element = this.elements.get(widget.id);
-    if (!element) return;
+  _renderWidget(widget, element) {
+    if (!widget || !element) return;
     element.className = `panel-widget panel-widget--${widget.type}`;
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
-    element.innerHTML = '';
+    element.setAttribute('data-widget-id', widget.id);
+    element.setAttribute('data-widget-type', widget.type);
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
     switch (widget.type) {
       case 'button':
         this._renderButton(widget, element);
@@ -721,14 +708,14 @@ export class PanelWidgetManager {
         if (this.mode !== 'run') return;
         event.preventDefault();
         if (widget.runtime) widget.runtime.isPressed = true;
-        this._renderWidget(widget);
+        this._renderWidget(widget, element);
         this._emitAction('press', widget, { value: widget.mapping?.pressValue });
       };
       const pointerUp = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
         if (widget.runtime) widget.runtime.isPressed = false;
-        this._renderWidget(widget);
+        this._renderWidget(widget, element);
         this._emitAction('release', widget, { value: widget.mapping?.releaseValue });
       };
       element.addEventListener('pointerdown', pointerDown);
@@ -740,7 +727,7 @@ export class PanelWidgetManager {
         event.preventDefault();
         widget.runtime = widget.runtime || {};
         widget.runtime.isOn = !widget.runtime.isOn;
-        this._renderWidget(widget);
+        this._renderWidget(widget, element);
         const value = widget.runtime.isOn ? widget.mapping?.onValue : widget.mapping?.offValue;
         this._emitAction('toggle', widget, { value, active: widget.runtime.isOn });
       });
@@ -797,8 +784,7 @@ export class PanelWidgetManager {
       deepMerge(widget, updater);
     }
     this._updateSignalIndex(widget);
-    this._renderWidget(widget);
-    this._refreshCanvasSpace();
+    this.renderAll();
     return widget;
   }
 
@@ -825,21 +811,28 @@ export class PanelWidgetManager {
   }
 
   loadWidgets(widgets = []) {
-    this.clear();
+    this.widgets.clear();
+    this.signalIndex.clear();
+    const usedIds = new Set();
     widgets.forEach((cfg) => {
       if (!cfg || !cfg.type) return;
-      this.addWidget(cfg);
+      const base = { ...cfg };
+      const id = base.id && !usedIds.has(base.id) ? base.id : generateId();
+      base.id = id;
+      usedIds.add(id);
+      const data = createWidgetData(base.type, base);
+      if (!data) return;
+      this.widgets.set(data.id, data);
+      this._updateSignalIndex(data);
     });
-    this._refreshCanvasSpace();
+    this.renderAll();
   }
 
   removeWidget(id) {
     const widget = this.widgets.get(id);
     if (!widget) return;
-    const element = this.elements.get(id);
-    if (element?.parentNode) {
-      element.parentNode.removeChild(element);
-    }
+    const element = this.canvas?.querySelector(`[data-widget-id="${id}"]`);
+    element?.remove();
     this.widgets.delete(id);
     this.elements.delete(id);
     const key = widget._signalKey;
@@ -850,7 +843,7 @@ export class PanelWidgetManager {
         this.signalIndex.delete(key);
       }
     }
-    this._refreshCanvasSpace();
+    this.renderAll();
     if (typeof this.onRemove === 'function') {
       this.onRemove(id, widget);
     }
@@ -866,15 +859,19 @@ export class PanelWidgetManager {
     const ids = this.signalIndex.get(key);
     if (!ids || !ids.size) return [];
     const results = [];
+    let needsRender = false;
     ids.forEach((id) => {
       const widget = this.widgets.get(id);
       if (!widget) return;
       const didChange = this._applyRx(widget, payload);
       if (didChange) {
-        this._renderWidget(widget);
+        needsRender = true;
       }
       results.push({ widget, changed: didChange });
     });
+    if (needsRender) {
+      this.renderAll();
+    }
     return results;
   }
 
@@ -952,7 +949,7 @@ export class PanelWidgetManager {
       if (!target) return;
       target.runtime = target.runtime || {};
       target.runtime.isOn = action.state === 'on';
-      this._renderWidget(target);
+      this.renderAll();
       return;
     }
     if (action.type === 'widget_state') {
@@ -960,7 +957,54 @@ export class PanelWidgetManager {
       if (!target) return;
       target.runtime = target.runtime || {};
       Object.assign(target.runtime, action.state || {});
-      this._renderWidget(target);
+      this.renderAll();
+    }
+  }
+
+  _purgeOrphanDom() {
+    if (!this.canvas) return;
+    const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
+    nodes.forEach((node) => {
+      const widgetId = node.dataset?.widgetId;
+      if (!widgetId || !this.widgets.has(widgetId)) {
+        node.remove();
+      }
+    });
+  }
+
+  _createElement(widget) {
+    const element = document.createElement('div');
+    element.setAttribute('role', 'group');
+    element.style.touchAction = 'none';
+    element.dataset.widgetId = widget.id;
+    element.dataset.widgetType = widget.type;
+    element.classList.add('panel-widget');
+    this._renderWidget(widget, element);
+    this._registerInteractionHandlers(widget, element);
+    return element;
+  }
+
+  renderAll() {
+    if (!this.canvas) return;
+    this._purgeOrphanDom();
+    this.elements.clear();
+    const nodes = [];
+    this.widgets.forEach((widget) => {
+      const element = this._createElement(widget);
+      this.elements.set(widget.id, element);
+      nodes.push(element);
+    });
+    if (typeof this.canvas.replaceChildren === 'function') {
+      this.canvas.replaceChildren(...nodes);
+    } else {
+      while (this.canvas.firstChild) {
+        this.canvas.removeChild(this.canvas.firstChild);
+      }
+      nodes.forEach((node) => this.canvas.appendChild(node));
+    }
+    this._refreshCanvasSpace();
+    if (typeof this.onRender === 'function') {
+      this.onRender();
     }
   }
 }
