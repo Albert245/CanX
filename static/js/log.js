@@ -3,6 +3,8 @@
  * buffering, filtering, and table rendering utilities.
  */
 
+import { startReceiverNodeFromSettings } from './node_control.js';
+
 const MAX_LOG_ENTRIES = 1000;
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -136,7 +138,7 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
   };
 
   if (logToggle) {
-    logToggle.addEventListener('click', () => {
+    logToggle.addEventListener('click', async () => {
       if (!socket || typeof socket.emit !== 'function') {
         setLogStatus('Socket client unavailable. Unable to control log.', 'error');
         return;
@@ -144,6 +146,7 @@ export function initLog({ socket, getActiveTab, onTabChange }) {
 
       if (!logRunning) {
         pendingStartMonotonic = monotonicSeconds();
+        await startReceiverNodeFromSettings();
       }
 
       const eventName = logRunning ? 'stop_trace' : 'start_trace';

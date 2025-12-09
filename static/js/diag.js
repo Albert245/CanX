@@ -21,6 +21,18 @@ const diagGroups = {
   },
 };
 
+let diagLogAppender = null;
+
+const getConfiguredEcuId = () => {
+  const physical = $('#diag-physical-id')?.value.trim();
+  if (physical) return physical;
+  const functional = $('#diag-functional-id')?.value.trim();
+  if (functional) return functional;
+  return '';
+};
+
+const getTesterPresentInterval = () => Number($('#tp-interval')?.value || 2000);
+
 const physicalStaticCommands = [
   { label: 'Default Session', data: '10 01' },
   { label: 'Extended Session', data: '10 03' },
@@ -109,6 +121,52 @@ const attachHexFormatter = (selector) => {
   handler();
 };
 
+export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
+  const ecuId = getConfiguredEcuId();
+  if (!ecuId) {
+    diagLogAppender?.({
+      label: 'Diagnostics Config',
+      error: 'Provide a Physical or Functional ID in Settings',
+    });
+    reportStatus?.('Diagnostics not configured', 'error');
+    return { ok: false, error: 'Missing ECU ID' };
+  }
+  const testerId = $('#tester-id')?.value.trim();
+  const payload = { ecu_id: ecuId };
+  if (testerId) payload.tester_id = testerId;
+  const dllInput = $('#diag-dll');
+  if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
+  reportStatus?.('Configuring…', 'info');
+  try {
+    const res = await fetch('/api/diag/configure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const js = await res.json().catch(() => ({ ok: false }));
+    if (js.ok) {
+      const ecu = js.ecu_id || payload.ecu_id;
+      const tester = js.tester_id || payload.tester_id || '—';
+      diagLogAppender?.({
+        label: 'Diagnostics Configured',
+        ecuId: `${ecu}/${tester}`,
+        request: js.dll ? `DLL: ${js.dll}` : payload.dll ? `DLL: ${payload.dll}` : undefined,
+      });
+      reportStatus?.(`Configured (${ecu})`, 'success');
+      return { ok: true, ecuId: ecu, testerId: tester, dll: js.dll || payload.dll };
+    }
+    const error = js.error || 'ERR';
+    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    reportStatus?.(error, 'error');
+    return { ok: false, error };
+  } catch (err) {
+    const error = err?.message || 'ERR';
+    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    reportStatus?.(error, 'error');
+    return { ok: false, error };
+  }
+}
+
 /**
  * Initialize the Diagnostics tab module.
  * @param {object} options
@@ -190,6 +248,8 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     renderDiagEntry(entry);
     diagLogScroll();
   };
+
+  diagLogAppender = addDiagLogEntry;
 
   /**
    * Re-render buffered entries when returning to the Diagnostics tab.
@@ -312,34 +372,6 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     container.appendChild(btn);
   };
 
-  $('#btn-diag-config')?.addEventListener('click', async () => {
-    const payload = {
-      ecu_id: $('#ecu-id')?.value.trim(),
-      tester_id: $('#tester-id')?.value.trim(),
-    };
-    const dllInput = $('#diag-dll');
-    if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
-    try {
-      const res = await fetch('/api/diag/configure', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const js = await res.json().catch(() => ({ ok: false }));
-      if (js.ok) {
-        addDiagLogEntry({
-          label: 'Diagnostics Configured',
-          ecuId: `${js.ecu_id || payload.ecu_id}/${js.tester_id || payload.tester_id}`,
-          request: js.dll ? `DLL: ${js.dll}` : undefined,
-        });
-      } else {
-        addDiagLogEntry({ label: 'Diagnostics Config', error: js.error || 'ERR' });
-      }
-    } catch (err) {
-      addDiagLogEntry({ label: 'Diagnostics Config', error: err.message || 'ERR' });
-    }
-  });
-
   $('#btn-functional-send')?.addEventListener('click', () =>
     sendDiagRequest({ group: 'functional' }),
   );
@@ -375,8 +407,8 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
   $('#btn-diag-unlock')?.addEventListener('click', async () => {
     const payload = {};
-    const ecuInput = $('#diag-unlock-ecu');
-    if (ecuInput && ecuInput.value.trim()) payload.ecu_id = ecuInput.value.trim();
+    const ecuId = getConfiguredEcuId();
+    if (ecuId) payload.ecu_id = ecuId;
     const dllInput = $('#diag-dll');
     if (dllInput && dllInput.value.trim()) payload.dll = dllInput.value.trim();
     try {
@@ -409,21 +441,30 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     }
   });
 
-  $('#btn-tp-start')?.addEventListener('click', async () => {
-    const payload = { action: 'start', interval: Number($('#tp-interval')?.value || 2000) };
-    await fetch('/api/diag/tester_present', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  });
+  let testerPresentActive = false;
+  const tpButton = $('#btn-tp-toggle');
+  const setTpState = (active) => {
+    testerPresentActive = active;
+    if (!tpButton) return;
+    tpButton.textContent = active ? 'Stop TP' : 'Start TP';
+    tpButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+  };
+  setTpState(false);
 
-  $('#btn-tp-stop')?.addEventListener('click', async () => {
-    const payload = { action: 'stop' };
-    await fetch('/api/diag/tester_present', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+  tpButton?.addEventListener('click', async () => {
+    const payload = testerPresentActive
+      ? { action: 'stop' }
+      : { action: 'start', interval: getTesterPresentInterval() };
+    try {
+      const res = await fetch('/api/diag/tester_present', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(res.statusText || 'Tester Present failed');
+      setTpState(!testerPresentActive);
+    } catch (err) {
+      addDiagLogEntry({ label: 'Tester Present', error: err.message || 'ERR' });
+    }
   });
 }
