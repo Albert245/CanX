@@ -976,6 +976,9 @@ export class PanelWidgetManager {
     const element = document.createElement('div');
     element.setAttribute('role', 'group');
     element.style.touchAction = 'none';
+    element.dataset.widgetId = widget.id;
+    element.dataset.widgetType = widget.type;
+    element.classList.add('panel-widget');
     this._renderWidget(widget, element);
     this._registerInteractionHandlers(widget, element);
     return element;
@@ -984,17 +987,21 @@ export class PanelWidgetManager {
   renderAll() {
     if (!this.canvas) return;
     this._purgeOrphanDom();
-    while (this.canvas.firstChild) {
-      this.canvas.removeChild(this.canvas.firstChild);
-    }
     this.elements.clear();
-    const fragment = document.createDocumentFragment();
+    const nodes = [];
     this.widgets.forEach((widget) => {
       const element = this._createElement(widget);
       this.elements.set(widget.id, element);
-      fragment.appendChild(element);
+      nodes.push(element);
     });
-    this.canvas.appendChild(fragment);
+    if (typeof this.canvas.replaceChildren === 'function') {
+      this.canvas.replaceChildren(...nodes);
+    } else {
+      while (this.canvas.firstChild) {
+        this.canvas.removeChild(this.canvas.firstChild);
+      }
+      nodes.forEach((node) => this.canvas.appendChild(node));
+    }
     this._refreshCanvasSpace();
     if (typeof this.onRender === 'function') {
       this.onRender();
