@@ -482,6 +482,28 @@ const initPanel = () => {
     }
   };
 
+  const applyExternalLayout = async (layout) => {
+    if (!validateLayout(layout)) return false;
+    state.restoring = true;
+    applyLayout(layout);
+    state.restoring = false;
+    recordSnapshot();
+    try {
+      await saveLayout();
+    } catch (err) {
+      console.warn('Failed to persist imported panel layout', err);
+    }
+    return true;
+  };
+
+  const panelApi = {
+    getLayout: () => buildLayout(),
+    applyLayout: applyExternalLayout,
+    saveLayout,
+  };
+  window.PanelAPI = panelApi;
+  document.dispatchEvent(new CustomEvent('panel:ready', { detail: panelApi }));
+
   const handleTrace = (msg) => {
     if (state.mode !== 'run') return;
     if (!msg?.frame_name || !Array.isArray(msg.signals)) return;
