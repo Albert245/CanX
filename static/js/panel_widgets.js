@@ -708,14 +708,14 @@ export class PanelWidgetManager {
         if (this.mode !== 'run') return;
         event.preventDefault();
         if (widget.runtime) widget.runtime.isPressed = true;
-        this._renderWidget(widget);
+        this._renderWidget(widget, element);
         this._emitAction('press', widget, { value: widget.mapping?.pressValue });
       };
       const pointerUp = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
         if (widget.runtime) widget.runtime.isPressed = false;
-        this._renderWidget(widget);
+        this._renderWidget(widget, element);
         this._emitAction('release', widget, { value: widget.mapping?.releaseValue });
       };
       element.addEventListener('pointerdown', pointerDown);
@@ -727,7 +727,7 @@ export class PanelWidgetManager {
         event.preventDefault();
         widget.runtime = widget.runtime || {};
         widget.runtime.isOn = !widget.runtime.isOn;
-        this._renderWidget(widget);
+        this._renderWidget(widget, element);
         const value = widget.runtime.isOn ? widget.mapping?.onValue : widget.mapping?.offValue;
         this._emitAction('toggle', widget, { value, active: widget.runtime.isOn });
       });

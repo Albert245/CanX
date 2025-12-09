@@ -72,6 +72,7 @@ const initPanel = () => {
     index: -1,
   };
 
+
   const messageCache = new Map();
   let knownMessages = [];
 
