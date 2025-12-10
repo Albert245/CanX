@@ -427,6 +427,7 @@ export class PanelWidgetManager {
     this.widgets.clear();
     this.signalIndex.clear();
     this.renderAll();
+    this._purgeOrphanDom();
   }
 
   setMode(mode) {
@@ -826,6 +827,7 @@ export class PanelWidgetManager {
       this._updateSignalIndex(data);
     });
     this.renderAll();
+    this._purgeOrphanDom();
   }
 
   removeWidget(id) {
@@ -844,6 +846,7 @@ export class PanelWidgetManager {
       }
     }
     this.renderAll();
+    this._purgeOrphanDom();
     if (typeof this.onRemove === 'function') {
       this.onRemove(id, widget);
     }
@@ -963,12 +966,14 @@ export class PanelWidgetManager {
 
   _purgeOrphanDom() {
     if (!this.canvas) return;
-    const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
-    nodes.forEach((node) => {
-      const widgetId = node.dataset?.widgetId;
-      if (!widgetId || !this.widgets.has(widgetId)) {
-        node.remove();
-      }
+    requestAnimationFrame(() => {
+      const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
+      nodes.forEach((node) => {
+        const widgetId = node.dataset?.widgetId;
+        if (!widgetId || !this.widgets.has(widgetId)) {
+          node.remove();
+        }
+      });
     });
   }
 
@@ -986,22 +991,14 @@ export class PanelWidgetManager {
 
   renderAll() {
     if (!this.canvas) return;
-    this._purgeOrphanDom();
     this.elements.clear();
-    const nodes = [];
+    this.canvas.innerHTML = '';
     this.widgets.forEach((widget) => {
       const element = this._createElement(widget);
       this.elements.set(widget.id, element);
-      nodes.push(element);
+      this.canvas.appendChild(element);
+      this.grid?.applyPosition(widget, element);
     });
-    if (typeof this.canvas.replaceChildren === 'function') {
-      this.canvas.replaceChildren(...nodes);
-    } else {
-      while (this.canvas.firstChild) {
-        this.canvas.removeChild(this.canvas.firstChild);
-      }
-      nodes.forEach((node) => this.canvas.appendChild(node));
-    }
     this._refreshCanvasSpace();
     if (typeof this.onRender === 'function') {
       this.onRender();
