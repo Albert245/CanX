@@ -990,20 +990,29 @@ export class PanelWidgetManager {
 
   renderAll() {
     if (!this.canvas) return;
+
+    const nodes = [];
+
     this.widgets.forEach((widget) => {
       let element = this.elements.get(widget.id);
       if (!element) {
         element = this._createElement(widget);
         this.elements.set(widget.id, element);
       }
-      this.canvas.appendChild(element);
       this._renderWidget(widget, element);
       this.grid?.applyPosition(widget, element);
+      nodes.push(element);
     });
+
+    if (typeof this.canvas.replaceChildren === 'function') {
+      this.canvas.replaceChildren(...nodes);
+    } else {
+      while (this.canvas.firstChild) this.canvas.removeChild(this.canvas.firstChild);
+      nodes.forEach((n) => this.canvas.appendChild(n));
+    }
+
     this._refreshCanvasSpace();
     this._purgeOrphanDom();
-    if (typeof this.onRender === 'function') {
-      this.onRender();
-    }
+    this.onRender?.();
   }
 }

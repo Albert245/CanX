@@ -583,70 +583,72 @@ const attachButtonToggleEditors = (panel) => {
 
 const extendWidgetManager = () => {
   const originalRender = PanelWidgetManager.prototype._renderWidget;
-  PanelWidgetManager.prototype._renderWidget = function patchedRender(widget) {
-    const element = this.elements.get(widget.id);
-    if (!element) return;
-    if (widget.type === 'image_indicator') {
-      element.className = `panel-widget panel-widget--${widget.type}`;
-      element.dataset.widgetId = widget.id;
-      element.dataset.widgetType = widget.type;
-      element.innerHTML = '';
-      const img = document.createElement('img');
-      const states = Array.isArray(widget.states) ? widget.states : [];
-      const stateMatch = states.find((state) => Number(state.value) === Number(widget.runtime?.activeValue));
-      const src = stateMatch?.image || states[0]?.image || '';
-      img.src = src || '';
-      img.alt = widget.label || 'Image Indicator';
-      img.style.objectFit = 'contain';
-      element.appendChild(img);
-      this.grid?.applyPosition(widget, element);
-      return;
-    }
+  PanelWidgetManager.prototype._renderWidget = function patchedRender(widget, element) {
+    const el = element || this.elements.get(widget.id);
+    if (!el) return;
+
     if (widget.type === 'image_button') {
-      element.className = `panel-widget panel-widget--${widget.type}`;
-      element.dataset.widgetId = widget.id;
-      element.dataset.widgetType = widget.type;
-      element.innerHTML = '';
-      const img = document.createElement('img');
-      const pressed = widget.runtime?.isPressed;
-      const normalSrc = widget.normalImage || widget.images?.normal || '';
-      const pressedSrc = widget.pressedImage || widget.images?.pressed || normalSrc;
-      img.src = pressed ? pressedSrc : normalSrc;
-      img.alt = widget.label || 'Image Button';
-      img.style.objectFit = 'contain';
-      element.appendChild(img);
-      this.grid?.applyPosition(widget, element);
+      el.className = 'panel-widget panel-widget--image_button';
+      el.innerHTML = '';
+      const normal = document.createElement('img');
+      const pressed = document.createElement('img');
+      normal.src = widget.images?.normal || '';
+      pressed.src = widget.images?.pressed || widget.images?.normal || '';
+      const isPressed = widget.runtime?.isPressed;
+      normal.style.display = isPressed ? 'none' : 'block';
+      pressed.style.display = isPressed ? 'block' : 'none';
+      el.append(normal, pressed);
       return;
     }
+
+    if (widget.type === 'image_indicator') {
+      el.className = 'panel-widget panel-widget--image_indicator';
+      el.innerHTML = '';
+      const off = document.createElement('img');
+      const on = document.createElement('img');
+      off.src = widget.images?.off || '';
+      on.src = widget.images?.on || '';
+      const isOn = widget.runtime?.isOn;
+      off.style.display = isOn ? 'none' : 'block';
+      on.style.display = isOn ? 'block' : 'none';
+      el.append(off, on);
+      return;
+    }
+
+    if (widget.type === 'static_image') {
+      el.className = 'panel-widget panel-widget--static_image panel-widget-static';
+      el.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = widget.images?.src || '';
+      el.appendChild(img);
+      return;
+    }
+
+    if (widget.type === 'image_switch') {
+      el.className = 'panel-widget panel-widget--image_switch panel-widget-image-switch';
+      el.innerHTML = '';
+      const img = document.createElement('img');
+      const states = widget.images?.states || [];
+      const active = widget.runtime?.activeImage || states[0]?.src || '';
+      img.src = active;
+      el.appendChild(img);
+      return;
+    }
+
     if (widget.type === 'image_toggle') {
-      element.className = `panel-widget panel-widget--${widget.type}`;
-      element.dataset.widgetId = widget.id;
-      element.dataset.widgetType = widget.type;
-      element.innerHTML = '';
+      el.className = 'panel-widget panel-widget--image_toggle';
+      el.innerHTML = '';
       const img = document.createElement('img');
       const state = widget.runtime?.state || 'off';
       const src = state === 'on' ? widget.onImage : state === 'mid' ? widget.midImage || widget.onImage : widget.offImage;
       img.src = src || '';
       img.alt = widget.label || 'Image Toggle';
       img.style.objectFit = 'contain';
-      element.appendChild(img);
-      this.grid?.applyPosition(widget, element);
+      el.appendChild(img);
       return;
     }
-    if (widget.type === 'static_image') {
-      element.className = `panel-widget panel-widget--${widget.type}`;
-      element.dataset.widgetId = widget.id;
-      element.dataset.widgetType = widget.type;
-      element.innerHTML = '';
-      const img = document.createElement('img');
-      img.src = widget.image || widget.images?.src || '';
-      img.alt = widget.label || 'Static';
-      img.style.objectFit = 'contain';
-      element.appendChild(img);
-      this.grid?.applyPosition(widget, element);
-      return;
-    }
-    originalRender.call(this, widget);
+
+    return originalRender.call(this, widget, el);
   };
 
   const originalHandlers = PanelWidgetManager.prototype._registerInteractionHandlers;
