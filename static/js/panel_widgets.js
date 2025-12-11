@@ -427,6 +427,7 @@ export class PanelWidgetManager {
     this.widgets.clear();
     this.signalIndex.clear();
     this.renderAll();
+    this._purgeOrphanDom();
   }
 
   setMode(mode) {
@@ -522,7 +523,6 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || widget.type;
     }
-    this.grid?.applyPosition(widget, element);
   }
 
   _renderButton(widget, element) {
@@ -826,6 +826,7 @@ export class PanelWidgetManager {
       this._updateSignalIndex(data);
     });
     this.renderAll();
+    this._purgeOrphanDom();
   }
 
   removeWidget(id) {
@@ -844,6 +845,7 @@ export class PanelWidgetManager {
       }
     }
     this.renderAll();
+    this._purgeOrphanDom();
     if (typeof this.onRemove === 'function') {
       this.onRemove(id, widget);
     }
@@ -963,12 +965,15 @@ export class PanelWidgetManager {
 
   _purgeOrphanDom() {
     if (!this.canvas) return;
-    const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
-    nodes.forEach((node) => {
-      const widgetId = node.dataset?.widgetId;
-      if (!widgetId || !this.widgets.has(widgetId)) {
-        node.remove();
-      }
+    requestAnimationFrame(() => {
+      const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
+      nodes.forEach((node) => {
+        const widgetId = node.dataset?.widgetId;
+        if (!widgetId || !this.widgets.has(widgetId)) {
+          this.elements.delete(widgetId);
+          node.remove();
+        }
+      });
     });
   }
 
@@ -979,30 +984,24 @@ export class PanelWidgetManager {
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.classList.add('panel-widget');
-    this._renderWidget(widget, element);
     this._registerInteractionHandlers(widget, element);
     return element;
   }
 
   renderAll() {
     if (!this.canvas) return;
-    this._purgeOrphanDom();
-    this.elements.clear();
-    const nodes = [];
     this.widgets.forEach((widget) => {
-      const element = this._createElement(widget);
-      this.elements.set(widget.id, element);
-      nodes.push(element);
-    });
-    if (typeof this.canvas.replaceChildren === 'function') {
-      this.canvas.replaceChildren(...nodes);
-    } else {
-      while (this.canvas.firstChild) {
-        this.canvas.removeChild(this.canvas.firstChild);
+      let element = this.elements.get(widget.id);
+      if (!element) {
+        element = this._createElement(widget);
+        this.elements.set(widget.id, element);
       }
-      nodes.forEach((node) => this.canvas.appendChild(node));
-    }
+      this.canvas.appendChild(element);
+      this._renderWidget(widget, element);
+      this.grid?.applyPosition(widget, element);
+    });
     this._refreshCanvasSpace();
+    this._purgeOrphanDom();
     if (typeof this.onRender === 'function') {
       this.onRender();
     }
