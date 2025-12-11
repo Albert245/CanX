@@ -523,7 +523,6 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || widget.type;
     }
-    this.grid?.applyPosition(widget, element);
   }
 
   _renderButton(widget, element) {
@@ -971,6 +970,7 @@ export class PanelWidgetManager {
       nodes.forEach((node) => {
         const widgetId = node.dataset?.widgetId;
         if (!widgetId || !this.widgets.has(widgetId)) {
+          this.elements.delete(widgetId);
           node.remove();
         }
       });
@@ -984,22 +984,24 @@ export class PanelWidgetManager {
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.classList.add('panel-widget');
-    this._renderWidget(widget, element);
     this._registerInteractionHandlers(widget, element);
     return element;
   }
 
   renderAll() {
     if (!this.canvas) return;
-    this.elements.clear();
-    this.canvas.innerHTML = '';
     this.widgets.forEach((widget) => {
-      const element = this._createElement(widget);
-      this.elements.set(widget.id, element);
+      let element = this.elements.get(widget.id);
+      if (!element) {
+        element = this._createElement(widget);
+        this.elements.set(widget.id, element);
+      }
       this.canvas.appendChild(element);
+      this._renderWidget(widget, element);
       this.grid?.applyPosition(widget, element);
     });
     this._refreshCanvasSpace();
+    this._purgeOrphanDom();
     if (typeof this.onRender === 'function') {
       this.onRender();
     }
