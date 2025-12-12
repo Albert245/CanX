@@ -315,9 +315,11 @@ const initPanel = () => {
     if (runBtn) {
       const label = runBtn.parentElement?.querySelector('.panel-ribbon-label');
       const icon = runBtn.querySelector('.panel-ribbon-icon');
+      const labelText = state.mode === 'run' ? 'Running' : 'Editing';
       if (label) {
-        label.textContent = state.mode === 'run' ? 'Running' : 'Editing';
+        label.textContent = labelText;
       }
+      runBtn.setAttribute('aria-label', labelText);
       if (icon) {
         icon.classList.toggle('panel-icon-running', state.mode === 'run');
         icon.classList.toggle('panel-icon-editing', state.mode !== 'run');
@@ -333,9 +335,11 @@ const initPanel = () => {
     const label = scriptToggle?.parentElement?.querySelector('.panel-ribbon-label');
     icon?.classList.toggle('panel-icon-default', !isEnabled);
     icon?.classList.toggle('panel-icon-script', isEnabled);
+    const labelText = isEnabled ? 'Script Mode' : 'Default Mode';
     if (label) {
-      label.textContent = isEnabled ? 'Script Mode' : 'Default Mode';
+      label.textContent = labelText;
     }
+    scriptToggle?.setAttribute('aria-label', labelText);
     if (applyToWidget && state.selectedId) {
       const widget = widgetManager.updateWidget(state.selectedId, (data) => {
         if (isEnabled && (!data.script || !data.script.trim())) {
