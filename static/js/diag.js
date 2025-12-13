@@ -459,7 +459,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const setTpState = (active) => {
     testerPresentActive = active;
     if (!tpButton) return;
-    tpButton.textContent = active ? 'Stop TP' : 'Start TP';
+    tpButton.textContent = active ? 'Stop Tester Present' : 'Start Tester Present';
     tpButton.setAttribute('aria-pressed', active ? 'true' : 'false');
   };
   setTpState(false);
