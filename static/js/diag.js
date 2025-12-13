@@ -258,6 +258,15 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     }
   };
 
+  const clearDiagLog = () => {
+    diagBuffer.length = 0;
+    if (diagLog) {
+      diagLog.innerHTML = '';
+    }
+    stickToBottom = true;
+    diagLogScroll(true);
+  };
+
   diagLog?.addEventListener('scroll', () => {
     stickToBottom = isNearBottom(diagLog);
   });
@@ -352,28 +361,40 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       const js = await res.json().catch(() => ({ ok: false }));
       addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       if (js.ok) {
-        addDiagLogEntry({
-          type: 'resp',
-          payload: stringifyPayload(js.response),
-          canId: js.ecu_id || target?.toUpperCase?.(),
-          time: new Date(),
-        });
+        const responsePayload = stringifyPayload(js.response);
+        if (responsePayload) {
+          addDiagLogEntry({
+            type: 'resp',
+            payload: responsePayload,
+            canId: js.ecu_id || target?.toUpperCase?.(),
+            time: new Date(),
+          });
+        } else {
+          addDiagLogEntry({
+            type: 'error',
+            payload: 'ERROR message no response',
+            canId: js.ecu_id || target?.toUpperCase?.(),
+            time: new Date(),
+          });
+        }
       } else {
         addDiagLogEntry({
           type: 'error',
-          payload: stringifyPayload(js.error || 'ERR'),
+          payload: stringifyPayload(js.error) || 'ERROR message no response',
           canId: target?.toUpperCase?.(),
           time: new Date(),
         });
       }
+      diagLogScroll(true);
     } catch (err) {
       addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       addDiagLogEntry({
         type: 'error',
-        payload: stringifyPayload(err.message || 'ERR'),
+        payload: stringifyPayload(err.message) || 'ERROR message no response',
         canId: target?.toUpperCase?.(),
         time: new Date(),
       });
+      diagLogScroll(true);
     }
   };
 
@@ -442,6 +463,8 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   });
 
   $('#btn-diag-add')?.addEventListener('click', () => createCustomDiagButton(currentGroup));
+
+  $('#btn-diag-clear-log')?.addEventListener('click', clearDiagLog);
 
   $('#btn-diag-unlock')?.addEventListener('click', async () => {
     const payload = {};
