@@ -792,7 +792,9 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .diag-request-card {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   background: rgba(255, 255, 255, 0.02);
   border: none;
