@@ -750,33 +750,81 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .stim-messages { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 
-#tab-diag { display: flex; flex-direction: column; gap: 12px; }
-
-.diag-columns {
+#tab-diag {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
 }
 
-.diag-pane {
-  flex: 1 1 360px;
+.diag-log {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 260px;
+  overflow-y: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.diag-request-card {
   display: flex;
   flex-direction: column;
   gap: 12px;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: 10px;
   padding: 12px;
 }
 
-.diag-pane .diag-toolbar {
-  margin-bottom: 0;
+.diag-request-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.diag-quick-actions {
+.diag-request-row textarea {
+  min-width: 260px;
+  min-height: 70px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  line-height: 1.4;
+  flex: 1 1 320px;
+}
+
+.diag-request-actions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
+}
+
+.diag-address-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.diag-address-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diag-inline-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .diag-did-row {
@@ -786,42 +834,42 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 8px;
 }
 
-.diag-inline-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .diag-did-row input[type='number'] {
   width: 90px;
 }
 
-.diag-pane .diag-custom {
-  padding-top: 4px;
+.diag-footer {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.2fr 1fr 1fr;
 }
 
-.diag-toolbar {
+.diag-footer-group {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+}
+
+.diag-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.diag-toolbar label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.diag-fast-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.diag-toolbar textarea {
-  min-width: 220px;
-  min-height: 60px;
-  resize: vertical;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  line-height: 1.4;
-  white-space: pre-wrap;
-}
-
-.diag-toolbar input[type='number'] {
-  min-width: 80px;
+.diag-static-btn,
+.diag-custom-btn {
+  width: 100%;
 }
 
 .diag-custom {
@@ -835,15 +883,9 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   padding: 6px 10px;
 }
 
-.diag-static {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .diag-static-btn {
   font-size: 12px;
-  padding: 6px 10px;
+  padding: 10px 8px;
   background: rgba(255, 255, 255, 0.06);
 }
 
@@ -860,20 +902,6 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .diag-add-btn:hover {
   background: rgba(79, 140, 255, 0.2);
-}
-
-.diag-log {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 280px;
-  overflow-y: auto;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 12px;
 }
 
 .diag-log-entry {
