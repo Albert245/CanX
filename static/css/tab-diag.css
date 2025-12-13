@@ -1,0 +1,347 @@
+/* --------------------------------------------------------------------------
+   DIAGNOSTICS TAB — FIX LAYOUT + INPUT CLUSTER + SCROLL INSIDE LOG
+   -------------------------------------------------------------------------- */
+
+/* Activate flex layout only for Diagnostics tab to avoid breaking others */
+#tab-diag.tab.active {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The whole diagnostics page becomes a fixed-height layout where ONLY diag-log scrolls */
+#tab-diag .diag-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 10px;
+
+  /* visual tokens */
+  --diag-surface: #2d2d2d;
+  --diag-border-strong: rgba(90, 130, 200, 0.42); /* slightly blue, visible */
+  --diag-border-soft: rgba(255, 255, 255, 0.05);
+}
+
+/* LOG PANEL: should NOT look like the input cluster */
+#tab-diag .diag-log-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* LOG SCROLL AREA */
+#tab-diag .diag-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+
+  /* must match page background (no different card bg) */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 2px;
+
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+
+  /* Modern scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.0) transparent;
+}
+
+#tab-diag .diag-log::-webkit-scrollbar { width: 8px; }
+#tab-diag .diag-log::-webkit-scrollbar-track { background: transparent; border-radius: 999px; }
+#tab-diag .diag-log::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.0);
+  border-radius: 999px;
+}
+#tab-diag .diag-log:hover::-webkit-scrollbar-thumb,
+#tab-diag .diag-log:active::-webkit-scrollbar-thumb,
+#tab-diag .diag-log:focus-within::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+}
+#tab-diag .diag-log:hover { scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
+
+/* Log entries: subtle, consistent with dark theme */
+.diag-log-entry {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.diag-log-entry.success { border-color: rgba(76, 175, 80, 0.35); }
+.diag-log-entry.error { border-color: rgba(244, 67, 54, 0.45); }
+
+.diag-log-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.diag-log-req,
+.diag-log-resp {
+  margin: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+/* COMPOSER + FOOTER must be pinned near bottom.
+   We use sticky so it stays at bottom while log scrolls. */
+#tab-diag .diag-controls {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: calc(22px + 6px); /* above app footer */
+  z-index: 40;
+  padding: 0;
+}
+
+/* This is the SINGLE container you want (background #2d2d2d, thick border, rounded) */
+#tab-diag .diag-composer {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 14px 14px 12px;
+  background: var(--diag-surface);
+
+  border-radius: 22px;
+  border: 2px solid var(--diag-border-strong);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.42),
+    0 0 0 2px rgba(255, 255, 255, 0.03) inset;
+}
+
+/* Row containing the pill input (centered) */
+.diag-pill-row {
+  display: flex;
+  justify-content: center;
+}
+
+/* Input pill should NOT have its own border; it must blend into the container */
+.diag-input-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 900px;
+
+  padding: 10px 10px 10px 12px;
+  background: rgba(255, 255, 255, 0.04); /* subtle inner surface */
+  border: none;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.diag-input-pill textarea {
+  background: transparent;
+  border: none;
+  resize: none;
+  min-height: 34px;
+  max-height: 120px;
+  padding: 4px 2px;
+  margin: 0;
+  width: 100%;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  line-height: 1.4;
+  overflow-y: hidden;
+}
+.diag-input-pill textarea:focus-visible { outline: none; }
+
+/* Send button: circular */
+.diag-send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #5c8dff, #3f64d9);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(63, 100, 217, 0.35);
+  flex: 0 0 auto;
+}
+.diag-send-btn:hover { filter: brightness(1.05); }
+.diag-send-icon { transform: translateX(1px); }
+
+/* Under-row: Add on left, Toggle on right, center empty */
+.diag-request-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  max-width: 900px;
+  margin: 10px auto 0;
+}
+
+/* Add button: circular, placed left under input */
+.diag-add-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 700;
+
+  border: none;                 /* no border like requirement */
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  color: #cdd9ff;
+}
+.diag-add-btn:hover { background: rgba(79, 140, 255, 0.12); }
+
+/* Toggle wrapper: no border, same surface as container */
+.diag-address-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;                 /* IMPORTANT: remove border */
+  border-radius: 999px;
+  min-width: 260px;
+  width: 260px;
+  justify-content: space-between;
+  box-shadow: none;
+}
+
+/* Make the internal track blend (no hard border) */
+.diag-address-toggle .settings-toggle-track {
+  background: rgba(255, 255, 255, 0.10);
+  border: none;
+}
+
+.diag-address-mode {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+}
+
+.diag-address-label {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  min-width: 120px;
+  text-align: center;
+  border: none;
+}
+
+/* Mode colors */
+.diag-address-toggle[data-mode='functional'] .diag-address-label {
+  background: rgba(255, 193, 7, 0.22);
+  color: #f6c343;
+}
+
+.diag-address-toggle[data-mode='physical'] .diag-address-label {
+  background: rgba(79, 140, 255, 0.22);
+  color: #7ac7ff;
+}
+
+/* Footer area: keep it pinned but visually not a separate big panel */
+.diag-footer {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 22px; /* sit directly above app footer */
+  z-index: 35;
+
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1.2fr 1fr 1fr;
+
+  padding-top: 6px;
+  padding-bottom: 6px;
+
+  background: rgba(15, 17, 21, 0.92);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.diag-footer-group {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.diag-footer-group + .diag-footer-group::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.diag-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.diag-fast-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.diag-custom {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.diag-static-btn,
+.diag-custom-btn {
+  width: 100%;
+  font-size: 12px;
+  padding: 10px 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.diag-middle-row .diag-static-btn,
+.diag-did-row .diag-static-btn {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.diag-static-btn:hover {
+  background: rgba(79, 140, 255, 0.12);
+  border-color: var(--accent);
+}
+
+.diag-inline-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.diag-did-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diag-did-row input[type='number'] { width: 90px; }
