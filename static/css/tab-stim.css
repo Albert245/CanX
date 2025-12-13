@@ -1,0 +1,38 @@
+/* Stim */
+#stim-nodes-container { display: flex; flex-direction: column; gap: 12px; }
+.stim-node,
+.stim-message { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.stim-node { padding: 0 8px 8px; }
+.stim-node summary,
+.stim-message summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 4px; }
+.stim-node summary::-webkit-details-marker,
+.stim-message summary::-webkit-details-marker { display: none; }
+.stim-node summary span.title,
+.stim-message summary span.title { flex: 1; font-weight: 600; }
+.stim-message { margin: 6px 0; }
+.stim-message .stim-meta,
+.stim-summary-meta { font-size: 11px; color: var(--muted); }
+.stim-message .stim-status,
+.stim-node-status { font-size: 11px; color: var(--muted); min-width: 70px; text-align: right; }
+
+.stim-signals {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
