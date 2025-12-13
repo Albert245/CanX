@@ -182,7 +182,7 @@ export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
  */
 export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const diagLog = $('#diag-log');
-  const diagBuffer = []; // keep a short log history
+  const diagBuffer = [];
   const MAX_LOG_ENTRIES = 500;
   let stickToBottom = true;
 
@@ -292,15 +292,11 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     stickToBottom = shouldStick;
   };
 
-  /**
-   * Add a new log entry (buffers if Diagnostics tab is inactive).
-   */
   const addDiagLogEntry = (data) => {
     const entry = { ...data, time: new Date() };
     diagBuffer.push(entry);
     if (diagBuffer.length > MAX_LOG_ENTRIES) diagBuffer.shift();
 
-    // Only render immediately if Diagnostics tab is active
     if (typeof getActiveTab === 'function' && getActiveTab() !== 'diag') return;
     renderDiagEntry(entry);
     diagLogScroll();
@@ -308,9 +304,6 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
   diagLogAppender = addDiagLogEntry;
 
-  /**
-   * Re-render buffered entries when returning to the Diagnostics tab.
-   */
   const renderBufferedLogs = () => {
     if (!diagLog) return;
     diagLog.innerHTML = '';
@@ -319,14 +312,10 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     diagLogScroll(true);
   };
 
-  // Register tab change hook
   if (typeof onTabChange === 'function') {
     onTabChange('diag', renderBufferedLogs);
   }
 
-  // -------------------------
-  // DIAGNOSTIC CORE FUNCTIONS
-  // -------------------------
   const sendDiagRequest = async ({ group, raw, ecuId, timeout, label }) => {
     const settings = diagGroups[group];
     if (!settings) return;
@@ -380,9 +369,6 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     }
   };
 
-  // -------------------------
-  // BUTTON HANDLERS
-  // -------------------------
   const diagCustomCounters = { functional: 0, physical: 0 };
 
   const staticButtonsContainer = $('#diag-fast-buttons');
@@ -430,10 +416,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     container.appendChild(btn);
   };
 
-  $('#btn-diag-send')?.addEventListener('click', () =>
-    sendDiagRequest({ group: currentGroup }),
-  );
-
+  $('#btn-diag-send')?.addEventListener('click', () => sendDiagRequest({ group: currentGroup }));
   $('#btn-diag-send-did')?.addEventListener('click', () => {
     const valueInput = $('#diag-did-value');
     const baseInput = $('#diag-request-raw');
@@ -453,9 +436,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     sendDiagRequest({ group: currentGroup, raw: request, label: 'Send DID' });
   });
 
-  $('#btn-diag-add')?.addEventListener('click', () =>
-    createCustomDiagButton(currentGroup),
-  );
+  $('#btn-diag-add')?.addEventListener('click', () => createCustomDiagButton(currentGroup));
 
   $('#btn-diag-unlock')?.addEventListener('click', async () => {
     const payload = {};
@@ -504,9 +485,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   setTpState(false);
 
   tpButton?.addEventListener('click', async () => {
-    const payload = testerPresentActive
-      ? { action: 'stop' }
-      : { action: 'start', interval: getTesterPresentInterval() };
+    const payload = testerPresentActive ? { action: 'stop' } : { action: 'start', interval: getTesterPresentInterval() };
     try {
       const res = await fetch('/api/diag/tester_present', {
         method: 'POST',
