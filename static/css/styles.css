@@ -22,9 +22,15 @@
 html, body {
   margin: 0;
   padding: 0;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
 }
 
 header { padding: 12px; border-bottom: 1px solid var(--border); }
@@ -157,9 +163,13 @@ nav { margin-top: 10px; display: flex; gap: 8px; }
 main {
   padding: 12px;
   padding-bottom: 48px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
-.tab { display: none !important; }
-.tab.active { display: block !important; }
+.tab { display: none !important; height: 100%; min-height: 0; }
+.tab.active { display: block !important; height: 100%; }
 
 .settings-grid {
   display: grid;
@@ -750,33 +760,100 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .stim-messages { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 
-#tab-diag { display: flex; flex-direction: column; gap: 12px; }
-
-.diag-columns {
+#tab-diag {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.diag-log {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 260px;
+  overflow-y: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.diag-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: auto;
+}
+
+.diag-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  max-width: 820px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.diag-request-card textarea,
+.diag-request-card button {
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.diag-request-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
-  gap: 16px;
+  justify-content: center;
 }
 
-.diag-pane {
-  flex: 1 1 360px;
+.diag-request-row textarea {
+  min-width: 320px;
+  min-height: 72px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  line-height: 1.4;
+  flex: 1 1 480px;
+  max-width: 820px;
+  border-radius: 16px;
+}
+
+.diag-request-actions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 12px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
 }
 
-.diag-pane .diag-toolbar {
-  margin-bottom: 0;
-}
-
-.diag-quick-actions {
+.diag-address-toggle {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+}
+
+.diag-address-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diag-inline-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .diag-did-row {
@@ -786,65 +863,72 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 8px;
 }
 
-.diag-inline-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .diag-did-row input[type='number'] {
   width: 90px;
 }
 
-.diag-pane .diag-custom {
-  padding-top: 4px;
+.diag-footer {
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
 }
 
-.diag-toolbar {
+.diag-footer-group {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  position: relative;
+}
+
+.diag-footer-group + .diag-footer-group::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.diag-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.diag-toolbar label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.diag-fast-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.diag-toolbar textarea {
-  min-width: 220px;
-  min-height: 60px;
-  resize: vertical;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  line-height: 1.4;
-  white-space: pre-wrap;
-}
-
-.diag-toolbar input[type='number'] {
-  min-width: 80px;
+.diag-static-btn,
+.diag-custom-btn {
+  width: 100%;
+  font-size: 12px;
+  padding: 10px 8px;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .diag-custom {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
 .diag-custom-btn {
   font-size: 12px;
-  padding: 6px 10px;
+  padding: 10px 8px;
 }
 
-.diag-static {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.diag-static-btn {
-  font-size: 12px;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.06);
+.diag-middle-row .diag-static-btn,
+.diag-did-row .diag-static-btn {
+  width: auto;
+  flex: 1 1 auto;
 }
 
 .diag-static-btn:hover {
@@ -860,20 +944,6 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .diag-add-btn:hover {
   background: rgba(79, 140, 255, 0.2);
-}
-
-.diag-log {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 280px;
-  overflow-y: auto;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 12px;
 }
 
 .diag-log-entry {

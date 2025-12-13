@@ -8,13 +8,13 @@ const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
 const diagGroups = {
   functional: {
-    raw: '#diag-functional-raw',
+    raw: '#diag-request-raw',
     ecu: '#diag-functional-id',
     timeout: '#diag-functional-timeout',
     defaultLabel: 'Functional',
   },
   physical: {
-    raw: '#diag-physical-raw',
+    raw: '#diag-request-raw',
     ecu: '#diag-physical-id',
     timeout: '#diag-physical-timeout',
     defaultLabel: 'Physical',
@@ -179,8 +179,27 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const diagBuffer = []; // keep a short log history
   const MAX_LOG_ENTRIES = 500;
 
-  attachHexFormatter('#diag-functional-raw');
-  attachHexFormatter('#diag-physical-raw');
+  attachHexFormatter('#diag-request-raw');
+
+  const addressToggle = $('#diag-address-toggle');
+  const addressLabel = $('#diag-address-label');
+  let currentGroup = 'functional';
+
+  const updateAddressToggle = (group) => {
+    currentGroup = group;
+    if (addressToggle) {
+      addressToggle.checked = group === 'physical';
+      addressToggle.setAttribute('aria-checked', group === 'physical' ? 'true' : 'false');
+    }
+    if (addressLabel) {
+      addressLabel.textContent = group === 'physical' ? 'Physical' : 'Functional';
+    }
+  };
+
+  addressToggle?.addEventListener('change', (ev) => {
+    updateAddressToggle(ev.target.checked ? 'physical' : 'functional');
+  });
+  updateAddressToggle(currentGroup);
 
   const diagLogScroll = () => {
     if (!diagLog) return;
@@ -327,7 +346,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   // -------------------------
   const diagCustomCounters = { functional: 0, physical: 0 };
 
-  const staticButtonsContainer = $('#physical-static-buttons');
+  const staticButtonsContainer = $('#diag-fast-buttons');
   if (staticButtonsContainer) {
     physicalStaticCommands.forEach(({ label, data }) => {
       const btn = document.createElement('button');
@@ -335,7 +354,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       btn.className = 'diag-static-btn';
       btn.textContent = label;
       btn.addEventListener('click', () => {
-        sendDiagRequest({ group: 'physical', raw: data, label });
+        sendDiagRequest({ group: currentGroup, raw: data, label });
       });
       staticButtonsContainer.appendChild(btn);
     });
@@ -357,7 +376,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     const normalized = normalizeDiagRaw(rawInput.value);
     const ecuId = ecuInput ? ecuInput.value.trim() : '';
     const timeout = timeoutInput ? Number(timeoutInput.value || 500) : 500;
-    const container = document.querySelector(`#${group}-custom-buttons`);
+    const container = document.querySelector('#diag-custom-buttons');
     if (!container) return;
     const index = ++diagCustomCounters[group];
     const btn = document.createElement('button');
@@ -372,37 +391,31 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     container.appendChild(btn);
   };
 
-  $('#btn-functional-send')?.addEventListener('click', () =>
-    sendDiagRequest({ group: 'functional' }),
-  );
-  $('#btn-physical-send')?.addEventListener('click', () =>
-    sendDiagRequest({ group: 'physical' }),
+  $('#btn-diag-send')?.addEventListener('click', () =>
+    sendDiagRequest({ group: currentGroup }),
   );
 
-  $('#btn-physical-send-did')?.addEventListener('click', () => {
-    const valueInput = $('#diag-physical-did-value');
-    const baseInput = $('#diag-physical-raw');
+  $('#btn-diag-send-did')?.addEventListener('click', () => {
+    const valueInput = $('#diag-did-value');
+    const baseInput = $('#diag-request-raw');
     if (!valueInput || !baseInput) return;
     const base = normalizeDiagRaw(baseInput.value);
     if (!base) {
-      addDiagLogEntry({ label: 'Physical DID', error: 'Base request is empty' });
+      addDiagLogEntry({ label: 'Send DID', error: 'Base request is empty' });
       return;
     }
     const decimal = Number(valueInput.value);
     if (!Number.isInteger(decimal) || decimal < 0 || decimal > 255) {
-      addDiagLogEntry({ label: 'Physical DID', error: 'Value must be 0-255' });
+      addDiagLogEntry({ label: 'Send DID', error: 'Value must be 0-255' });
       return;
     }
     const hexValue = decimal.toString(16).toUpperCase().padStart(2, '0');
     const request = `${base} ${hexValue}`.trim();
-    sendDiagRequest({ group: 'physical', raw: request, label: 'Physical DID' });
+    sendDiagRequest({ group: currentGroup, raw: request, label: 'Send DID' });
   });
 
-  $('#btn-functional-add')?.addEventListener('click', () =>
-    createCustomDiagButton('functional'),
-  );
-  $('#btn-physical-add')?.addEventListener('click', () =>
-    createCustomDiagButton('physical'),
+  $('#btn-diag-add')?.addEventListener('click', () =>
+    createCustomDiagButton(currentGroup),
   );
 
   $('#btn-diag-unlock')?.addEventListener('click', async () => {
@@ -446,7 +459,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const setTpState = (active) => {
     testerPresentActive = active;
     if (!tpButton) return;
-    tpButton.textContent = active ? 'Stop TP' : 'Start TP';
+    tpButton.textContent = active ? 'Stop Tester Present' : 'Start Tester Present';
     tpButton.setAttribute('aria-pressed', active ? 'true' : 'false');
   };
   setTpState(false);
