@@ -785,6 +785,9 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   height: 100%;
   min-height: 0;
   gap: 12px;
+  --diag-surface: #2d2d2d;
+  --diag-border-strong: rgba(90, 130, 200, 0.38);
+  --diag-border-soft: rgba(255, 255, 255, 0.04);
 }
 
 .diag-log-panel {
@@ -854,15 +857,15 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 
 .diag-input-pill {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 12px;
   width: 100%;
   max-width: 900px;
-  padding: 12px 12px 12px 16px;
-  background: #2d2d2d;
+  padding: 12px 12px 12px 18px;
+  background: var(--diag-surface);
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  border: 1.5px solid var(--diag-border-strong);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42), 0 0 0 1px var(--diag-border-soft) inset;
 }
 
 .diag-input-pill textarea {
@@ -871,7 +874,7 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   resize: none;
   min-height: 34px;
   max-height: 120px;
-  padding: 4px 0;
+  padding: 4px 2px;
   margin: 0;
   width: 100%;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -916,36 +919,40 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 .diag-add-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   padding: 0;
   font-size: 22px;
   font-weight: 700;
-  border: 1px solid rgba(79, 140, 255, 0.55);
-  background: rgba(79, 140, 255, 0.1);
-  color: var(--text);
+  border: 1.5px solid var(--diag-border-strong);
+  background: var(--diag-surface);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--diag-border-soft) inset;
+  color: #cdd9ff;
 }
 
 .diag-add-btn:hover {
-  background: rgba(79, 140, 255, 0.18);
+  background: rgba(79, 140, 255, 0.12);
 }
 
 .diag-address-toggle {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  min-width: 240px;
+  padding: 10px 14px;
+  background: var(--diag-surface);
+  border: 1.5px solid var(--diag-border-strong);
+  border-radius: 18px;
+  min-width: 260px;
+  width: 260px;
   justify-content: space-between;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 0 0 1px var(--diag-border-soft) inset;
 }
 
 .diag-address-toggle .settings-toggle-track {
   background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--diag-border-soft);
 }
 
 .diag-address-mode {
@@ -999,16 +1006,16 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
   gap: 0;
   grid-template-columns: 1.2fr 1fr 1fr;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   background: linear-gradient(0deg, rgba(255, 255, 255, 0.02), transparent);
 }
 
 .diag-footer-group {
-  padding: 10px 14px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   position: relative;
 }
 
