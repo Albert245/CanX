@@ -23,6 +23,27 @@ const diagGroups = {
 
 let diagLogAppender = null;
 
+const decodeAsciiFromHex = (payload = '') => {
+  const tokens = `${payload}`
+    .trim()
+    .split(/\s+/)
+    .filter((tok) => /^[0-9A-Fa-f]{2}$/.test(tok));
+  if (!tokens.length) return '';
+  const chars = tokens.map((tok) => {
+    const code = parseInt(tok, 16);
+    if (Number.isNaN(code)) return '.';
+    if (code >= 0x20 && code <= 0x7e) return String.fromCharCode(code);
+    return '.';
+  });
+  return chars.join('');
+};
+
+const stringifyPayload = (val) => {
+  if (Array.isArray(val)) return val.join(' ');
+  if (val === null || val === undefined) return '';
+  return String(val).trim();
+};
+
 const getConfiguredEcuId = () => {
   const physical = $('#diag-physical-id')?.value.trim();
   if (physical) return physical;
@@ -131,8 +152,8 @@ export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
   const ecuId = getConfiguredEcuId();
   if (!ecuId) {
     diagLogAppender?.({
-      label: 'Diagnostics Config',
-      error: 'Provide a Physical or Functional ID in Settings',
+      type: 'error',
+      payload: 'Provide a Physical or Functional ID in Settings',
     });
     reportStatus?.('Diagnostics not configured', 'error');
     return { ok: false, error: 'Missing ECU ID' };
@@ -153,21 +174,20 @@ export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
     if (js.ok) {
       const ecu = js.ecu_id || payload.ecu_id;
       const tester = js.tester_id || payload.tester_id || '—';
-      diagLogAppender?.({
-        label: 'Diagnostics Configured',
-        ecuId: `${ecu}/${tester}`,
-        request: js.dll ? `DLL: ${js.dll}` : payload.dll ? `DLL: ${payload.dll}` : undefined,
-      });
+      const dllInfo = js.dll || payload.dll;
+      if (dllInfo) {
+        diagLogAppender?.({ type: 'info', payload: `DLL: ${dllInfo}`, canId: ecu });
+      }
       reportStatus?.(`Configured (${ecu})`, 'success');
       return { ok: true, ecuId: ecu, testerId: tester, dll: js.dll || payload.dll };
     }
     const error = js.error || 'ERR';
-    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    diagLogAppender?.({ type: 'error', payload: error });
     reportStatus?.(error, 'error');
     return { ok: false, error };
   } catch (err) {
     const error = err?.message || 'ERR';
-    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    diagLogAppender?.({ type: 'error', payload: error });
     reportStatus?.(error, 'error');
     return { ok: false, error };
   }
@@ -238,6 +258,15 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     }
   };
 
+  const clearDiagLog = () => {
+    diagBuffer.length = 0;
+    if (diagLog) {
+      diagLog.innerHTML = '';
+    }
+    stickToBottom = true;
+    diagLogScroll(true);
+  };
+
   diagLog?.addEventListener('scroll', () => {
     stickToBottom = isNearBottom(diagLog);
   });
@@ -245,55 +274,44 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const renderDiagEntry = (entry) => {
     if (!diagLog) return;
     const shouldStick = isNearBottom(diagLog);
-    const { label, ecuId, request, response, error, time } = entry;
+    const { type = 'info', payload = '', canId = '', time } = entry;
     const logEntry = document.createElement('div');
-    logEntry.className = 'diag-log-entry';
-    logEntry.classList.add(error ? 'error' : 'success');
+    logEntry.className = `diag-log-entry ${type}`;
+
+    const body = document.createElement('div');
+    body.className = type === 'req' ? 'diag-log-req' : 'diag-log-resp';
+    body.textContent = payload;
+    logEntry.appendChild(body);
 
     const meta = document.createElement('div');
     meta.className = 'diag-log-meta';
+
+    const tsRow = document.createElement('div');
+    tsRow.className = 'diag-log-time';
     const ts = document.createElement('span');
-    ts.className = 'diag-log-time';
+    ts.className = 'time';
     ts.textContent = (time || new Date()).toLocaleTimeString();
-    const title = document.createElement('span');
-    title.className = 'diag-log-title';
-    title.textContent = label || 'Diagnostics';
-    meta.appendChild(ts);
-    meta.appendChild(title);
-    if (ecuId) {
-      const ecu = document.createElement('span');
-      ecu.className = 'diag-log-ecu';
-      ecu.textContent = `ECU ${ecuId}`;
-      meta.appendChild(ecu);
-    }
+    const can = document.createElement('span');
+    can.className = 'can-id';
+    can.textContent = (canId || '—').toUpperCase();
+    tsRow.appendChild(ts);
+    tsRow.appendChild(can);
+
+    const asciiRow = document.createElement('div');
+    asciiRow.className = 'diag-log-ascii';
+    asciiRow.textContent = decodeAsciiFromHex(payload);
+
+    meta.appendChild(tsRow);
+    meta.appendChild(asciiRow);
+
     logEntry.appendChild(meta);
-
-    if (request) {
-      const req = document.createElement('pre');
-      req.className = 'diag-log-req';
-      req.textContent = `REQ: ${request}`;
-      logEntry.appendChild(req);
-    }
-
-    if (error) {
-      const err = document.createElement('pre');
-      err.className = 'diag-log-resp';
-      err.textContent = `ERR: ${error}`;
-      logEntry.appendChild(err);
-    } else if (response !== undefined) {
-      const resp = document.createElement('pre');
-      resp.className = 'diag-log-resp';
-      const body = Array.isArray(response) ? response.join(' ') : response || '';
-      resp.textContent = body ? `RESP: ${body}` : 'RESP: <no data>';
-      logEntry.appendChild(resp);
-    }
 
     diagLog.appendChild(logEntry);
     stickToBottom = shouldStick;
   };
 
   const addDiagLogEntry = (data) => {
-    const entry = { ...data, time: new Date() };
+    const entry = { ...data, time: data.time || new Date() };
     diagBuffer.push(entry);
     if (diagBuffer.length > MAX_LOG_ENTRIES) diagBuffer.shift();
 
@@ -330,13 +348,10 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     if (target) payload.ecu_id = target.trim();
     payload.label = label || settings.defaultLabel;
     if (!payload.data) {
-      addDiagLogEntry({
-        label: `${settings.defaultLabel} Send`,
-        error: 'Request payload is empty',
-        ecuId: target?.toUpperCase?.(),
-      });
+      addDiagLogEntry({ type: 'warn', payload: 'Request payload is empty', canId: target?.toUpperCase?.() });
       return;
     }
+    const sentAt = new Date();
     try {
       const res = await fetch('/api/diag/send', {
         method: 'POST',
@@ -344,28 +359,42 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
         body: JSON.stringify(payload),
       });
       const js = await res.json().catch(() => ({ ok: false }));
+      addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       if (js.ok) {
-        addDiagLogEntry({
-          label: payload.label,
-          ecuId: js.ecu_id || target?.toUpperCase?.(),
-          request: payload.data,
-          response: js.response,
-        });
+        const responsePayload = stringifyPayload(js.response);
+        if (responsePayload) {
+          addDiagLogEntry({
+            type: 'resp',
+            payload: responsePayload,
+            canId: js.ecu_id || target?.toUpperCase?.(),
+            time: new Date(),
+          });
+        } else {
+          addDiagLogEntry({
+            type: 'error',
+            payload: 'ERROR message no response',
+            canId: js.ecu_id || target?.toUpperCase?.(),
+            time: new Date(),
+          });
+        }
       } else {
         addDiagLogEntry({
-          label: payload.label,
-          ecuId: target?.toUpperCase?.(),
-          request: payload.data,
-          error: js.error || 'ERR',
+          type: 'error',
+          payload: stringifyPayload(js.error) || 'ERROR message no response',
+          canId: target?.toUpperCase?.(),
+          time: new Date(),
         });
       }
+      diagLogScroll(true);
     } catch (err) {
+      addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       addDiagLogEntry({
-        label: payload.label,
-        ecuId: target?.toUpperCase?.(),
-        request: payload.data,
-        error: err.message || 'ERR',
+        type: 'error',
+        payload: stringifyPayload(err.message) || 'ERROR message no response',
+        canId: target?.toUpperCase?.(),
+        time: new Date(),
       });
+      diagLogScroll(true);
     }
   };
 
@@ -392,10 +421,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     const ecuInput = $(settings.ecu);
     const timeoutInput = $(settings.timeout);
     if (!rawInput || !rawInput.value.trim()) {
-      addDiagLogEntry({
-        label: `${settings.defaultLabel} Add`,
-        error: 'Cannot add custom sender without payload',
-      });
+      addDiagLogEntry({ type: 'warn', payload: 'Cannot add custom sender without payload' });
       return;
     }
     const normalized = normalizeDiagRaw(rawInput.value);
@@ -423,12 +449,12 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     if (!valueInput || !baseInput) return;
     const base = normalizeDiagRaw(baseInput.value);
     if (!base) {
-      addDiagLogEntry({ label: 'Send DID', error: 'Base request is empty' });
+      addDiagLogEntry({ type: 'warn', payload: 'Base request is empty' });
       return;
     }
     const decimal = Number(valueInput.value);
     if (!Number.isInteger(decimal) || decimal < 0 || decimal > 255) {
-      addDiagLogEntry({ label: 'Send DID', error: 'Value must be 0-255' });
+      addDiagLogEntry({ type: 'warn', payload: 'Value must be 0-255' });
       return;
     }
     const hexValue = decimal.toString(16).toUpperCase().padStart(2, '0');
@@ -437,6 +463,8 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   });
 
   $('#btn-diag-add')?.addEventListener('click', () => createCustomDiagButton(currentGroup));
+
+  $('#btn-diag-clear-log')?.addEventListener('click', clearDiagLog);
 
   $('#btn-diag-unlock')?.addEventListener('click', async () => {
     const payload = {};
@@ -453,23 +481,22 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       const js = await res.json().catch(() => ({ ok: false }));
       if (js.ok) {
         addDiagLogEntry({
-          label: 'Security Unlock',
-          ecuId: js.ecu_id,
-          request: payload.dll ? `DLL: ${payload.dll}` : undefined,
-          response: 'Unlocked',
+          type: 'info',
+          payload: payload.dll ? `DLL: ${payload.dll}` : 'Unlocked',
+          canId: js.ecu_id,
         });
       } else {
         addDiagLogEntry({
-          label: 'Security Unlock',
-          ecuId: payload.ecu_id,
-          error: js.error || 'Unlock failed',
+          type: 'error',
+          payload: stringifyPayload(js.error || 'Unlock failed'),
+          canId: payload.ecu_id,
         });
       }
     } catch (err) {
       addDiagLogEntry({
-        label: 'Security Unlock',
-        ecuId: payload.ecu_id,
-        error: err.message || 'Unlock failed',
+        type: 'error',
+        payload: stringifyPayload(err.message || 'Unlock failed'),
+        canId: payload.ecu_id,
       });
     }
   });
@@ -495,7 +522,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       if (!res.ok) throw new Error(res.statusText || 'Tester Present failed');
       setTpState(!testerPresentActive);
     } catch (err) {
-      addDiagLogEntry({ label: 'Tester Present', error: err.message || 'ERR' });
+      addDiagLogEntry({ type: 'error', payload: stringifyPayload(err.message || 'ERR') });
     }
   });
 }

@@ -139,15 +139,25 @@
 
               <div class="diag-request-actions">
                 <button id="btn-diag-add" class="diag-add-btn" type="button" aria-label="Add custom command">+</button>
-                <div class="diag-address-toggle" data-mode="functional">
-                  <label class="settings-toggle" aria-label="Toggle between Functional and Physical">
-                    <input id="diag-address-toggle" type="checkbox" aria-checked="false" />
-                    <span class="settings-toggle-track" aria-hidden="true">
-                      <span class="settings-toggle-thumb"></span>
-                    </span>
-                  </label>
-                  <div class="diag-address-mode">
-                    <span id="diag-address-label" class="diag-address-label">Functional</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <button
+                    id="btn-diag-clear-log"
+                    class="diag-add-btn"
+                    type="button"
+                    aria-label="Clear diagnostics log"
+                  >
+                    ⟳
+                  </button>
+                  <div class="diag-address-toggle" data-mode="functional">
+                    <label class="settings-toggle" aria-label="Toggle between Functional and Physical">
+                      <input id="diag-address-toggle" type="checkbox" aria-checked="false" />
+                      <span class="settings-toggle-track" aria-hidden="true">
+                        <span class="settings-toggle-thumb"></span>
+                      </span>
+                    </label>
+                    <div class="diag-address-mode">
+                      <span id="diag-address-label" class="diag-address-label">Functional</span>
+                    </div>
                   </div>
                 </div>
               </div>
