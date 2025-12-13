@@ -1115,3 +1115,128 @@ pre { background: var(--panel); padding: 8px; border-radius: 8px; border: 1px so
 }
 
 #panel-canvas.panel-hide-grid { background-image: none; }
+
+/* ========================================================================
+   OPTION A PATCH — DO NOT REMOVE EXISTING CSS
+   PURPOSE:
+   - Fix diagnostics layout
+   - Prevent log expanding page
+   - Unify input + group background
+   - Prevent footer overlap
+   ======================================================================== */
+
+/* ------------------------------------------------------------------------
+   1. FIX ROOT FLEX CHAIN (critical)
+   ------------------------------------------------------------------------ */
+html, body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 1 auto;
+  min-height: 0; /* REQUIRED for internal scrolling */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------------------
+   2. TAB BASELINE — allow flex children
+   ------------------------------------------------------------------------ */
+.tab.active {
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------------
+   3. DIAGNOSTICS TAB: HARD ISOLATION
+   ------------------------------------------------------------------------ */
+#tab-diag.tab.active {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------------------
+   4. GROUP INPUT + INPUT = SAME SURFACE
+   ------------------------------------------------------------------------ */
+#tab-diag .diag-group,
+#tab-diag .diag-toolbar {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+/* Input MUST blend into group */
+#tab-diag .diag-toolbar input,
+#tab-diag .diag-toolbar select,
+#tab-diag .diag-toolbar textarea {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+/* Remove visual nesting */
+#tab-diag .diag-toolbar input:focus,
+#tab-diag .diag-toolbar textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ------------------------------------------------------------------------
+   5. LOG AREA — FIXED SIZE + INTERNAL SCROLL
+   ------------------------------------------------------------------------ */
+#tab-diag .diag-log {
+  flex: 1 1 auto;     /* TAKE REMAINING SPACE */
+  min-height: 0;      /* CRITICAL */
+  overflow-y: auto;
+
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  padding: 10px;
+}
+
+/* Prevent log entries from expanding layout */
+#tab-diag .diag-log-entry {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------------
+   6. PREVENT LOG FROM PUSHING INPUT / FOOTER
+   ------------------------------------------------------------------------ */
+#tab-diag > * {
+  flex-shrink: 0;
+}
+
+#tab-diag .diag-log {
+  flex-shrink: 1;
+}
+
+/* ------------------------------------------------------------------------
+   7. FOOTER SAFETY — NEVER OVERLAP CONTENT
+   ------------------------------------------------------------------------ */
+main {
+  padding-bottom: calc(22px + 8px); /* footer height + gap */
+}
+
+/* ------------------------------------------------------------------------
+   8. OPTIONAL: LOG SCROLLBAR (SAFE)
+   ------------------------------------------------------------------------ */
+#tab-diag .diag-log::-webkit-scrollbar {
+  width: 8px;
+}
+#tab-diag .diag-log::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18);
+  border-radius: 8px;
+}
+#tab-diag .diag-log::-webkit-scrollbar-track {
+  background: transparent;
+}
