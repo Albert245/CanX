@@ -19,7 +19,7 @@
   gap: 10px;
 
   /* visual tokens */
-  --diag-surface: #2d2d2d;
+  --diag-surface: #10161f;
   --diag-border-strong: rgba(90, 130, 200, 0.42); /* slightly blue, visible */
   --diag-border-soft: rgba(255, 255, 255, 0.05);
 }
@@ -345,3 +345,301 @@
 }
 
 .diag-did-row input[type='number'] { width: 90px; }
+
+/* =========================================================
+   VISUAL UNIFICATION PATCH — Diagnostics
+   Purpose:
+   - Log blends into global background
+   - Input cluster becomes ONE visual block
+   ========================================================= */
+
+/* ---------- LOG: force same background as app ---------- */
+#tab-diag .diag-log {
+  background: var(--bg) !important;
+}
+
+/* Remove any implicit panel feel */
+#tab-diag .diag-log-panel {
+  background: transparent !important;
+}
+
+/* ---------- INPUT CLUSTER: ONE SURFACE ONLY ---------- */
+
+/* Define single surface color */
+#tab-diag .diag-composer {
+  background: var(--diag-surface);
+}
+
+/* Everything inside uses SAME background */
+#tab-diag .diag-input-pill,
+#tab-diag .diag-add-btn,
+#tab-diag .diag-address-toggle,
+#tab-diag .diag-static-btn,
+#tab-diag .diag-custom-btn {
+  background: var(--diag-surface);
+}
+
+/* Remove inner borders/shadows that create separation */
+#tab-diag .diag-input-pill,
+#tab-diag .diag-add-btn,
+#tab-diag .diag-address-toggle {
+  box-shadow: none;
+}
+
+/* Toggle internals also blend */
+#tab-diag .diag-address-toggle .settings-toggle-track {
+  background: rgba(255,255,255,0.12);
+}
+
+/* Textarea already transparent — keep it */
+#tab-diag .diag-input-pill textarea {
+  background: transparent;
+}
+
+/* =========================================================
+   VISUAL POLISH — Diagnostics (No layout change)
+   ========================================================= */
+
+/* ---------- 1. LOG AREA: remove container feel ---------- */
+#tab-diag .diag-log {
+  border: none !important;
+  border-radius: 0 !important;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* Log entry: keep subtle separation only */
+#tab-diag .diag-log-entry {
+  background: transparent;
+  border-color: rgba(255,255,255,0.06);
+}
+
+/* ---------- 2. INPUT COMPOSER: new harmonious surface ---------- */
+#tab-diag {
+  --diag-surface: #1d212b; /* softer, closer to panel */
+}
+
+/* Composer container */
+#tab-diag .diag-composer {
+  background: var(--diag-surface);
+  border: none;           /* remove card border */
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.35);
+}
+
+/* Everything inside uses SAME surface */
+#tab-diag .diag-input-pill,
+#tab-diag .diag-add-btn,
+#tab-diag .diag-address-toggle {
+  background: var(--diag-surface);
+}
+
+/* ---------- 3. ADDRESS TOGGLE: subtle outline ---------- */
+#tab-diag .diag-address-toggle {
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* Toggle track softer */
+#tab-diag .diag-address-toggle .settings-toggle-track {
+  background: rgba(255,255,255,0.14);
+}
+
+/* ---------- 4. BOTTOM BUTTONS: align with same surface ---------- */
+#tab-diag .diag-static-btn,
+#tab-diag .diag-custom-btn {
+  background: var(--diag-surface);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* Hover accent stays subtle */
+#tab-diag .diag-static-btn:hover,
+#tab-diag .diag-custom-btn:hover {
+  background: rgba(79,140,255,0.14);
+  border-color: rgba(79,140,255,0.45);
+}
+
+/* =========================================================
+   COLOR HARMONIZATION — Dark Blue-Black Theme (Diagnostics)
+   ========================================================= */
+
+/* 1. Define new dark blue-black surface */
+#tab-diag {
+  --diag-surface: #141a23; /* darker, blue-black, matches CanX theme */
+}
+
+/* 2. Composer container */
+#tab-diag .diag-composer {
+  background: var(--diag-surface);
+  border: none;
+  box-shadow:
+    0 8px 22px rgba(0,0,0,0.55);
+}
+
+/* 3. Everything inside uses same surface */
+#tab-diag .diag-input-pill,
+#tab-diag .diag-add-btn,
+#tab-diag .diag-address-toggle,
+#tab-diag .diag-static-btn,
+#tab-diag .diag-custom-btn {
+  background: var(--diag-surface);
+}
+
+/* 4. Subtle blue outline for structure (not card-like) */
+#tab-diag .diag-address-toggle,
+#tab-diag .diag-static-btn,
+#tab-diag .diag-custom-btn {
+  border: 1px solid rgba(79,140,255,0.18);
+}
+
+/* 5. Hover: slightly brighter blue-black, not gray */
+#tab-diag .diag-static-btn:hover,
+#tab-diag .diag-custom-btn:hover {
+  background: #18202c;
+  border-color: rgba(79,140,255,0.45);
+}
+
+/* 6. Toggle internals stay soft */
+#tab-diag .diag-address-toggle .settings-toggle-track {
+  background: rgba(255,255,255,0.12);
+}
+
+/* 7. Log stays pure background (console feel) */
+#tab-diag .diag-log {
+  background: var(--bg);
+}
+
+/* =========================================================
+   FORCE SINGLE SURFACE — unify all diag controls
+   (MỤC 3)
+   ========================================================= */
+
+#tab-diag .diag-composer,
+#tab-diag .diag-input-pill,
+#tab-diag .diag-add-btn,
+#tab-diag .diag-address-toggle,
+#tab-diag .diag-static-btn,
+#tab-diag .diag-custom-btn {
+  background: var(--diag-surface) !important;
+}
+
+/* =========================================================
+   SINGLE OUTLINE STYLE — subtle & consistent
+   (MỤC 4)
+   ========================================================= */
+
+#tab-diag .diag-address-toggle,
+#tab-diag .diag-static-btn,
+#tab-diag .diag-custom-btn {
+  border: 1px solid rgba(79, 140, 255, 0.16);
+}
+
+/* Hover: chỉ tăng nhẹ, không gắt */
+#tab-diag .diag-static-btn:hover,
+#tab-diag .diag-custom-btn:hover {
+  border-color: rgba(79, 140, 255, 0.40);
+}
+
+/* =========================================================
+   DIAG LOG — FINAL LAYOUT PATCH (CSS ONLY)
+   ========================================================= */
+
+/* ---------- Treat EACH line as independent block ---------- */
+#tab-diag .diag-log-entry {
+  display: grid;
+  grid-template-columns:
+    100px
+    minmax(0, 7fr)   /* 70% payload */
+    10px
+    1px              /* vertical divider */
+    10px
+    minmax(0, 3fr)   /* 30% meta */
+    100px;
+
+  align-items: stretch;
+  padding: 12px 0;
+
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ---------- Vertical divider ---------- */
+#tab-diag .diag-log-entry::after {
+  content: "";
+  grid-column: 4;
+  background: rgba(255,255,255,0.08);
+}
+
+/* ---------- LEFT 70% : RAW HEX ---------- */
+#tab-diag .diag-log-req,
+#tab-diag .diag-log-resp {
+  grid-column: 2;
+
+  display: flex;
+  align-items: center;        /* vertical center */
+  justify-content: flex-start;
+
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 15px;
+  line-height: 1.4;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- RIGHT 30% : META (force 2 rows only) ---------- */
+#tab-diag .diag-log-meta {
+  grid-column: 6;
+
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 6px;
+
+  text-align: left;
+}
+
+/* Row 1: timestamp (left) + CAN ID (right) */
+#tab-diag .diag-log-meta > .diag-log-time {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+}
+
+/* Row 2: ASCII decode (if present) */
+#tab-diag .diag-log-ascii {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- TEMPORARY: HIDE ALL OTHER META LINES ---------- */
+/* (button name, Default Session, extra text...) */
+#tab-diag .diag-log-meta > :not(.diag-log-time):not(.diag-log-ascii) {
+  display: none !important;
+}
+
+/* ---------- Color by type ---------- */
+#tab-diag .diag-log-entry.req,
+#tab-diag .diag-log-entry.resp {
+  color: #e6e6e6;
+}
+
+#tab-diag .diag-log-entry.info {
+  color: rgba(122,180,255,0.95);
+}
+
+#tab-diag .diag-log-entry.warn {
+  color: rgba(255,193,92,0.95);
+}
+
+#tab-diag .diag-log-entry.error {
+  color: rgba(255,96,96,0.95);
+}
