@@ -57,6 +57,12 @@ const scheduleFrame = (fn) => {
   }
 };
 
+const isNearBottom = (el, threshold = 40) => {
+  if (!el) return true;
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+  return distance <= threshold;
+};
+
 const formatHexTextareaValue = (el) => {
   if (!el || el.__formatting) return;
   el.__formatting = true;
@@ -178,11 +184,32 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const diagLog = $('#diag-log');
   const diagBuffer = []; // keep a short log history
   const MAX_LOG_ENTRIES = 500;
+  let stickToBottom = true;
 
   attachHexFormatter('#diag-request-raw');
 
+  const diagRawInput = $('#diag-request-raw');
+  const autosizeRawInput = () => {
+    if (!diagRawInput) return;
+    diagRawInput.style.height = 'auto';
+    const maxHeight = 120;
+    const nextHeight = Math.min(maxHeight, diagRawInput.scrollHeight);
+    diagRawInput.style.height = `${nextHeight}px`;
+    diagRawInput.style.overflowY = diagRawInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  };
+  diagRawInput?.addEventListener('input', autosizeRawInput);
+  scheduleFrame(autosizeRawInput);
+
+  diagRawInput?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.altKey && !ev.metaKey && !ev.ctrlKey && !ev.isComposing) {
+      ev.preventDefault();
+      $('#btn-diag-send')?.click();
+    }
+  });
+
   const addressToggle = $('#diag-address-toggle');
   const addressLabel = $('#diag-address-label');
+  const addressToggleWrapper = document.querySelector('.diag-address-toggle');
   let currentGroup = 'functional';
 
   const updateAddressToggle = (group) => {
@@ -194,6 +221,9 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     if (addressLabel) {
       addressLabel.textContent = group === 'physical' ? 'Physical' : 'Functional';
     }
+    if (addressToggleWrapper) {
+      addressToggleWrapper.setAttribute('data-mode', group === 'physical' ? 'physical' : 'functional');
+    }
   };
 
   addressToggle?.addEventListener('change', (ev) => {
@@ -201,13 +231,20 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   });
   updateAddressToggle(currentGroup);
 
-  const diagLogScroll = () => {
+  const diagLogScroll = (force = false) => {
     if (!diagLog) return;
-    diagLog.scrollTop = diagLog.scrollHeight;
+    if (force || stickToBottom || isNearBottom(diagLog)) {
+      diagLog.scrollTop = diagLog.scrollHeight;
+    }
   };
+
+  diagLog?.addEventListener('scroll', () => {
+    stickToBottom = isNearBottom(diagLog);
+  });
 
   const renderDiagEntry = (entry) => {
     if (!diagLog) return;
+    const shouldStick = isNearBottom(diagLog);
     const { label, ecuId, request, response, error, time } = entry;
     const logEntry = document.createElement('div');
     logEntry.className = 'diag-log-entry';
@@ -252,6 +289,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     }
 
     diagLog.appendChild(logEntry);
+    stickToBottom = shouldStick;
   };
 
   /**
@@ -277,7 +315,8 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     if (!diagLog) return;
     diagLog.innerHTML = '';
     diagBuffer.forEach(renderDiagEntry);
-    diagLogScroll();
+    stickToBottom = true;
+    diagLogScroll(true);
   };
 
   // Register tab change hook

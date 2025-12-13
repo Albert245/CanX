@@ -115,29 +115,44 @@
       </section>
 
       <section id="tab-diag" class="tab">
-        <div class="diag-log" id="diag-log"></div>
+        <div class="diag-chat">
+          <div class="diag-log-panel">
+            <div class="diag-log" id="diag-log"></div>
+          </div>
 
-        <div class="diag-controls">
-          <div class="diag-request-card">
-            <div class="diag-request-row">
-              <label class="diag-inline-label" for="diag-request-raw">Request (HEX)</label>
-              <textarea id="diag-request-raw" rows="2" wrap="soft" placeholder="e.g. 10 01"></textarea>
-              <button id="btn-diag-send" type="button">Send</button>
-            </div>
-            <div class="diag-request-actions">
-              <button id="btn-diag-add" class="diag-add-btn" type="button">Add</button>
-              <div class="diag-address-toggle">
-                <label class="settings-toggle" aria-label="Toggle between Functional and Physical">
-                  <input id="diag-address-toggle" type="checkbox" aria-checked="false" />
-                  <span class="settings-toggle-track" aria-hidden="true">
-                    <span class="settings-toggle-thumb"></span>
-                  </span>
-                </label>
-                <span id="diag-address-label" class="diag-address-label">Functional</span>
+          <div class="diag-controls">
+            <div class="diag-composer">
+              <div class="diag-pill-row">
+                <div class="diag-input-pill">
+                  <textarea
+                    id="diag-request-raw"
+                    rows="1"
+                    wrap="soft"
+                    placeholder="e.g. 10 01 | 22 F1 90 | 2E F1 90 01"
+                  ></textarea>
+                  <button id="btn-diag-send" class="diag-send-btn" type="button" aria-label="Send diagnostics request">
+                    <span class="diag-send-icon" aria-hidden="true">➤</span>
+                    <span class="sr-only">Send</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="diag-request-actions">
+                <button id="btn-diag-add" class="diag-add-btn" type="button" aria-label="Add custom command">+</button>
+                <div class="diag-address-toggle" data-mode="functional">
+                  <label class="settings-toggle" aria-label="Toggle between Functional and Physical">
+                    <input id="diag-address-toggle" type="checkbox" aria-checked="false" />
+                    <span class="settings-toggle-track" aria-hidden="true">
+                      <span class="settings-toggle-thumb"></span>
+                    </span>
+                  </label>
+                  <div class="diag-address-mode">
+                    <span id="diag-address-label" class="diag-address-label">Functional</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
           <div class="diag-footer">
             <div class="diag-footer-group diag-fast-group">
