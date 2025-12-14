@@ -34,6 +34,7 @@ const scriptExecution = {
   cancelFlag: false,
   startedTesterPresent: false,
   currentButtonId: null,
+  warnedManualSend: false,
 };
 
 let addCustomButtonEntryFn = null;
@@ -398,7 +399,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     [sendBtn, sendDidBtn, unlockBtn, tpButton].forEach((btn) => {
       if (btn) btn.disabled = blocked;
     });
-    if (loadScriptBtn) loadScriptBtn.disabled = blocked;
+    if (loadScriptBtn) loadScriptBtn.disabled = scriptExecution.running;
     if (stopScriptBtn) stopScriptBtn.disabled = !scriptExecution.running;
   };
 
@@ -560,15 +561,18 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
   window.addEventListener('keydown', handleDeleteKey);
 
-  const sendDiagRequest = async ({ group, raw, ecuId, timeout, label }) => {
+  const sendDiagRequest = async ({ group, raw, ecuId, timeout, label, allowDuringScript = false }) => {
     const settings = diagGroups[group];
     if (!settings) return;
     if (!startLogActive) {
       addDiagLogEntry({ type: 'warn', payload: 'Start Log to run diagnostics' });
       return;
     }
-    if (scriptExecution.running) {
-      addDiagLogEntry({ type: 'warn', payload: 'Script is running. Stop it before sending another request.' });
+    if (scriptExecution.running && !allowDuringScript) {
+      if (!scriptExecution.warnedManualSend) {
+        addDiagLogEntry({ type: 'warn', payload: 'Script is running. Stop it before sending another request.' });
+        scriptExecution.warnedManualSend = true;
+      }
       return;
     }
     const rawInput = $(settings.raw);
@@ -746,7 +750,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   $('#btn-diag-add')?.addEventListener('click', () => createCustomDiagButton(currentGroup));
 
   loadScriptBtn?.addEventListener('click', () => {
-    if (!startLogActive || !scriptFileInput) return;
+    if (!scriptFileInput) return;
     scriptFileInput.click();
   });
 
@@ -865,11 +869,29 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       scriptExecution.cancelFlag = false;
       scriptExecution.currentButtonId = null;
       scriptExecution.startedTesterPresent = false;
+      scriptExecution.warnedManualSend = false;
     }
+    if (running) scriptExecution.warnedManualSend = false;
     updateDiagActionDisabledState();
   };
 
   const runScriptCommand = async (step) => {
+    const describeCommand = () => {
+      if (step.cmd === 'SLEEP') {
+        const display = (step.value || '')
+          .toString()
+          .replace(/MS$/, ' ms')
+          .replace(/S$/, ' s');
+        return `CMD: SLEEP ${display}`.trim();
+      }
+      if (step.cmd === 'TESTER_PRESENT_START') return 'CMD: TESTER PRESENT START';
+      if (step.cmd === 'TESTER_PRESENT_STOP') return 'CMD: TESTER PRESENT STOP';
+      if (step.cmd === 'UNLOCK_SECA') return 'CMD: UNLOCK SECURITY ACCESS';
+      return 'CMD';
+    };
+
+    addDiagLogEntry({ type: 'info', payload: describeCommand() });
+
     if (step.cmd === 'SLEEP') {
       await new Promise((resolve) => setTimeout(resolve, step.durationMs || 0));
       return;
@@ -905,15 +927,20 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
         if (step.cmd) {
           await runScriptCommand(step);
         } else if (step.req) {
-          await sendDiagRequest({ group: currentGroup, raw: step.req });
+          await sendDiagRequest({ group: currentGroup, raw: step.req, allowDuringScript: true });
         }
         if (scriptExecution.cancelFlag) break;
       }
     } finally {
+      const wasCancelled = scriptExecution.cancelFlag;
       if (scriptExecution.startedTesterPresent && testerPresentActive) {
         await requestTesterPresent('stop');
       }
       setScriptRunning(false);
+      addDiagLogEntry({
+        type: 'info',
+        payload: wasCancelled ? 'Script stopped by user' : 'Script finished',
+      });
     }
   };
 
