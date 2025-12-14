@@ -44,6 +44,15 @@ const stringifyPayload = (val) => {
   return String(val).trim();
 };
 
+const isNegativeResponse = (payload = '') => {
+  const firstToken = `${payload}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .shift();
+  return (firstToken || '').toUpperCase() === '7F';
+};
+
 const getConfiguredEcuId = () => {
   const physical = $('#diag-physical-id')?.value.trim();
   if (physical) return physical;
@@ -363,8 +372,9 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       if (js.ok) {
         const responsePayload = stringifyPayload(js.response);
         if (responsePayload) {
+          const responseType = isNegativeResponse(responsePayload) ? 'warn' : 'resp';
           addDiagLogEntry({
-            type: 'resp',
+            type: responseType,
             payload: responsePayload,
             canId: js.ecu_id || target?.toUpperCase?.(),
             time: new Date(),
@@ -372,7 +382,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
         } else {
           addDiagLogEntry({
             type: 'error',
-            payload: 'ERROR message no response',
+            payload: 'No response from ECU (timeout)',
             canId: js.ecu_id || target?.toUpperCase?.(),
             time: new Date(),
           });
@@ -380,7 +390,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       } else {
         addDiagLogEntry({
           type: 'error',
-          payload: stringifyPayload(js.error) || 'ERROR message no response',
+          payload: stringifyPayload(js.error) || 'No response from ECU (timeout)',
           canId: target?.toUpperCase?.(),
           time: new Date(),
         });
@@ -390,7 +400,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       addDiagLogEntry({
         type: 'error',
-        payload: stringifyPayload(err.message) || 'ERROR message no response',
+        payload: stringifyPayload(err.message) || 'No response from ECU (timeout)',
         canId: target?.toUpperCase?.(),
         time: new Date(),
       });
