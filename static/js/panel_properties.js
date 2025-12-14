@@ -167,6 +167,13 @@ export class PanelPropertiesPanel {
     const sections = [...(definition.propertySections || [])];
     const valueFields = [];
     const miscFields = [];
+    const titleField = { label: 'Title', path: 'label', type: 'text' };
+    const hasLabelField = sections.some((section) =>
+      section.fields?.some((field) => (field.path || '').split('.')[0] === 'label')
+    );
+    if (!hasLabelField) {
+      miscFields.push(titleField);
+    }
     sections.forEach((section) => {
       section.fields?.forEach((field) => {
         if (field.path === 'mapping.message' || field.path === 'mapping.signal' || field.path === 'script') {
@@ -174,6 +181,10 @@ export class PanelPropertiesPanel {
         }
         if ((field.path || '').startsWith('mapping.') || (field.type || '').startsWith('image')) {
           valueFields.push(field);
+          return;
+        }
+        if (field.path === 'label') {
+          miscFields.push({ ...titleField, ...field, label: 'Title', path: 'label' });
           return;
         }
         miscFields.push(field);
@@ -294,7 +305,7 @@ export class PanelPropertiesPanel {
   _toggleScriptMode(enabled) {
     const hasWidget = Boolean(this.widget);
     const showScript = Boolean(enabled && hasWidget);
-    const showProperties = !showScript;
+    const showProperties = hasWidget;
     if (this.defaultPropertiesGroup) {
       this.defaultPropertiesGroup.hidden = !showProperties;
     }
@@ -309,7 +320,8 @@ export class PanelPropertiesPanel {
 
   _createField(field) {
     const wrapper = createElement('div', 'panel-field');
-    const label = createElement('label', null, field.label || field.path);
+    const labelText = field.path === 'label' ? 'Title' : field.label || field.path;
+    const label = createElement('label', null, labelText);
     let input;
     const useScript = Boolean(this.widget?.useScript);
     const isScriptField = field.path === 'script';
