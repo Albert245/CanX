@@ -647,9 +647,12 @@
 }
 
 /* ---------- Color by type ---------- */
-#tab-diag .diag-log-entry.req,
-#tab-diag .diag-log-entry.resp {
+#tab-diag .diag-log-entry.req {
   color: #e6e6e6;
+}
+
+#tab-diag .diag-log-entry.resp {
+  color: #7ee787;
 }
 
 #tab-diag .diag-log-entry.info {
