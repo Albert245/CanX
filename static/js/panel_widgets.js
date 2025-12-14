@@ -526,10 +526,13 @@ export class PanelWidgetManager {
   }
 
   _renderButton(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = widget.label || 'Button';
-    element.appendChild(btn);
+    body.appendChild(btn);
+    element.appendChild(body);
   }
 
   _renderToggle(widget, element) {
@@ -585,8 +588,8 @@ export class PanelWidgetManager {
   }
 
   _renderLabel(widget, element) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'panel-widget-label';
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body panel-widget-label';
     const title = document.createElement('div');
     title.textContent = widget.label || 'Label';
     const valueEl = document.createElement('span');
@@ -595,12 +598,14 @@ export class PanelWidgetManager {
     const namedEl = document.createElement('span');
     namedEl.className = 'panel-label-named';
     namedEl.textContent = widget.runtime?.namedValue ?? '';
-    wrapper.append(title, valueEl, namedEl);
-    element.appendChild(wrapper);
+    body.append(title, valueEl, namedEl);
+    element.appendChild(body);
   }
 
   _renderInput(widget, element) {
     element.classList.add('panel-widget-with-caption', 'panel-widget-input');
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
     caption.textContent = widget.label || 'Input';
@@ -622,11 +627,14 @@ export class PanelWidgetManager {
       input.setAttribute('readonly', 'readonly');
     }
     row.append(input);
-    element.append(caption, row);
+    body.append(row);
+    element.append(body, caption);
   }
 
   _renderInputButton(widget, element) {
     element.classList.add('panel-widget-with-caption', 'panel-widget-input', 'panel-widget-input-button');
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
     caption.textContent = widget.label || 'Input';
@@ -651,7 +659,8 @@ export class PanelWidgetManager {
     button.textContent = widget.options?.buttonLabel || 'Send';
     button.toggleAttribute('disabled', this.mode !== 'run');
     row.append(input, button);
-    element.append(caption, row);
+    body.append(row);
+    element.append(body, caption);
   }
 
   _renderScript(widget, element) {
