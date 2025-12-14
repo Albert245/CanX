@@ -289,6 +289,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
     const body = document.createElement('div');
     body.className = type === 'req' ? 'diag-log-req' : 'diag-log-resp';
+    body.style.color = 'inherit';
     body.textContent = payload;
     logEntry.appendChild(body);
 
