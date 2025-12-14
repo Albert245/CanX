@@ -10,11 +10,13 @@ import time
 from COMMON.Cast import *
 from CANIF.RWThread.CANReaderThread import *
 from CANIF.RWThread.CANWriterScheduler import*
+from CANIF.RWThread.FileWriterThread import FileWriterThread
 from E2E.DbcAdapter import DBCAdapter
 from typing import Union, Any, Optional, Callable
 import ctypes
 import atexit
 import queue
+from pathlib import Path
 from logger.log import logger
  
 timeBeginPeriod = ctypes.windll.winmm.timeBeginPeriod
@@ -62,6 +64,8 @@ class CANInterface:
         self.nonDBC_messages = {}
         enable_high_res_timer()
         self._tx_hook: Optional[Callable[[can.Message], None]] = None
+        self._file_writer: Optional[FileWriterThread] = None
+        self._log_directory = Path("logs")
 
     def set_tx_hook(self, callback: Optional[Callable[[can.Message], None]]) -> None:
         """Register a callback invoked whenever a CAN frame is transmitted."""
@@ -74,6 +78,15 @@ class CANInterface:
             self._tx_hook(message)
         except Exception:
             pass
+        self._record_trace(message, direction="tx")
+
+    def _record_trace(self, message: can.Message, direction: str = "rx") -> None:
+        if not self.reader or not self.reader.is_log_active():
+            return
+        try:
+            self.reader.enqueue_trace_record(message, direction=direction)
+        except Exception:
+            logger.debug("Unable to enqueue trace frame", exc_info=True)
  
     def initialize_bus(self):
         """Initialize the CAN bus based on the selected device."""
@@ -149,6 +162,7 @@ class CANInterface:
                 logger.error(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
                 return None
         try:
+            self.reader.track_id(msg_key)
             while True:
                 if time.monotonic() > deadline:
                     break
@@ -499,8 +513,47 @@ class CANInterface:
         except Exception as e:
             logger.error(f"Error reading CAN message: {e}")
             return None
+
+    def start_log(self, log_path: Optional[str] = None) -> Optional[str]:
+        """Enable trace logging without restarting the CAN reader thread."""
+        if not self.reader:
+            logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
+            return None
+        try:
+            target_path = Path(log_path) if log_path else self._log_directory / f"trace_{int(time.time())}.log"
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if self._file_writer:
+                self._file_writer.stop()
+                self._file_writer.join()
+                self._file_writer = None
+            self.reader.clear_trace_queues()
+            self.reader.set_log_active(True)
+            self._file_writer = FileWriterThread(self.reader.get_log_queue(), str(target_path))
+            self._file_writer.start()
+            return str(target_path)
+        except Exception as exc:
+            logger.error(f"ERROR: CANInterface - Failed to start log: {exc}")
+            if self.reader:
+                self.reader.set_log_active(False)
+                self.reader.clear_trace_queues()
+            return None
+
+    def stop_log(self) -> None:
+        """Disable trace logging, clear trace queues, and flush file writer."""
+        if not self.reader:
+            return
+        try:
+            self.reader.set_log_active(False)
+            if self._file_writer:
+                self._file_writer.stop()
+                self._file_writer.join()
+                self._file_writer = None
+            self.reader.clear_trace_queues()
+        except Exception as exc:
+            logger.error(f"ERROR: CANInterface - Failed to stop log: {exc}")
  
     def shutdown_bus(self):
+        self.stop_log()
         self.reader.stop()
         logger.info("Reader stopped")
         self.stop_all_periodic()

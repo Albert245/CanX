@@ -1097,13 +1097,27 @@ def on_start_trace(_msg=None):
     if state.trace_running:
         emit("trace_info", {"info": "Log already running", "running": True})
         return
+    log_target = None
+    try:
+        log_target = state.canif.start_log()
+    except Exception as exc:
+        emit("trace_error", {"error": str(exc), "running": state.trace_running})
+        return
+    if log_target is None:
+        emit("trace_error", {"error": "Failed to start log", "running": state.trace_running})
+        return
     state.trace_running = True
     state.trace_thread = socketio.start_background_task(_trace_worker)
-    emit("trace_info", {"info": "Log started", "running": True})
+    emit("trace_info", {"info": "Log started", "running": True, "path": log_target})
 
 
 @socketio.on("stop_trace")
 def on_stop_trace(_msg=None):
+    if state.canif:
+        try:
+            state.canif.stop_log()
+        except Exception:
+            emit("trace_error", {"error": "Failed to stop log", "running": state.trace_running})
     state.trace_running = False
     emit("trace_info", {"info": "Log stopped", "running": False})
 

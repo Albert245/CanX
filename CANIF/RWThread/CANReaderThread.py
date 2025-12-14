@@ -11,25 +11,28 @@ class CANReaderThread(threading.Thread):
         self.bus = bus
         self.running = threading.Event()
         self.thread = None
-        # Use an unbounded thread-safe queue for the default stream so bursts of
-        # traffic do not evict older frames before downstream consumers can
-        # process them.
-        self.default_queue = queue.Queue()
-        # Avoid dropping multi-frame bursts by keeping per-ID queues
-        # unbounded; eviction of older frames caused out-of-order CF handling
-        # in the CAN-TP layer.
-        self.id_queues = defaultdict(deque)
+        # Trace queue feeding the UI log. Bounded to avoid unbounded backlog.
+        self.default_queue = queue.Queue(maxsize=300)
+        # File-writer/batch logging queue (direction-aware) with a larger bound
+        # to reduce drops while still avoiding backlog spikes.
+        self.log_queue = queue.Queue(maxsize=500)
+        # Per-ID queues limited to a circular buffer to cap memory usage.
+        self.id_queues = defaultdict(lambda: deque(maxlen=200))
         # Dedicated per-subscriber queues to avoid one consumer draining data
         # that another consumer (e.g., CAN-TP) depends on.
-        self.named_id_queues = defaultdict(lambda: defaultdict(deque))
+        self.named_id_queues = defaultdict(
+            lambda: defaultdict(lambda: deque(maxlen=200))
+        )
         self.latest_msgs = {}
         self.subscribe_ids = set()
+        self.tracked_ids = set()
         self.callbacks = defaultdict(list)
         self.id_last_seen = {}
         self.id_timeout = {}
         self.id_timeout_default = 30
         self.cleanup_thread = None
         self.lock = threading.Lock()
+        self.log_active = threading.Event()
  
     def subscribe(self, msg_id, callback=None, queue_name=None):
         """
@@ -41,6 +44,7 @@ class CANReaderThread(threading.Thread):
             raise ValueError(f"Unsupported CAN ID: {msg_id!r}") from None
         with self.lock:
             self.subscribe_ids.add(msg_key)
+            self.tracked_ids.add(msg_key)
             if callback:
                 self.callbacks[msg_key].append(callback)
             if queue_name:
@@ -51,7 +55,7 @@ class CANReaderThread(threading.Thread):
                 if queue_name in queues_for_id:
                     queues_for_id[queue_name].clear()
                 else:
-                    queues_for_id[queue_name] = deque()
+                    queues_for_id[queue_name] = deque(maxlen=200)
    
     def unsubscribe(self, msg_id, queue_name=None):
         """
@@ -63,6 +67,7 @@ class CANReaderThread(threading.Thread):
             raise ValueError(f"Unsupported CAN ID: {msg_id!r}") from None
         with self.lock:
             self.subscribe_ids.discard(msg_key)
+            self.tracked_ids.discard(msg_key)
             self.callbacks.pop(msg_key,None)
             if queue_name:
                 queues_for_id = self.named_id_queues.get(msg_key)
@@ -85,11 +90,20 @@ class CANReaderThread(threading.Thread):
                 queues_for_id = self.named_id_queues[message_id]
                 queue = queues_for_id.get(queue_name)
                 if queue is None:
-                    queues_for_id[queue_name] = deque()
+                    queues_for_id[queue_name] = deque(maxlen=200)
                 else:
                     queue.clear()
             else:
                 self.id_queues[message_id].clear()
+
+    def track_id(self, msg_id):
+        """Ensure frames for the given CAN ID are buffered."""
+        try:
+            msg_key = self._normalize_id(msg_id)
+        except (TypeError, ValueError):
+            raise ValueError(f"Unsupported CAN ID: {msg_id!r}") from None
+        with self.lock:
+            self.tracked_ids.add(msg_key)
    
     def get_from_default(self, pop=True, block=False, timeout=None):
         """Get a message from the default queue"""
@@ -155,7 +169,7 @@ class CANReaderThread(threading.Thread):
                         # Preserve queues for active subscribers but drop stale
                         # data to avoid starving consumers like CAN-TP when idle
                         # periods exceed the timeout window.
-                        if msg_id in self.subscribe_ids:
+                        if msg_id in self.tracked_ids:
                             if msg_id in self.id_queues:
                                 self.id_queues[msg_id].clear()
                             for queue in self.named_id_queues.get(msg_id, {}).values():
@@ -164,11 +178,58 @@ class CANReaderThread(threading.Thread):
                             self.id_queues.pop(msg_id, None)
                             self.named_id_queues.pop(msg_id, None)
                             self.subscribe_ids.discard(msg_id)
+                            self.tracked_ids.discard(msg_id)
                         self.latest_msgs.pop(msg_id,None)
                         self.id_last_seen.pop(msg_id,None)
             time.sleep(5)
- 
- 
+
+
+    def set_log_active(self, active: bool):
+        if active:
+            self.log_active.set()
+        else:
+            self.log_active.clear()
+
+    def is_log_active(self) -> bool:
+        return self.log_active.is_set()
+
+    def get_log_queue(self):
+        return self.log_queue
+
+    def clear_trace_queues(self):
+        self._drain_queue(self.default_queue)
+        self._drain_queue(self.log_queue)
+
+    @staticmethod
+    def _drain_queue(target_queue: queue.Queue) -> None:
+        try:
+            while True:
+                target_queue.get_nowait()
+        except queue.Empty:
+            return
+
+    @staticmethod
+    def _offer_queue(target_queue: queue.Queue, item):
+        try:
+            target_queue.put_nowait(item)
+        except queue.Full:
+            try:
+                target_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                target_queue.put_nowait(item)
+            except queue.Full:
+                logger.debug("Trace queue saturated; dropping frame")
+
+    def enqueue_trace_record(self, message: can.Message, direction: str = "rx", *, include_default_queue: bool = False):
+        if not self.log_active.is_set():
+            return
+        self._offer_queue(self.log_queue, (message, direction))
+        if include_default_queue:
+            self._offer_queue(self.default_queue, message)
+
+
     def run(self):
         self.running.set()
         self.cleanup_thread = threading.Thread(target=self.cleanup_old_queues, daemon=True)
@@ -181,12 +242,13 @@ class CANReaderThread(threading.Thread):
             with self.lock:
                 self.latest_msgs[msg_id] = msg
                 self.id_last_seen[msg_id] = time.time()
-                self.id_queues[msg_id].append(msg)
-                for queues_for_id in self.named_id_queues.get(msg_id, {}).values():
-                    queues_for_id.append(msg)
+                if msg_id in self.tracked_ids:
+                    self.id_queues[msg_id].append(msg)
+                    for queues_for_id in self.named_id_queues.get(msg_id, {}).values():
+                        queues_for_id.append(msg)
                 callbacks = list(self.callbacks.get(msg_id, [])) if msg_id in self.subscribe_ids else []
 
-            self.default_queue.put(msg)
+            self.enqueue_trace_record(msg, direction="rx", include_default_queue=True)
             for cb in callbacks:
                 try:
                     cb(msg)
