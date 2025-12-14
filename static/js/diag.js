@@ -23,6 +23,52 @@ const diagGroups = {
 
 let diagLogAppender = null;
 
+let startLogActive = false;
+
+const diagCustomButtons = [];
+let selectedCustomButtonId = null;
+const diagCustomCounters = { functional: 0, physical: 0 };
+
+const scriptExecution = {
+  running: false,
+  cancelFlag: false,
+  startedTesterPresent: false,
+  currentButtonId: null,
+};
+
+let addCustomButtonEntryFn = null;
+let resetCustomButtonsFn = null;
+
+const decodeAsciiFromHex = (payload = '') => {
+  const tokens = `${payload}`
+    .trim()
+    .split(/\s+/)
+    .filter((tok) => /^[0-9A-Fa-f]{2}$/.test(tok));
+  if (!tokens.length) return '';
+  const chars = tokens.map((tok) => {
+    const code = parseInt(tok, 16);
+    if (Number.isNaN(code)) return '.';
+    if (code >= 0x20 && code <= 0x7e) return String.fromCharCode(code);
+    return '.';
+  });
+  return chars.join('');
+};
+
+const stringifyPayload = (val) => {
+  if (Array.isArray(val)) return val.join(' ');
+  if (val === null || val === undefined) return '';
+  return String(val).trim();
+};
+
+const isNegativeResponse = (payload = '') => {
+  const firstToken = `${payload}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .shift();
+  return (firstToken || '').toUpperCase() === '7F';
+};
+
 const getConfiguredEcuId = () => {
   const physical = $('#diag-physical-id')?.value.trim();
   if (physical) return physical;
@@ -61,6 +107,67 @@ const isNearBottom = (el, threshold = 40) => {
   if (!el) return true;
   const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
   return distance <= threshold;
+};
+
+const normalizeFileName = (name = '') => name.replace(/\.[^.]+$/, '') || 'Script';
+
+const parseSleepCommand = (value) => {
+  const match = value.trim().match(/^(\d+)\s*(MS|S)?$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const unit = (match[2] || 'MS').toUpperCase();
+  const durationMs = unit === 'S' ? amount * 1000 : amount;
+  return { value: `${amount}${unit}`, durationMs };
+};
+
+const parseScriptText = (text = '') => {
+  const steps = [];
+  const lines = `${text}`.split(/\r?\n/);
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    const rawLine = lines[idx];
+    const line = rawLine.trim();
+    if (!line) continue;
+    const lineNumber = idx + 1;
+    if (line.startsWith('//')) {
+      steps.push({ comment: line.slice(2).trim() });
+      continue;
+    }
+    if (/^\[.*\]$/.test(line)) {
+      const inner = line.slice(1, -1).trim();
+      const upper = inner.toUpperCase();
+      if (upper.startsWith('SLEEP ')) {
+        const parsed = parseSleepCommand(inner.slice(6));
+        if (!parsed) {
+          throw new Error(`Line ${lineNumber}: Invalid SLEEP value in \"${rawLine}\"`);
+        }
+        steps.push({ cmd: 'SLEEP', value: parsed.value, durationMs: parsed.durationMs });
+        continue;
+      }
+      if (upper === 'TESTER PRESENT START') {
+        steps.push({ cmd: 'TESTER_PRESENT_START' });
+        continue;
+      }
+      if (upper === 'TESTER PRESENT STOP') {
+        steps.push({ cmd: 'TESTER_PRESENT_STOP' });
+        continue;
+      }
+      if (upper === 'UNLOCK SECA') {
+        steps.push({ cmd: 'UNLOCK_SECA' });
+        continue;
+      }
+      throw new Error(`Line ${lineNumber}: Unsupported command \"${rawLine}\"`);
+    }
+    const tokens = line.split(/\s+/);
+    if (!tokens.every((tok) => /^[0-9A-Fa-f]{2}$/.test(tok))) {
+      throw new Error(`Line ${lineNumber}: Invalid hex payload \"${rawLine}\"`);
+    }
+    steps.push({ req: tokens.map((tok) => tok.toUpperCase()).join(' ') });
+  }
+  if (!steps.length) {
+    throw new Error('No executable script content found');
+  }
+  return steps;
 };
 
 const formatHexTextareaValue = (el) => {
@@ -131,8 +238,8 @@ export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
   const ecuId = getConfiguredEcuId();
   if (!ecuId) {
     diagLogAppender?.({
-      label: 'Diagnostics Config',
-      error: 'Provide a Physical or Functional ID in Settings',
+      type: 'error',
+      payload: 'Provide a Physical or Functional ID in Settings',
     });
     reportStatus?.('Diagnostics not configured', 'error');
     return { ok: false, error: 'Missing ECU ID' };
@@ -153,25 +260,95 @@ export async function configureDiagnosticsFromSettings({ reportStatus } = {}) {
     if (js.ok) {
       const ecu = js.ecu_id || payload.ecu_id;
       const tester = js.tester_id || payload.tester_id || '—';
-      diagLogAppender?.({
-        label: 'Diagnostics Configured',
-        ecuId: `${ecu}/${tester}`,
-        request: js.dll ? `DLL: ${js.dll}` : payload.dll ? `DLL: ${payload.dll}` : undefined,
-      });
+      const dllInfo = js.dll || payload.dll;
+      if (dllInfo) {
+        diagLogAppender?.({ type: 'info', payload: `DLL: ${dllInfo}`, canId: ecu });
+      }
       reportStatus?.(`Configured (${ecu})`, 'success');
       return { ok: true, ecuId: ecu, testerId: tester, dll: js.dll || payload.dll };
     }
     const error = js.error || 'ERR';
-    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    diagLogAppender?.({ type: 'error', payload: error });
     reportStatus?.(error, 'error');
     return { ok: false, error };
   } catch (err) {
     const error = err?.message || 'ERR';
-    diagLogAppender?.({ label: 'Diagnostics Config', error });
+    diagLogAppender?.({ type: 'error', payload: error });
     reportStatus?.(error, 'error');
     return { ok: false, error };
   }
 }
+
+export const getDiagProfileData = () => ({
+  customButtons: diagCustomButtons.map((entry) => {
+    const base = {
+      type: entry.type,
+      name: entry.name,
+      label: entry.label,
+      group: entry.group,
+      req: entry.req,
+      ecuId: entry.ecuId,
+      timeout: entry.timeout,
+    };
+    if (entry.type === 'script') {
+      base.steps = (entry.steps || []).map((step) => {
+        if (step.comment) return { comment: step.comment };
+        if (step.cmd) {
+          return { cmd: step.cmd, value: step.value, durationMs: step.durationMs };
+        }
+        if (step.req) return { req: step.req };
+        return null;
+      }).filter(Boolean);
+    }
+    return base;
+  }),
+});
+
+export const applyDiagProfileData = (data = {}) => {
+  if (!resetCustomButtonsFn || !addCustomButtonEntryFn) return;
+  resetCustomButtonsFn();
+  const buttons = Array.isArray(data.customButtons) ? data.customButtons : [];
+  buttons.forEach((entry, idx) => {
+    if (entry?.type === 'script') {
+      const steps = (entry.steps || []).map((step) => {
+        if (step?.comment) return { comment: step.comment };
+        if (step?.cmd) {
+          if (step.cmd === 'SLEEP') {
+            const parsed = step.durationMs ? { value: step.value, durationMs: step.durationMs } : parseSleepCommand(step.value || '');
+            return parsed
+              ? { cmd: 'SLEEP', value: parsed.value, durationMs: parsed.durationMs }
+              : { cmd: 'SLEEP', value: step.value, durationMs: step.durationMs };
+          }
+          return { cmd: step.cmd };
+        }
+        if (step?.req) return { req: normalizeDiagRaw(step.req) };
+        return null;
+      }).filter(Boolean);
+      addCustomButtonEntryFn({
+        id: `script-${Date.now()}-${idx}`,
+        type: 'script',
+        name: entry.name || entry.label || 'Script',
+        label: entry.label || entry.name || 'Script',
+        steps,
+      });
+      return;
+    }
+    if (entry?.req) {
+      addCustomButtonEntryFn({
+        id: `custom-${Date.now()}-${idx}`,
+        type: 'manual',
+        group: entry.group || 'functional',
+        req: normalizeDiagRaw(entry.req),
+        ecuId: entry.ecuId || '',
+        timeout: entry.timeout,
+        label: entry.label || entry.name || entry.req,
+        name: entry.name || entry.label || 'Custom',
+      });
+    }
+  });
+  diagCustomCounters.functional = diagCustomButtons.filter((btn) => btn.type === 'manual' && btn.group === 'functional').length;
+  diagCustomCounters.physical = diagCustomButtons.filter((btn) => btn.type === 'manual' && btn.group === 'physical').length;
+};
 
 /**
  * Initialize the Diagnostics tab module.
@@ -185,6 +362,15 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const diagBuffer = [];
   const MAX_LOG_ENTRIES = 500;
   let stickToBottom = true;
+
+  const loadScriptBtn = $('#btn-diag-load-script');
+  const stopScriptBtn = $('#btn-diag-stop-script');
+  const scriptFileInput = $('#diag-script-file');
+  const customButtonsContainer = $('#diag-custom-buttons');
+  const sendBtn = $('#btn-diag-send');
+  const sendDidBtn = $('#btn-diag-send-did');
+  const unlockBtn = $('#btn-diag-unlock');
+  const tpButton = $('#btn-tp-toggle');
 
   attachHexFormatter('#diag-request-raw');
 
@@ -206,6 +392,34 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       $('#btn-diag-send')?.click();
     }
   });
+
+  const updateDiagActionDisabledState = () => {
+    const blocked = !startLogActive || scriptExecution.running;
+    [sendBtn, sendDidBtn, unlockBtn, tpButton].forEach((btn) => {
+      if (btn) btn.disabled = blocked;
+    });
+    if (loadScriptBtn) loadScriptBtn.disabled = blocked;
+    if (stopScriptBtn) stopScriptBtn.disabled = !scriptExecution.running;
+  };
+
+  const syncStartLogState = () => {
+    const logToggle = $('#btn-log-toggle');
+    const nextState = logToggle?.getAttribute('aria-pressed') === 'true';
+    startLogActive = !!nextState;
+    updateDiagActionDisabledState();
+  };
+
+  const observeStartLogToggle = () => {
+    const logToggle = $('#btn-log-toggle');
+    if (!logToggle || typeof MutationObserver === 'undefined') {
+      syncStartLogState();
+      return;
+    }
+    syncStartLogState();
+    const observer = new MutationObserver(syncStartLogState);
+    observer.observe(logToggle, { attributes: true, attributeFilter: ['aria-pressed', 'class'] });
+    logToggle.addEventListener('click', syncStartLogState);
+  };
 
   const addressToggle = $('#diag-address-toggle');
   const addressLabel = $('#diag-address-label');
@@ -238,6 +452,15 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     }
   };
 
+  const clearDiagLog = () => {
+    diagBuffer.length = 0;
+    if (diagLog) {
+      diagLog.innerHTML = '';
+    }
+    stickToBottom = true;
+    diagLogScroll(true);
+  };
+
   diagLog?.addEventListener('scroll', () => {
     stickToBottom = isNearBottom(diagLog);
   });
@@ -245,55 +468,45 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   const renderDiagEntry = (entry) => {
     if (!diagLog) return;
     const shouldStick = isNearBottom(diagLog);
-    const { label, ecuId, request, response, error, time } = entry;
+    const { type = 'info', payload = '', canId = '', time } = entry;
     const logEntry = document.createElement('div');
-    logEntry.className = 'diag-log-entry';
-    logEntry.classList.add(error ? 'error' : 'success');
+    logEntry.className = `diag-log-entry ${type}`;
+
+    const body = document.createElement('div');
+    body.className = type === 'req' ? 'diag-log-req' : 'diag-log-resp';
+    body.style.color = 'inherit';
+    body.textContent = payload;
+    logEntry.appendChild(body);
 
     const meta = document.createElement('div');
     meta.className = 'diag-log-meta';
+
+    const tsRow = document.createElement('div');
+    tsRow.className = 'diag-log-time';
     const ts = document.createElement('span');
-    ts.className = 'diag-log-time';
+    ts.className = 'time';
     ts.textContent = (time || new Date()).toLocaleTimeString();
-    const title = document.createElement('span');
-    title.className = 'diag-log-title';
-    title.textContent = label || 'Diagnostics';
-    meta.appendChild(ts);
-    meta.appendChild(title);
-    if (ecuId) {
-      const ecu = document.createElement('span');
-      ecu.className = 'diag-log-ecu';
-      ecu.textContent = `ECU ${ecuId}`;
-      meta.appendChild(ecu);
-    }
+    const can = document.createElement('span');
+    can.className = 'can-id';
+    can.textContent = (canId || '—').toUpperCase();
+    tsRow.appendChild(ts);
+    tsRow.appendChild(can);
+
+    const asciiRow = document.createElement('div');
+    asciiRow.className = 'diag-log-ascii';
+    asciiRow.textContent = decodeAsciiFromHex(payload);
+
+    meta.appendChild(tsRow);
+    meta.appendChild(asciiRow);
+
     logEntry.appendChild(meta);
-
-    if (request) {
-      const req = document.createElement('pre');
-      req.className = 'diag-log-req';
-      req.textContent = `REQ: ${request}`;
-      logEntry.appendChild(req);
-    }
-
-    if (error) {
-      const err = document.createElement('pre');
-      err.className = 'diag-log-resp';
-      err.textContent = `ERR: ${error}`;
-      logEntry.appendChild(err);
-    } else if (response !== undefined) {
-      const resp = document.createElement('pre');
-      resp.className = 'diag-log-resp';
-      const body = Array.isArray(response) ? response.join(' ') : response || '';
-      resp.textContent = body ? `RESP: ${body}` : 'RESP: <no data>';
-      logEntry.appendChild(resp);
-    }
 
     diagLog.appendChild(logEntry);
     stickToBottom = shouldStick;
   };
 
   const addDiagLogEntry = (data) => {
-    const entry = { ...data, time: new Date() };
+    const entry = { ...data, time: data.time || new Date() };
     diagBuffer.push(entry);
     if (diagBuffer.length > MAX_LOG_ENTRIES) diagBuffer.shift();
 
@@ -316,9 +529,48 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     onTabChange('diag', renderBufferedLogs);
   }
 
+  const setSelectedCustomButton = (id) => {
+    selectedCustomButtonId = id;
+    if (!customButtonsContainer) return;
+    customButtonsContainer.querySelectorAll('.diag-custom-btn').forEach((btn) => {
+      btn.classList.toggle('is-selected', btn.dataset.customId === id);
+    });
+  };
+
+  const removeCustomButtonById = (id) => {
+    const idx = diagCustomButtons.findIndex((btn) => btn.id === id);
+    if (idx >= 0) {
+      diagCustomButtons.splice(idx, 1);
+    }
+    const btn = customButtonsContainer?.querySelector(`[data-custom-id="${id}"]`);
+    if (btn) btn.remove();
+    if (selectedCustomButtonId === id) {
+      selectedCustomButtonId = null;
+    }
+  };
+
+  const handleDeleteKey = (ev) => {
+    if (ev.key !== 'Delete') return;
+    if (typeof getActiveTab === 'function' && getActiveTab() !== 'diag') return;
+    if (startLogActive) return;
+    if (!selectedCustomButtonId) return;
+    ev.preventDefault();
+    removeCustomButtonById(selectedCustomButtonId);
+  };
+
+  window.addEventListener('keydown', handleDeleteKey);
+
   const sendDiagRequest = async ({ group, raw, ecuId, timeout, label }) => {
     const settings = diagGroups[group];
     if (!settings) return;
+    if (!startLogActive) {
+      addDiagLogEntry({ type: 'warn', payload: 'Start Log to run diagnostics' });
+      return;
+    }
+    if (scriptExecution.running) {
+      addDiagLogEntry({ type: 'warn', payload: 'Script is running. Stop it before sending another request.' });
+      return;
+    }
     const rawInput = $(settings.raw);
     const ecuInput = $(settings.ecu);
     const timeoutInput = $(settings.timeout);
@@ -330,13 +582,10 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     if (target) payload.ecu_id = target.trim();
     payload.label = label || settings.defaultLabel;
     if (!payload.data) {
-      addDiagLogEntry({
-        label: `${settings.defaultLabel} Send`,
-        error: 'Request payload is empty',
-        ecuId: target?.toUpperCase?.(),
-      });
+      addDiagLogEntry({ type: 'warn', payload: 'Request payload is empty', canId: target?.toUpperCase?.() });
       return;
     }
+    const sentAt = new Date();
     try {
       const res = await fetch('/api/diag/send', {
         method: 'POST',
@@ -344,32 +593,92 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
         body: JSON.stringify(payload),
       });
       const js = await res.json().catch(() => ({ ok: false }));
+      addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       if (js.ok) {
-        addDiagLogEntry({
-          label: payload.label,
-          ecuId: js.ecu_id || target?.toUpperCase?.(),
-          request: payload.data,
-          response: js.response,
-        });
+        const responsePayload = stringifyPayload(js.response);
+        if (responsePayload) {
+          const responseType = isNegativeResponse(responsePayload) ? 'warn' : 'resp';
+          addDiagLogEntry({
+            type: responseType,
+            payload: responsePayload,
+            canId: js.ecu_id || target?.toUpperCase?.(),
+            time: new Date(),
+          });
+        } else {
+          addDiagLogEntry({
+            type: 'error',
+            payload: 'No response from ECU (timeout)',
+            canId: js.ecu_id || target?.toUpperCase?.(),
+            time: new Date(),
+          });
+        }
       } else {
         addDiagLogEntry({
-          label: payload.label,
-          ecuId: target?.toUpperCase?.(),
-          request: payload.data,
-          error: js.error || 'ERR',
+          type: 'error',
+          payload: stringifyPayload(js.error) || 'No response from ECU (timeout)',
+          canId: target?.toUpperCase?.(),
+          time: new Date(),
         });
       }
+      diagLogScroll(true);
     } catch (err) {
+      addDiagLogEntry({ type: 'req', payload: payload.data, canId: target?.toUpperCase?.(), time: sentAt });
       addDiagLogEntry({
-        label: payload.label,
-        ecuId: target?.toUpperCase?.(),
-        request: payload.data,
-        error: err.message || 'ERR',
+        type: 'error',
+        payload: stringifyPayload(err.message) || 'No response from ECU (timeout)',
+        canId: target?.toUpperCase?.(),
+        time: new Date(),
       });
+      diagLogScroll(true);
     }
   };
 
-  const diagCustomCounters = { functional: 0, physical: 0 };
+  let executeScriptButton = async () => {};
+
+  const renderCustomButton = (entry) => {
+    if (!customButtonsContainer) return null;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'diag-custom-btn';
+    btn.dataset.customId = entry.id;
+    btn.textContent = entry.label || entry.name || entry.req || 'Custom';
+    const selectOnly = () => setSelectedCustomButton(entry.id);
+    btn.addEventListener('mousedown', selectOnly);
+    btn.addEventListener('focus', selectOnly);
+    btn.addEventListener('click', () => {
+      setSelectedCustomButton(entry.id);
+      if (!startLogActive) return;
+      if (scriptExecution.running) return;
+      if (entry.type === 'script') {
+        executeScriptButton(entry);
+      } else {
+        sendDiagRequest({
+          group: entry.group || currentGroup,
+          raw: entry.req,
+          ecuId: entry.ecuId,
+          timeout: entry.timeout,
+          label: entry.label,
+        });
+      }
+    });
+    customButtonsContainer.appendChild(btn);
+    return btn;
+  };
+
+  const addCustomButtonEntry = (entry) => {
+    diagCustomButtons.push(entry);
+    renderCustomButton(entry);
+  };
+
+  const resetCustomButtons = () => {
+    diagCustomButtons.length = 0;
+    if (customButtonsContainer) {
+      customButtonsContainer.innerHTML = '';
+    }
+    setSelectedCustomButton(null);
+    diagCustomCounters.functional = 0;
+    diagCustomCounters.physical = 0;
+  };
 
   const staticButtonsContainer = $('#diag-fast-buttons');
   if (staticButtonsContainer) {
@@ -392,28 +701,26 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     const ecuInput = $(settings.ecu);
     const timeoutInput = $(settings.timeout);
     if (!rawInput || !rawInput.value.trim()) {
-      addDiagLogEntry({
-        label: `${settings.defaultLabel} Add`,
-        error: 'Cannot add custom sender without payload',
-      });
+      addDiagLogEntry({ type: 'warn', payload: 'Cannot add custom sender without payload' });
       return;
     }
     const normalized = normalizeDiagRaw(rawInput.value);
     const ecuId = ecuInput ? ecuInput.value.trim() : '';
     const timeout = timeoutInput ? Number(timeoutInput.value || 500) : 500;
-    const container = document.querySelector('#diag-custom-buttons');
-    if (!container) return;
     const index = ++diagCustomCounters[group];
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'diag-custom-btn';
     const label = `${settings.defaultLabel} ${index}`;
     const preview = normalized.split(' ').slice(0, 3).join(' ');
-    btn.textContent = preview ? `${label}: ${preview}` : label;
-    btn.addEventListener('click', () => {
-      sendDiagRequest({ group, raw: normalized, ecuId, timeout, label });
+    const buttonLabel = preview ? `${label}: ${preview}` : label;
+    addCustomButtonEntry({
+      id: `custom-${Date.now()}-${diagCustomButtons.length}`,
+      type: 'manual',
+      group,
+      req: normalized,
+      ecuId,
+      timeout,
+      label: buttonLabel,
+      name: label,
     });
-    container.appendChild(btn);
   };
 
   $('#btn-diag-send')?.addEventListener('click', () => sendDiagRequest({ group: currentGroup }));
@@ -423,12 +730,12 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     if (!valueInput || !baseInput) return;
     const base = normalizeDiagRaw(baseInput.value);
     if (!base) {
-      addDiagLogEntry({ label: 'Send DID', error: 'Base request is empty' });
+      addDiagLogEntry({ type: 'warn', payload: 'Base request is empty' });
       return;
     }
     const decimal = Number(valueInput.value);
     if (!Number.isInteger(decimal) || decimal < 0 || decimal > 255) {
-      addDiagLogEntry({ label: 'Send DID', error: 'Value must be 0-255' });
+      addDiagLogEntry({ type: 'warn', payload: 'Value must be 0-255' });
       return;
     }
     const hexValue = decimal.toString(16).toUpperCase().padStart(2, '0');
@@ -438,7 +745,46 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
   $('#btn-diag-add')?.addEventListener('click', () => createCustomDiagButton(currentGroup));
 
-  $('#btn-diag-unlock')?.addEventListener('click', async () => {
+  loadScriptBtn?.addEventListener('click', () => {
+    if (!startLogActive || !scriptFileInput) return;
+    scriptFileInput.click();
+  });
+
+  scriptFileInput?.addEventListener('change', async () => {
+    const file = scriptFileInput.files?.[0];
+    scriptFileInput.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const steps = parseScriptText(text);
+      const name = normalizeFileName(file.name);
+      addCustomButtonEntry({
+        id: `script-${Date.now()}-${diagCustomButtons.length}`,
+        type: 'script',
+        name,
+        label: name,
+        steps,
+      });
+    } catch (err) {
+      const message = err?.message || 'Invalid script file';
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert(message);
+      }
+    }
+  });
+
+  stopScriptBtn?.addEventListener('click', () => {
+    if (!scriptExecution.running) return;
+    scriptExecution.cancelFlag = true;
+  });
+
+  $('#btn-diag-clear-log')?.addEventListener('click', clearDiagLog);
+
+  const performUnlock = async () => {
+    if (!startLogActive) {
+      addDiagLogEntry({ type: 'warn', payload: 'Start Log to run diagnostics' });
+      return false;
+    }
     const payload = {};
     const ecuId = getConfiguredEcuId();
     if (ecuId) payload.ecu_id = ecuId;
@@ -453,29 +799,30 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
       const js = await res.json().catch(() => ({ ok: false }));
       if (js.ok) {
         addDiagLogEntry({
-          label: 'Security Unlock',
-          ecuId: js.ecu_id,
-          request: payload.dll ? `DLL: ${payload.dll}` : undefined,
-          response: 'Unlocked',
+          type: 'info',
+          payload: payload.dll ? `DLL: ${payload.dll}` : 'Unlocked',
+          canId: js.ecu_id,
         });
-      } else {
-        addDiagLogEntry({
-          label: 'Security Unlock',
-          ecuId: payload.ecu_id,
-          error: js.error || 'Unlock failed',
-        });
+        return true;
       }
+      addDiagLogEntry({
+        type: 'error',
+        payload: stringifyPayload(js.error || 'Unlock failed'),
+        canId: payload.ecu_id,
+      });
     } catch (err) {
       addDiagLogEntry({
-        label: 'Security Unlock',
-        ecuId: payload.ecu_id,
-        error: err.message || 'Unlock failed',
+        type: 'error',
+        payload: stringifyPayload(err.message || 'Unlock failed'),
+        canId: payload.ecu_id,
       });
     }
-  });
+    return false;
+  };
+
+  $('#btn-diag-unlock')?.addEventListener('click', performUnlock);
 
   let testerPresentActive = false;
-  const tpButton = $('#btn-tp-toggle');
   const setTpState = (active) => {
     testerPresentActive = active;
     if (!tpButton) return;
@@ -484,8 +831,15 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
   };
   setTpState(false);
 
-  tpButton?.addEventListener('click', async () => {
-    const payload = testerPresentActive ? { action: 'stop' } : { action: 'start', interval: getTesterPresentInterval() };
+  const requestTesterPresent = async (action) => {
+    if (!startLogActive) {
+      addDiagLogEntry({ type: 'warn', payload: 'Start Log to run diagnostics' });
+      return false;
+    }
+    const payload =
+      action === 'start'
+        ? { action: 'start', interval: getTesterPresentInterval() }
+        : { action: 'stop' };
     try {
       const res = await fetch('/api/diag/tester_present', {
         method: 'POST',
@@ -493,9 +847,79 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(res.statusText || 'Tester Present failed');
-      setTpState(!testerPresentActive);
+      setTpState(action === 'start');
+      return true;
     } catch (err) {
-      addDiagLogEntry({ label: 'Tester Present', error: err.message || 'ERR' });
+      addDiagLogEntry({ type: 'error', payload: stringifyPayload(err.message || 'ERR') });
     }
+    return false;
+  };
+
+  tpButton?.addEventListener('click', async () => {
+    await requestTesterPresent(testerPresentActive ? 'stop' : 'start');
   });
+
+  const setScriptRunning = (running) => {
+    scriptExecution.running = running;
+    if (!running) {
+      scriptExecution.cancelFlag = false;
+      scriptExecution.currentButtonId = null;
+      scriptExecution.startedTesterPresent = false;
+    }
+    updateDiagActionDisabledState();
+  };
+
+  const runScriptCommand = async (step) => {
+    if (step.cmd === 'SLEEP') {
+      await new Promise((resolve) => setTimeout(resolve, step.durationMs || 0));
+      return;
+    }
+    if (step.cmd === 'TESTER_PRESENT_START') {
+      if (!testerPresentActive) {
+        const started = await requestTesterPresent('start');
+        if (started) scriptExecution.startedTesterPresent = true;
+      }
+      return;
+    }
+    if (step.cmd === 'TESTER_PRESENT_STOP') {
+      if (scriptExecution.startedTesterPresent && testerPresentActive) {
+        await requestTesterPresent('stop');
+        scriptExecution.startedTesterPresent = false;
+      }
+      return;
+    }
+    if (step.cmd === 'UNLOCK_SECA') {
+      await performUnlock();
+    }
+  };
+
+  executeScriptButton = async (entry) => {
+    if (scriptExecution.running || !startLogActive) return;
+    scriptExecution.cancelFlag = false;
+    scriptExecution.currentButtonId = entry.id;
+    setScriptRunning(true);
+    try {
+      for (const step of entry.steps || []) {
+        if (scriptExecution.cancelFlag) break;
+        if (step.comment) continue;
+        if (step.cmd) {
+          await runScriptCommand(step);
+        } else if (step.req) {
+          await sendDiagRequest({ group: currentGroup, raw: step.req });
+        }
+        if (scriptExecution.cancelFlag) break;
+      }
+    } finally {
+      if (scriptExecution.startedTesterPresent && testerPresentActive) {
+        await requestTesterPresent('stop');
+      }
+      setScriptRunning(false);
+    }
+  };
+
+  observeStartLogToggle();
+  updateDiagActionDisabledState();
+
+  addCustomButtonEntryFn = addCustomButtonEntry;
+  resetCustomButtonsFn = resetCustomButtons;
 }
