@@ -1,5 +1,5 @@
 import { PanelGrid } from './panel_grid.js';
-import { PanelWidgetManager, PANEL_WIDGET_LIBRARY, getWidgetDefinition } from './panel_widgets.js';
+import { PanelWidgetManager, PANEL_WIDGET_LIBRARY } from './panel_widgets.js';
 import { PanelPropertiesPanel } from './panel_properties.js';
 import { PanelScriptEngine } from './panel_script.js';
 import { registerImageWidgetExtensions } from './panel_image_widgets.js';
@@ -329,9 +329,7 @@ const initPanel = () => {
 
   const setScriptMode = (enabled, applyToWidget = false) => {
     if (!panelTab) return;
-    const currentWidget = applyToWidget && state.selectedId ? widgetManager.getWidget(state.selectedId) : null;
-    const currentDefinition = currentWidget ? getWidgetDefinition(currentWidget.type) : null;
-    const isEnabled = currentDefinition?.supportsScript === false ? false : Boolean(enabled);
+    const isEnabled = Boolean(enabled);
     panelTab.dataset.scriptMode = isEnabled ? 'true' : 'false';
     const icon = scriptToggle?.querySelector('.panel-ribbon-icon');
     const label = scriptToggle?.parentElement?.querySelector('.panel-ribbon-label');

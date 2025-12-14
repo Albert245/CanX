@@ -1,7 +1,6 @@
 import ast
 import json
 import re
-import time
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
@@ -16,8 +15,6 @@ IMAGE_FOLDERS = {
     'red': Path('static/assets/red'),
 }
 
-_IMAGE_CACHE = {'timestamp': 0, 'data': None}
-
 BLOCK_PATTERN = re.compile(r'on\s+([a-zA-Z_][\w]*)\s*(?:([^\{]*))?\{([^}]*)\}', re.IGNORECASE | re.DOTALL)
 
 
@@ -30,31 +27,6 @@ def _panel_data_path():
 
 def _get_state():
   return current_app.config.get('CANX_STATE')
-
-
-def _load_image_catalog(ttl_seconds=300):
-  now = time.time()
-  if _IMAGE_CACHE['data'] is not None and now - _IMAGE_CACHE['timestamp'] < ttl_seconds:
-    return _IMAGE_CACHE['data']
-
-  result = {color: [] for color in IMAGE_FOLDERS.keys()}
-  root = Path(current_app.root_path)
-  for color, rel_path in IMAGE_FOLDERS.items():
-    try:
-      target_dir = root / rel_path
-      if not target_dir.exists() or not target_dir.is_dir():
-        continue
-      entries = [
-        entry.name
-        for entry in target_dir.iterdir()
-        if entry.is_file() and entry.suffix.lower() in {'.png', '.jpg', '.jpeg', '.svg'}
-      ]
-      result[color] = sorted(entries)
-    except Exception:
-      result[color] = []
-  _IMAGE_CACHE['data'] = result
-  _IMAGE_CACHE['timestamp'] = now
-  return result
 
 
 def _normalize_literal(text):
@@ -284,11 +256,19 @@ def panel_script_eval():
 
 @panel_bp.route('/list-images', methods=['GET'])
 def panel_list_images():
-  catalog = _load_image_catalog()
-  return jsonify(catalog)
-
-
-@panel_bp.route('/assets', methods=['GET'])
-def panel_assets():
-  catalog = _load_image_catalog()
-  return jsonify({'ok': True, 'groups': catalog})
+  result = {color: [] for color in IMAGE_FOLDERS.keys()}
+  root = Path(current_app.root_path)
+  for color, rel_path in IMAGE_FOLDERS.items():
+    try:
+      target_dir = root / rel_path
+      if not target_dir.exists() or not target_dir.is_dir():
+        continue
+      entries = [
+        entry.name
+        for entry in target_dir.iterdir()
+        if entry.is_file() and entry.suffix.lower() in {'.png', '.jpg', '.jpeg', '.svg'}
+      ]
+      result[color] = sorted(entries)
+    except Exception:
+      result[color] = []
+  return jsonify(result)

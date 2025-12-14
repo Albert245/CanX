@@ -76,55 +76,6 @@ export const PANEL_WIDGET_LIBRARY = [
     ],
   },
   {
-    type: 'tag',
-    label: 'Tag',
-    icon: '/static/img/tag.png',
-    category: 'Standard',
-    description: 'Static text tag for annotating the panel canvas.',
-    defaultSize: { w: 3, h: 1 },
-    defaults: {
-      label: 'Tag',
-      options: {
-        text: 'Tag',
-        fontSize: 14,
-        fontWeight: 'normal',
-        color: '#ffffff',
-        align: 'left',
-      },
-    },
-    supportsMapping: false,
-    supportsScript: false,
-    propertySections: [
-      {
-        title: 'Content',
-        fields: [
-          { label: 'Text', path: 'options.text', type: 'textarea', rows: 3, placeholder: 'Tag text' },
-          { label: 'Font size', path: 'options.fontSize', type: 'number' },
-          {
-            label: 'Font weight',
-            path: 'options.fontWeight',
-            type: 'select',
-            options: [
-              { label: 'Normal', value: 'normal' },
-              { label: 'Bold', value: 'bold' },
-            ],
-          },
-          { label: 'Text color', path: 'options.color', type: 'color' },
-          {
-            label: 'Align',
-            path: 'options.align',
-            type: 'select',
-            options: [
-              { label: 'Left', value: 'left' },
-              { label: 'Center', value: 'center' },
-              { label: 'Right', value: 'right' },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
     type: 'toggle',
     label: 'Toggle Switch',
     icon: '↕',
@@ -569,9 +520,6 @@ export class PanelWidgetManager {
       case 'image_switch':
         this._renderImageSwitch(widget, element);
         break;
-      case 'tag':
-        this._renderTag(widget, element);
-        break;
       default:
         element.textContent = widget.label || widget.type;
     }
@@ -649,32 +597,6 @@ export class PanelWidgetManager {
     namedEl.textContent = widget.runtime?.namedValue ?? '';
     wrapper.append(title, valueEl, namedEl);
     element.appendChild(wrapper);
-  }
-
-  _renderTag(widget, element) {
-    const tag = document.createElement('div');
-    tag.className = 'panel-widget-tag';
-    const text = widget.options?.text ?? widget.label ?? 'Tag';
-    tag.textContent = text;
-    const fontSize = Number(widget.options?.fontSize);
-    if (Number.isFinite(fontSize)) {
-      tag.style.fontSize = `${fontSize}px`;
-      tag.style.lineHeight = '1.2';
-    }
-    const fontWeight = widget.options?.fontWeight || 'normal';
-    tag.style.fontWeight = fontWeight;
-    const color = widget.options?.color || '#ffffff';
-    tag.style.color = color;
-    const align = widget.options?.align || 'left';
-    tag.style.textAlign = ['center', 'right'].includes(align) ? align : 'left';
-    tag.style.whiteSpace = 'normal';
-    tag.style.wordBreak = 'break-word';
-    tag.style.width = '100%';
-    tag.style.height = '100%';
-    tag.style.display = 'flex';
-    tag.style.alignItems = 'center';
-    tag.style.justifyContent = align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start';
-    element.appendChild(tag);
   }
 
   _renderInput(widget, element) {

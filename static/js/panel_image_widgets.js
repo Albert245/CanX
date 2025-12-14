@@ -12,27 +12,13 @@ const normalizeImagePath = (folder, file) => {
 export const fetchImageCatalog = async () => {
   if (imageCatalog) return imageCatalog;
   try {
-    const response = await fetch('/api/panel/assets');
-    const data = await response.json().catch(() => ({}));
-    if (response.ok && data?.ok && data.groups) {
-      imageCatalog = data.groups;
-      return imageCatalog;
-    }
-  } catch (err) {
-    console.warn('Unable to load image catalog', err);
-  }
-
-  try {
     const response = await fetch('/api/panel/list-images');
     const data = await response.json().catch(() => ({}));
-    if (response.ok && data && typeof data === 'object') {
-      imageCatalog = data;
-      return imageCatalog;
-    }
+    imageCatalog = data || {};
   } catch (err) {
-    console.warn('Unable to load fallback image catalog', err);
+    console.warn('Unable to load image catalog', err);
+    imageCatalog = IMAGE_COLORS.reduce((acc, color) => ({ ...acc, [color]: [] }), {});
   }
-  imageCatalog = IMAGE_COLORS.reduce((acc, color) => ({ ...acc, [color]: [] }), {});
   return imageCatalog;
 };
 
