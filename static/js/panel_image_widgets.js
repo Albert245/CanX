@@ -186,6 +186,7 @@ const createImageDropdown = ({ value = '', onSelect }) => {
 
   const menu = document.createElement('div');
   menu.className = 'img-dropdown-menu image-dropdown-container';
+  menu.hidden = true;
 
   const scrollable = document.createElement('div');
   scrollable.className = 'image-dropdown-scrollable';
@@ -193,12 +194,13 @@ const createImageDropdown = ({ value = '', onSelect }) => {
 
   let currentValue = value || '';
   let isOpen = false;
-  let cleanup = null;
+  let menuBuilt = false;
 
   const closeMenu = () => {
     if (!isOpen) return;
     isOpen = false;
     root.classList.remove('open');
+    menu.hidden = true;
   };
 
   const handleOutsideClick = (event) => {
@@ -214,6 +216,11 @@ const createImageDropdown = ({ value = '', onSelect }) => {
     }
     isOpen = true;
     root.classList.add('open');
+    menu.hidden = false;
+    if (!menuBuilt) {
+      menuBuilt = true;
+      buildMenu();
+    }
   };
 
   toggle.addEventListener('click', (event) => {
@@ -308,13 +315,12 @@ const createImageDropdown = ({ value = '', onSelect }) => {
     setSelected(currentValue);
   };
 
-  buildMenu();
-
-  cleanup = () => {
-    document.removeEventListener('click', handleOutsideClick);
-  };
-
   document.addEventListener('click', handleOutsideClick);
+
+  const cleanup = () => {
+    document.removeEventListener('click', handleOutsideClick);
+    closeMenu();
+  };
 
   const observer = new MutationObserver(() => {
     if (!root.isConnected) {
