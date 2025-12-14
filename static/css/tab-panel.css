@@ -260,3 +260,26 @@
 
 #panel-canvas.panel-hide-grid { background-image: none; }
 
+/* TRONG FILE: tab-panel.css */
+
+.panel-widget {
+  /* Các thuộc tính cũ giữ nguyên */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; 
+  position: relative; /* Đảm bảo con tuyệt đối sẽ theo cha */
+}
+
+/* Thêm đoạn này: Quy định phần tử con (trừ cái tên) phải giãn ra */
+.panel-widget > canvas,
+.panel-widget > svg,
+.panel-widget > .widget-content {
+  flex: 1 1 auto; /* Tự động giãn chiều cao */
+  width: 100%;
+  min-height: 0; /* Quan trọng cho Firefox/Flexbox lồng nhau */
+}
+
+/* Nếu bạn dùng element riêng cho Title */
+.panel-widget-title {
+  flex: 0 0 auto; /* Không cho title bị co giãn */
+}
