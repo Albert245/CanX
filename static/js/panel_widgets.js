@@ -476,6 +476,14 @@ export class PanelWidgetManager {
   _renderWidget(widget, element) {
     if (!widget || !element) return;
     element.className = `panel-widget panel-widget--${widget.type}`;
+    const simpleTypes = new Set(['button', 'toggle', 'lamp']);
+    const formTypes = new Set(['input', 'input_button', 'progress', 'label']);
+    if (simpleTypes.has(widget.type)) {
+      element.classList.add('panel-widget--simple');
+    }
+    if (formTypes.has(widget.type)) {
+      element.classList.add('panel-widget--form');
+    }
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.setAttribute('data-widget-id', widget.id);
@@ -521,7 +529,7 @@ export class PanelWidgetManager {
         this._renderImageSwitch(widget, element);
         break;
       default:
-        element.textContent = widget.label || widget.type;
+        element.textContent = widget.label || '';
     }
   }
 
@@ -530,7 +538,7 @@ export class PanelWidgetManager {
     body.className = 'panel-widget-body';
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = widget.label || 'Button';
+    btn.textContent = widget.label ?? '';
     body.appendChild(btn);
     element.appendChild(body);
   }
@@ -550,8 +558,12 @@ export class PanelWidgetManager {
     body.appendChild(toggle);
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
-    caption.textContent = widget.label || 'Toggle';
-    element.append(body, caption);
+    if (widget.label) {
+      caption.textContent = widget.label;
+      element.append(body, caption);
+    } else {
+      element.append(body);
+    }
   }
 
   _renderLamp(widget, element) {
@@ -566,8 +578,12 @@ export class PanelWidgetManager {
     body.appendChild(lamp);
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
-    caption.textContent = widget.label || 'Lamp';
-    element.append(body, caption);
+    if (widget.label) {
+      caption.textContent = widget.label;
+      element.append(body, caption);
+    } else {
+      element.append(body);
+    }
   }
 
   _renderProgress(widget, element) {
@@ -583,22 +599,30 @@ export class PanelWidgetManager {
     body.appendChild(shell);
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
-    caption.textContent = widget.label || 'Progress';
-    element.append(body, caption);
+    if (widget.label) {
+      caption.textContent = widget.label;
+      element.append(body, caption);
+    } else {
+      element.append(body);
+    }
   }
 
   _renderLabel(widget, element) {
     const body = document.createElement('div');
     body.className = 'panel-widget-body panel-widget-label';
     const title = document.createElement('div');
-    title.textContent = widget.label || 'Label';
+    title.textContent = widget.label ?? '';
     const valueEl = document.createElement('span');
     valueEl.className = 'panel-label-value';
     valueEl.textContent = widget.runtime?.displayValue ?? '—';
     const namedEl = document.createElement('span');
     namedEl.className = 'panel-label-named';
     namedEl.textContent = widget.runtime?.namedValue ?? '';
-    body.append(title, valueEl, namedEl);
+    if (widget.label) {
+      body.append(title, valueEl, namedEl);
+    } else {
+      body.append(valueEl, namedEl);
+    }
     element.appendChild(body);
   }
 
@@ -608,7 +632,9 @@ export class PanelWidgetManager {
     body.className = 'panel-widget-body';
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
-    caption.textContent = widget.label || 'Input';
+    if (widget.label) {
+      caption.textContent = widget.label;
+    }
     const row = document.createElement('div');
     row.className = 'panel-input-row';
     const input = document.createElement('input');
@@ -628,7 +654,11 @@ export class PanelWidgetManager {
     }
     row.append(input);
     body.append(row);
-    element.append(body, caption);
+    if (widget.label) {
+      element.append(body, caption);
+    } else {
+      element.append(body);
+    }
   }
 
   _renderInputButton(widget, element) {
@@ -637,7 +667,9 @@ export class PanelWidgetManager {
     body.className = 'panel-widget-body';
     const caption = document.createElement('div');
     caption.className = 'panel-widget-caption';
-    caption.textContent = widget.label || 'Input';
+    if (widget.label) {
+      caption.textContent = widget.label;
+    }
     const row = document.createElement('div');
     row.className = 'panel-input-row';
     const input = document.createElement('input');
@@ -660,7 +692,11 @@ export class PanelWidgetManager {
     button.toggleAttribute('disabled', this.mode !== 'run');
     row.append(input, button);
     body.append(row);
-    element.append(body, caption);
+    if (widget.label) {
+      element.append(body, caption);
+    } else {
+      element.append(body);
+    }
   }
 
   _renderScript(widget, element) {
