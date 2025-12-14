@@ -191,6 +191,22 @@
   margin: 10px auto 0;
 }
 
+.diag-action-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.diag-script-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* Add button: circular, placed left under input */
 .diag-add-btn {
   width: 44px;
@@ -310,6 +326,10 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+
+.diag-custom-btn.is-selected {
+  outline: 2px solid var(--accent);
 }
 
 .diag-static-btn,
@@ -627,9 +647,12 @@
 }
 
 /* ---------- Color by type ---------- */
-#tab-diag .diag-log-entry.req,
-#tab-diag .diag-log-entry.resp {
+#tab-diag .diag-log-entry.req {
   color: #e6e6e6;
+}
+
+#tab-diag .diag-log-entry.resp {
+  color: #7ee787;
 }
 
 #tab-diag .diag-log-entry.info {
