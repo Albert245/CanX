@@ -53,6 +53,8 @@ export class PanelPropertiesPanel {
     this.messageInput = document.getElementById('panel-map-message');
     this.signalInput = document.getElementById('panel-map-signal');
     this.scriptEditor = document.getElementById('panel-script-editor');
+    this.defaultPropertiesGroup = document.querySelector('.default-properties-group');
+    this.scriptEditorGroup = document.querySelector('.script-editor-group');
     this.layoutInputs = {
       col: document.getElementById('panel-layout-col'),
       row: document.getElementById('panel-layout-row'),
@@ -116,6 +118,7 @@ export class PanelPropertiesPanel {
     this._syncMappingInputs();
     this._syncLayoutInputs();
     this._syncScriptEditor();
+    this._toggleScriptMode(false);
     this._runRendererCleanups();
     if (this.container) {
       this.container.innerHTML = '';
@@ -127,6 +130,7 @@ export class PanelPropertiesPanel {
     this._syncMappingInputs();
     this._syncLayoutInputs();
     this._syncScriptEditor();
+    this._toggleScriptMode(Boolean(widget?.useScript));
     this._render();
     if (widget?.mapping?.message) {
       this._loadMessageInfo(widget.mapping.message);
@@ -281,6 +285,22 @@ export class PanelPropertiesPanel {
       input.disabled = disabled;
       input.value = values[key] ?? '';
     });
+  }
+
+  setScriptMode(enabled) {
+    this._toggleScriptMode(enabled);
+  }
+
+  _toggleScriptMode(enabled) {
+    const hasWidget = Boolean(this.widget);
+    const showScript = Boolean(enabled && hasWidget);
+    const showProperties = !showScript;
+    if (this.defaultPropertiesGroup) {
+      this.defaultPropertiesGroup.hidden = !showProperties;
+    }
+    if (this.scriptEditorGroup) {
+      this.scriptEditorGroup.hidden = !showScript;
+    }
   }
 
   _renderActions() {
