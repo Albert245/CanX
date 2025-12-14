@@ -139,7 +139,27 @@
 
               <div class="diag-request-actions">
                 <button id="btn-diag-add" class="diag-add-btn" type="button" aria-label="Add custom command">+</button>
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="diag-script-cluster" aria-label="Diagnostics script controls">
+                  <button
+                    id="btn-diag-load-script"
+                    class="diag-add-btn diag-script-btn"
+                    type="button"
+                    title="Load diagnostics script (.txt). Supported: hex lines, // comments, [SLEEP <ms|s>], [TESTER PRESENT START/STOP], [UNLOCK SECA]."
+                    aria-label="Load diagnostics script"
+                  >
+                    ⇪
+                  </button>
+                  <button
+                    id="btn-diag-stop-script"
+                    class="diag-add-btn diag-script-btn"
+                    type="button"
+                    aria-label="Stop running script"
+                    disabled
+                  >
+                    ■
+                  </button>
+                </div>
+                <div class="diag-action-cluster">
                   <button
                     id="btn-diag-clear-log"
                     class="diag-add-btn"
@@ -161,6 +181,7 @@
                   </div>
                 </div>
               </div>
+              <input id="diag-script-file" type="file" accept=".txt" hidden />
             </div>
           </div>
 
