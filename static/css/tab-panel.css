@@ -95,7 +95,7 @@
 .panel-icon-clear { background-image: var(--panel-icon-clear); }
 .panel-icon-remove { background-image: var(--panel-icon-remove); }
 .panel-icon-default { background-image: var(--panel-icon-default); }
-
+.panel-icon-script {  background-image: var(--panel-icon-custom-script); }
 .panel-ribbon-label {
   margin-top: 4px;
   font-size: 11px;
