@@ -466,17 +466,18 @@ def _emit_trace_message(msg, *, direction: str = "rx") -> None:
 
 
 def _trace_worker():
-    while state.trace_running and state.canif and state.canif.reader:
+    while state.trace_running and state.canif:
+        target_queue = getattr(state.canif, "ui_trace_queue", None)
+        if target_queue is None:
+            socketio.sleep(0.05)
+            continue
         try:
-            msg = state.canif.reader.get_from_default(pop=True, block=True, timeout=0.1)
+            msg, direction = target_queue.get(timeout=0.1)
         except Exception:
-            msg = None
-        if msg is None:
-            # Yield CPU a bit
             socketio.sleep(0.01)
             continue
         try:
-            _emit_trace_message(msg, direction="rx")
+            _emit_trace_message(msg, direction=direction)
         except Exception:
             # Ignore emit failures to keep loop healthy
             pass

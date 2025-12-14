@@ -56,6 +56,10 @@ class FileWriterThread(threading.Thread):
     def stop(self):
         self.running.clear()
 
+    def stop_and_join(self, timeout: float | None = None):
+        self.stop()
+        self.join(timeout=timeout)
+
     def run(self):
         self.running.set()
         try:

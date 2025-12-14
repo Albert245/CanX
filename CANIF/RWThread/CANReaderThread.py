@@ -3,6 +3,7 @@ import queue
 import time
 import can
 from collections import defaultdict, deque
+from typing import Callable, Optional
 from logger.log import logger
  
 class CANReaderThread(threading.Thread):
@@ -11,11 +12,9 @@ class CANReaderThread(threading.Thread):
         self.bus = bus
         self.running = threading.Event()
         self.thread = None
-        # Trace queue feeding the UI log. Bounded to avoid unbounded backlog.
+        # Default queue for generic consumers (bounded, drop-oldest semantics
+        # handled by _offer_queue).
         self.default_queue = queue.Queue(maxsize=300)
-        # File-writer/batch logging queue (direction-aware) with a larger bound
-        # to reduce drops while still avoiding backlog spikes.
-        self.log_queue = queue.Queue(maxsize=500)
         # Per-ID queues limited to a circular buffer to cap memory usage.
         self.id_queues = defaultdict(lambda: deque(maxlen=200))
         # Dedicated per-subscriber queues to avoid one consumer draining data
@@ -33,6 +32,7 @@ class CANReaderThread(threading.Thread):
         self.cleanup_thread = None
         self.lock = threading.Lock()
         self.log_active = threading.Event()
+        self.trace_hook: Optional[Callable[[can.Message], None]] = None
  
     def subscribe(self, msg_id, callback=None, queue_name=None):
         """
@@ -193,12 +193,12 @@ class CANReaderThread(threading.Thread):
     def is_log_active(self) -> bool:
         return self.log_active.is_set()
 
-    def get_log_queue(self):
-        return self.log_queue
+    def set_trace_hook(self, hook: Optional[Callable[[can.Message], None]]) -> None:
+        """Register a lightweight callback invoked on each RX frame."""
+        self.trace_hook = hook
 
     def clear_trace_queues(self):
         self._drain_queue(self.default_queue)
-        self._drain_queue(self.log_queue)
 
     @staticmethod
     def _drain_queue(target_queue: queue.Queue) -> None:
@@ -222,14 +222,6 @@ class CANReaderThread(threading.Thread):
             except queue.Full:
                 logger.debug("Trace queue saturated; dropping frame")
 
-    def enqueue_trace_record(self, message: can.Message, direction: str = "rx", *, include_default_queue: bool = False):
-        if not self.log_active.is_set():
-            return
-        self._offer_queue(self.log_queue, (message, direction))
-        if include_default_queue:
-            self._offer_queue(self.default_queue, message)
-
-
     def run(self):
         self.running.set()
         self.cleanup_thread = threading.Thread(target=self.cleanup_old_queues, daemon=True)
@@ -246,9 +238,15 @@ class CANReaderThread(threading.Thread):
                     self.id_queues[msg_id].append(msg)
                     for queues_for_id in self.named_id_queues.get(msg_id, {}).values():
                         queues_for_id.append(msg)
+                self._offer_queue(self.default_queue, msg)
                 callbacks = list(self.callbacks.get(msg_id, [])) if msg_id in self.subscribe_ids else []
 
-            self.enqueue_trace_record(msg, direction="rx", include_default_queue=True)
+            hook = self.trace_hook
+            if hook:
+                try:
+                    hook(msg)
+                except Exception:
+                    logger.debug("Trace hook failed", exc_info=True)
             for cb in callbacks:
                 try:
                     cb(msg)
