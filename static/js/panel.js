@@ -340,6 +340,7 @@ const initPanel = () => {
       label.textContent = labelText;
     }
     scriptToggle?.setAttribute('aria-label', labelText);
+    propertiesPanel.setScriptMode?.(isEnabled);
     if (applyToWidget && state.selectedId) {
       const widget = widgetManager.updateWidget(state.selectedId, (data) => {
         if (isEnabled && (!data.script || !data.script.trim())) {

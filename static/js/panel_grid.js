@@ -13,8 +13,8 @@ const clampNumber = (value, min, max) => {
 export class PanelGrid {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
-    this.columns = clampNumber(Math.max(options.columns ?? DEFAULT_COLUMNS, DEFAULT_COLUMNS), 1, 60);
-    this.cellSize = clampNumber(Math.min(options.cellSize ?? DEFAULT_CELL_SIZE, DEFAULT_CELL_SIZE), 24, 160);
+    this.columns = clampNumber(options.columns ?? DEFAULT_COLUMNS, 1, 60);
+    this.cellSize = clampNumber(options.cellSize ?? DEFAULT_CELL_SIZE, 24, 160);
     this.gridGap = clampNumber(options.gridGap ?? DEFAULT_GRID_GAP, 0, 20);
     this.minimumRows = 15;
     this.extraRows = 5;
@@ -32,10 +32,10 @@ export class PanelGrid {
 
   setConfig({ columns, cellSize } = {}) {
     if (columns) {
-      this.columns = clampNumber(Math.max(columns, DEFAULT_COLUMNS), DEFAULT_COLUMNS, 60);
+      this.columns = clampNumber(columns, 1, 60);
     }
     if (cellSize) {
-      this.cellSize = clampNumber(Math.min(cellSize, DEFAULT_CELL_SIZE), 24, 200);
+      this.cellSize = clampNumber(cellSize, 24, 160);
     }
     this.gridGap = clampNumber(DEFAULT_GRID_GAP, 0, 20);
     this._syncStyles();
