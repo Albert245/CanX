@@ -65,7 +65,7 @@
 }
 
 .panel-ribbon-button {
-  padding: 8px;
+  padding: 6px;
   min-width: 90px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -116,7 +116,7 @@
 .panel-layout-grid label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   justify-content: space-between;
 }
 
@@ -263,12 +263,9 @@
 /* Panel widgets */
 .panel-widget {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: stretch;
-  gap: 6px;
-  padding: 8px;
+  display: grid;
+  grid-template-rows: 1fr;
+  padding: 6px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(24, 28, 36, 0.95), rgba(17, 20, 26, 0.95));
@@ -278,13 +275,19 @@
   box-sizing: border-box;
   height: 100%;
   width: 100%;
+  gap: 4px;
+}
+
+.panel-widget--with-title {
+  grid-template-rows: 1fr var(--panel-cell-size);
+  align-items: stretch;
 }
 
 .panel-widget-body {
   width: 100%;
   min-height: 0;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: flex-start;
   gap: 8px;
   flex: 1 1 auto;
@@ -297,26 +300,27 @@
 }
 
 .panel-widget--form .panel-widget-body {
-  justify-content: flex-start;
+  justify-content: stretch;
   align-items: center;
 }
 
-.panel-widget-with-caption {
-  justify-content: flex-start;
-  gap: 6px;
+.panel-widget--progress .panel-widget-body {
+  align-items: stretch;
 }
 
-.panel-widget-caption {
+.panel-widget-title {
   width: 100%;
   text-align: center;
   font-size: 12px;
   color: var(--muted);
   line-height: 1.2;
-  margin-top: 6px;
-  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--panel-cell-size);
 }
 
-.panel-widget--simple .panel-widget-body > button {
+.panel-widget--simple .panel-widget-body > button:not(.diag-static-btn) {
   width: 100%;
   padding: 8px 10px;
   border-radius: 8px;
@@ -328,21 +332,22 @@
   transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 
-.panel-widget--simple .panel-widget-body button:hover { background: linear-gradient(180deg, #4c5d7b, #33405a); }
-.panel-widget--simple .panel-widget-body button:active {
+.panel-widget--simple .panel-widget-body button:not(.diag-static-btn):hover { background: linear-gradient(180deg, #4c5d7b, #33405a); }
+.panel-widget--simple .panel-widget-body button:not(.diag-static-btn):active {
   transform: translateY(1px);
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
 }
-.panel-widget--simple .panel-widget-body button:disabled { opacity: 0.6; cursor: not-allowed; }
+.panel-widget--simple .panel-widget-body button:not(.diag-static-btn):disabled { opacity: 0.6; cursor: not-allowed; }
 
 .panel-progress-shell {
   position: relative;
   width: 100%;
-  height: 12px;
+  height: 100%;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  min-height: 14px;
 }
 
 .panel-progress-fill {
@@ -436,7 +441,7 @@
 
 .panel-widget--form .panel-input-row input { width: 100%; }
 
-.panel-input-row button {
+.panel-input-row button:not(.diag-send-btn) {
   min-width: 70px;
   height: 32px;
   padding: 6px 10px;
@@ -448,8 +453,14 @@
   transition: background 0.15s ease;
 }
 
-.panel-input-row button:hover { background: linear-gradient(180deg, #5a99ff, #4a7be6); }
-.panel-input-row button:active { box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35); }
+.panel-input-row button:not(.diag-send-btn):hover { background: linear-gradient(180deg, #5a99ff, #4a7be6); }
+.panel-input-row button:not(.diag-send-btn):active { box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35); }
+
+.panel-input-row .diag-send-btn {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+}
 
 .panel-widget img {
   max-width: 100%;
