@@ -41,6 +41,8 @@ export class PanelPropertiesPanel {
     this.onChange = onChange;
     this.fetchMessageInfo = fetchMessageInfo;
     this.widget = null;
+    this.currentDefinition = null;
+    this.mappingEnabled = true;
     this.enumBindings = [];
     this.signalChoices = {};
     this.statusEl = null;
@@ -59,6 +61,7 @@ export class PanelPropertiesPanel {
       width: document.getElementById('panel-layout-width'),
       height: document.getElementById('panel-layout-height'),
     };
+    this.mappingRow = document.querySelector('.panel-map-row');
 
     this.messageInput?.setAttribute('list', this.messageDatalistId);
     this.signalInput?.setAttribute('list', this.signalDatalistId);
@@ -113,6 +116,8 @@ export class PanelPropertiesPanel {
 
   clear() {
     this.widget = null;
+    this.currentDefinition = null;
+    this.mappingEnabled = true;
     this._syncMappingInputs();
     this._syncLayoutInputs();
     this._syncScriptEditor();
@@ -124,6 +129,8 @@ export class PanelPropertiesPanel {
 
   setWidget(widget) {
     this.widget = widget;
+    this.currentDefinition = widget ? getWidgetDefinition(widget.type) || {} : null;
+    this.mappingEnabled = this.currentDefinition?.supportsMapping !== false;
     this._syncMappingInputs();
     this._syncLayoutInputs();
     this._syncScriptEditor();
@@ -147,7 +154,7 @@ export class PanelPropertiesPanel {
       return;
     }
 
-    const definition = getWidgetDefinition(this.widget.type) || {};
+    const definition = this.currentDefinition || getWidgetDefinition(this.widget.type) || {};
     const title = createElement('h3', 'panel-properties-title', `${definition.label || this.widget.type} Properties`);
     this.container.appendChild(title);
 
@@ -246,22 +253,28 @@ export class PanelPropertiesPanel {
 
   _syncMappingInputs() {
     if (!this.messageInput || !this.signalInput) return;
+    const mappingAllowed = Boolean(this.widget && this.mappingEnabled);
     const mapping = this.widget?.mapping || {};
-    this.messageInput.value = mapping.message || '';
-    this.signalInput.value = mapping.signal || '';
-    const disabled = !this.widget;
-    this.messageInput.disabled = disabled;
-    this.signalInput.disabled = disabled;
+    this.messageInput.value = mappingAllowed ? mapping.message || '' : '';
+    this.signalInput.value = mappingAllowed ? mapping.signal || '' : '';
+    this.messageInput.disabled = !mappingAllowed;
+    this.signalInput.disabled = !mappingAllowed;
+    if (this.mappingRow) {
+      this.mappingRow.style.display = this.mappingEnabled ? '' : 'none';
+    }
   }
 
   _syncScriptEditor() {
     if (!this.scriptEditor) return;
-    if (this.widget) {
+    const supportsScript = this.currentDefinition?.supportsScript !== false;
+    if (this.widget && supportsScript) {
       this.scriptEditor.disabled = false;
       this.scriptEditor.value = this.widget.script || '';
     } else {
       this.scriptEditor.disabled = true;
-      this.scriptEditor.value = '';
+      if (!supportsScript || !this.widget) {
+        this.scriptEditor.value = '';
+      }
     }
   }
 
@@ -304,6 +317,19 @@ export class PanelPropertiesPanel {
       } else {
         input.value = this._getValue(field.path) ?? '';
       }
+    } else if (field.type === 'select') {
+      input = document.createElement('select');
+      const value = this._getValue(field.path);
+      const options = Array.isArray(field.options)
+        ? field.options
+        : [];
+      options.forEach((opt) => {
+        const option = document.createElement('option');
+        option.value = opt.value ?? '';
+        option.textContent = opt.label ?? opt.value ?? '';
+        input.appendChild(option);
+      });
+      input.value = value ?? '';
     } else {
       input = document.createElement('input');
       input.type = field.type || 'text';
