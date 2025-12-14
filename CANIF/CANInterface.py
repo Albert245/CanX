@@ -10,11 +10,13 @@ import time
 from COMMON.Cast import *
 from CANIF.RWThread.CANReaderThread import *
 from CANIF.RWThread.CANWriterScheduler import*
+from CANIF.RWThread.FileWriterThread import FileWriterThread
 from E2E.DbcAdapter import DBCAdapter
 from typing import Union, Any, Optional, Callable
 import ctypes
 import atexit
 import queue
+from pathlib import Path
 from logger.log import logger
  
 timeBeginPeriod = ctypes.windll.winmm.timeBeginPeriod
@@ -62,18 +64,84 @@ class CANInterface:
         self.nonDBC_messages = {}
         enable_high_res_timer()
         self._tx_hook: Optional[Callable[[can.Message], None]] = None
+        self._file_writer: Optional[FileWriterThread] = None
+        self._log_directory = Path("logs")
+        self.log_active: bool = False
+        self.trace_queue: queue.Queue = queue.Queue(maxsize=500)
+        self.ui_trace_queue: queue.Queue = queue.Queue(maxsize=500)
+        self.trace_enqueued_count: int = 0
+        self.trace_dropped_count: int = 0
+        self._trace_emit_callback: Optional[Callable[[can.Message, str], None]] = None
+        self.ui_log_enabled: bool = True
 
     def set_tx_hook(self, callback: Optional[Callable[[can.Message], None]]) -> None:
         """Register a callback invoked whenever a CAN frame is transmitted."""
         self._tx_hook = callback
 
+    def set_trace_emit_callback(self, callback: Optional[Callable[[can.Message, str], None]]) -> None:
+        """Optional hook invoked when a trace frame is dispatched (UI helper)."""
+        self._trace_emit_callback = callback
+
+    def _bounded_put(self, target_queue: queue.Queue, item, *, count_stats: bool = False) -> bool:
+        try:
+            target_queue.put_nowait(item)
+            if count_stats:
+                self.trace_enqueued_count += 1
+            return True
+        except queue.Full:
+            try:
+                target_queue.get_nowait()
+            except queue.Empty:
+                pass
+            if count_stats:
+                self.trace_dropped_count += 1
+            try:
+                target_queue.put_nowait(item)
+                if count_stats:
+                    self.trace_enqueued_count += 1
+                return True
+            except queue.Full:
+                logger.debug("Trace queue saturated; dropping frame")
+                return False
+
+    def _trace_put(self, item: tuple[can.Message, str]) -> None:
+        self._bounded_put(self.trace_queue, item, count_stats=True)
+
+    def _ui_trace_put(self, item: tuple[can.Message, str]) -> None:
+        self._bounded_put(self.ui_trace_queue, item, count_stats=False)
+
     def _notify_tx(self, message: can.Message) -> None:
-        if not self._tx_hook:
+        if not self._tx_hook and not self.log_active:
             return
         try:
-            self._tx_hook(message)
+            if self._tx_hook:
+                self._tx_hook(message)
         except Exception:
             pass
+        if self.log_active:
+            self._trace_put((message, "tx"))
+            if self.ui_log_enabled:
+                self._ui_trace_put((message, "tx"))
+
+    def _on_trace_rx(self, message: can.Message) -> None:
+        if not self.log_active:
+            return
+        self._trace_put((message, "rx"))
+        if self.ui_log_enabled:
+            self._ui_trace_put((message, "rx"))
+        if self._trace_emit_callback:
+            try:
+                self._trace_emit_callback(message, "rx")
+            except Exception:
+                logger.debug("Trace emit callback failed", exc_info=True)
+
+    def _drain_trace_queue(self) -> None:
+        for q in (self.trace_queue, self.ui_trace_queue):
+            try:
+                while True:
+                    q.get_nowait()
+            except queue.Empty:
+                continue
  
     def initialize_bus(self):
         """Initialize the CAN bus based on the selected device."""
@@ -117,6 +185,8 @@ class CANInterface:
                 self.reader.start()
             else:
                 raise ValueError("Unsupported device selected!")
+            if self.reader:
+                self.reader.set_trace_hook(self._on_trace_rx)
             enable_high_res_timer()
         except Exception as e:
             logger.error(f"ERROR: CANInterface - Failed to initialize CAN bus: {e}.")
@@ -149,6 +219,7 @@ class CANInterface:
                 logger.error(f"ERROR: CANInterface - Invalid message id '{message_id}'.")
                 return None
         try:
+            self.reader.track_id(msg_key)
             while True:
                 if time.monotonic() > deadline:
                     break
@@ -499,8 +570,54 @@ class CANInterface:
         except Exception as e:
             logger.error(f"Error reading CAN message: {e}")
             return None
+
+    def start_log(self, log_path: Optional[str] = None, enable_ui: bool = True) -> Optional[str]:
+        """Enable trace logging without restarting the CAN reader thread."""
+        if not self.reader:
+            logger.error("ERROR: CANInterface - CAN reader thread is not initialized.")
+            return None
+        try:
+            if self.log_active:
+                self.stop_log()
+            target_path = Path(log_path) if log_path else self._log_directory / f"trace_{int(time.time())}.log"
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            self.trace_enqueued_count = 0
+            self.trace_dropped_count = 0
+            self.ui_log_enabled = bool(enable_ui)
+            self._drain_trace_queue()
+            if self._file_writer:
+                self._file_writer.stop_and_join()
+            self.log_active = True
+            if self.reader:
+                self.reader.set_log_active(True)
+            self._file_writer = FileWriterThread(self.trace_queue, str(target_path), batch_size=80)
+            self._file_writer.start()
+            logger.info(f"Start log (ui_enabled={enable_ui}) -> {target_path}")
+            return str(target_path)
+        except Exception as exc:
+            logger.error(f"ERROR: CANInterface - Failed to start log: {exc}")
+            self.stop_log()
+            return None
+
+    def stop_log(self) -> None:
+        """Disable trace logging, clear trace queues, and flush file writer."""
+        try:
+            self.log_active = False
+            if self.reader:
+                self.reader.set_log_active(False)
+            writer = self._file_writer
+            if writer:
+                writer.stop_and_join(timeout=2.0)
+                self._file_writer = None
+            dropped = self.trace_dropped_count
+            enqueued = self.trace_enqueued_count
+            self._drain_trace_queue()
+            logger.info(f"Stop log (enqueued={enqueued}, dropped={dropped})")
+        except Exception as exc:
+            logger.error(f"ERROR: CANInterface - Failed to stop log: {exc}")
  
     def shutdown_bus(self):
+        self.stop_log()
         self.reader.stop()
         logger.info("Reader stopped")
         self.stop_all_periodic()

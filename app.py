@@ -466,17 +466,18 @@ def _emit_trace_message(msg, *, direction: str = "rx") -> None:
 
 
 def _trace_worker():
-    while state.trace_running and state.canif and state.canif.reader:
+    while state.trace_running and state.canif:
+        target_queue = getattr(state.canif, "ui_trace_queue", None)
+        if target_queue is None:
+            socketio.sleep(0.05)
+            continue
         try:
-            msg = state.canif.reader.get_from_default(pop=True, block=True, timeout=0.1)
+            msg, direction = target_queue.get(timeout=0.1)
         except Exception:
-            msg = None
-        if msg is None:
-            # Yield CPU a bit
             socketio.sleep(0.01)
             continue
         try:
-            _emit_trace_message(msg, direction="rx")
+            _emit_trace_message(msg, direction=direction)
         except Exception:
             # Ignore emit failures to keep loop healthy
             pass
@@ -1097,13 +1098,27 @@ def on_start_trace(_msg=None):
     if state.trace_running:
         emit("trace_info", {"info": "Log already running", "running": True})
         return
+    log_target = None
+    try:
+        log_target = state.canif.start_log()
+    except Exception as exc:
+        emit("trace_error", {"error": str(exc), "running": state.trace_running})
+        return
+    if log_target is None:
+        emit("trace_error", {"error": "Failed to start log", "running": state.trace_running})
+        return
     state.trace_running = True
     state.trace_thread = socketio.start_background_task(_trace_worker)
-    emit("trace_info", {"info": "Log started", "running": True})
+    emit("trace_info", {"info": "Log started", "running": True, "path": log_target})
 
 
 @socketio.on("stop_trace")
 def on_stop_trace(_msg=None):
+    if state.canif:
+        try:
+            state.canif.stop_log()
+        except Exception:
+            emit("trace_error", {"error": "Failed to stop log", "running": state.trace_running})
     state.trace_running = False
     emit("trace_info", {"info": "Log stopped", "running": False})
 
