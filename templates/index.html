@@ -139,18 +139,49 @@
 
               <div class="diag-request-actions">
                 <button id="btn-diag-add" class="diag-add-btn" type="button" aria-label="Add custom command">+</button>
-                <div class="diag-address-toggle" data-mode="functional">
-                  <label class="settings-toggle" aria-label="Toggle between Functional and Physical">
-                    <input id="diag-address-toggle" type="checkbox" aria-checked="false" />
-                    <span class="settings-toggle-track" aria-hidden="true">
-                      <span class="settings-toggle-thumb"></span>
-                    </span>
-                  </label>
-                  <div class="diag-address-mode">
-                    <span id="diag-address-label" class="diag-address-label">Functional</span>
+                <div class="diag-script-cluster" aria-label="Diagnostics script controls">
+                  <button
+                    id="btn-diag-load-script"
+                    class="diag-add-btn diag-script-btn"
+                    type="button"
+                    title="Load diagnostics script (.txt). Supported: hex lines, // comments, [SLEEP <ms|s>], [TESTER PRESENT START/STOP], [UNLOCK SECA]."
+                    aria-label="Load diagnostics script"
+                  >
+                    ⇪
+                  </button>
+                  <button
+                    id="btn-diag-stop-script"
+                    class="diag-add-btn diag-script-btn"
+                    type="button"
+                    aria-label="Stop running script"
+                    disabled
+                  >
+                    ■
+                  </button>
+                </div>
+                <div class="diag-action-cluster">
+                  <button
+                    id="btn-diag-clear-log"
+                    class="diag-add-btn"
+                    type="button"
+                    aria-label="Clear diagnostics log"
+                  >
+                    ⟳
+                  </button>
+                  <div class="diag-address-toggle" data-mode="functional">
+                    <label class="settings-toggle" aria-label="Toggle between Functional and Physical">
+                      <input id="diag-address-toggle" type="checkbox" aria-checked="false" />
+                      <span class="settings-toggle-track" aria-hidden="true">
+                        <span class="settings-toggle-thumb"></span>
+                      </span>
+                    </label>
+                    <div class="diag-address-mode">
+                      <span id="diag-address-label" class="diag-address-label">Functional</span>
+                    </div>
                   </div>
                 </div>
               </div>
+              <input id="diag-script-file" type="file" accept=".txt" hidden />
             </div>
           </div>
 

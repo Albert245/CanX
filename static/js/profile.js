@@ -7,6 +7,7 @@ import {
   reapplyStoreToVisibleForms,
   saveMessageSignals,
 } from './message-store.js';
+import { applyDiagProfileData, getDiagProfileData } from './diag.js';
 
 const $ = (selector, ctx = document) => ctx.querySelector(selector);
 
@@ -90,6 +91,7 @@ const buildProfile = async () => ({
   version: 1,
   generatedAt: new Date().toISOString(),
   settings: collectSettings(),
+  diag: getDiagProfileData(),
   messages: getAllMessagePayloads(),
   panel: await fetchPanelLayout(),
 });
@@ -130,6 +132,7 @@ export const initProfileManager = () => {
       const text = await file.text();
       const profile = JSON.parse(text);
       applySettings(profile.settings || {});
+      applyDiagProfileData(profile.diag || {});
       applyMessagesFromProfile(profile.messages || {});
       await applyPanelLayout(profile.panel || null);
     } catch (err) {
