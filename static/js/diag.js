@@ -145,6 +145,11 @@ const parseScriptText = (text = '') => {
         steps.push({ cmd: 'SLEEP', value: parsed.value, durationMs: parsed.durationMs });
         continue;
       }
+      if (upper === 'ADDR PHYSICAL' || upper === 'ADDR FUNCTIONAL') {
+        const mode = upper.includes('PHYSICAL') ? 'physical' : 'functional';
+        steps.push({ cmd: 'ADDR', value: mode });
+        continue;
+      }
       if (upper === 'TESTER PRESENT START') {
         steps.push({ cmd: 'TESTER_PRESENT_START' });
         continue;
@@ -156,6 +161,9 @@ const parseScriptText = (text = '') => {
       if (upper === 'UNLOCK SECA') {
         steps.push({ cmd: 'UNLOCK_SECA' });
         continue;
+      }
+      if (upper.startsWith('ADDR ')) {
+        throw new Error(`Line ${lineNumber}: Unsupported command \"${rawLine}\"`);
       }
       throw new Error(`Line ${lineNumber}: Unsupported command \"${rawLine}\"`);
     }
@@ -320,7 +328,10 @@ export const applyDiagProfileData = (data = {}) => {
               ? { cmd: 'SLEEP', value: parsed.value, durationMs: parsed.durationMs }
               : { cmd: 'SLEEP', value: step.value, durationMs: step.durationMs };
           }
-          return { cmd: step.cmd };
+          const baseCmd = { cmd: step.cmd };
+          if (step.value) baseCmd.value = step.value;
+          if (step.durationMs) baseCmd.durationMs = step.durationMs;
+          return baseCmd;
         }
         if (step?.req) return { req: normalizeDiagRaw(step.req) };
         return null;
@@ -875,7 +886,7 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
     updateDiagActionDisabledState();
   };
 
-  const runScriptCommand = async (step) => {
+  const runScriptCommand = async (step, scriptContext = {}) => {
     const describeCommand = () => {
       if (step.cmd === 'SLEEP') {
         const display = (step.value || '')
@@ -883,6 +894,11 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
           .replace(/MS$/, ' ms')
           .replace(/S$/, ' s');
         return `CMD: SLEEP ${display}`.trim();
+      }
+      if (step.cmd === 'ADDR') {
+        return step.value === 'physical'
+          ? 'CMD: ADDRESS MODE → PHYSICAL'
+          : 'CMD: ADDRESS MODE → FUNCTIONAL';
       }
       if (step.cmd === 'TESTER_PRESENT_START') return 'CMD: TESTER PRESENT START';
       if (step.cmd === 'TESTER_PRESENT_STOP') return 'CMD: TESTER PRESENT STOP';
@@ -894,6 +910,12 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
     if (step.cmd === 'SLEEP') {
       await new Promise((resolve) => setTimeout(resolve, step.durationMs || 0));
+      return;
+    }
+    if (step.cmd === 'ADDR') {
+      if (typeof scriptContext.setAddressMode === 'function') {
+        scriptContext.setAddressMode(step.value === 'physical' ? 'physical' : 'functional');
+      }
       return;
     }
     if (step.cmd === 'TESTER_PRESENT_START') {
@@ -917,6 +939,13 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
 
   executeScriptButton = async (entry) => {
     if (scriptExecution.running || !startLogActive) return;
+    const originalGroup = currentGroup;
+    let scriptGroup = currentGroup;
+    const scriptContext = {
+      setAddressMode: (mode) => {
+        scriptGroup = mode === 'physical' ? 'physical' : 'functional';
+      },
+    };
     scriptExecution.cancelFlag = false;
     scriptExecution.currentButtonId = entry.id;
     setScriptRunning(true);
@@ -925,14 +954,15 @@ export function initDiag({ socket, getActiveTab, onTabChange } = {}) {
         if (scriptExecution.cancelFlag) break;
         if (step.comment) continue;
         if (step.cmd) {
-          await runScriptCommand(step);
+          await runScriptCommand(step, scriptContext);
         } else if (step.req) {
-          await sendDiagRequest({ group: currentGroup, raw: step.req, allowDuringScript: true });
+          await sendDiagRequest({ group: scriptGroup, raw: step.req, allowDuringScript: true });
         }
         if (scriptExecution.cancelFlag) break;
       }
     } finally {
       const wasCancelled = scriptExecution.cancelFlag;
+      scriptGroup = originalGroup;
       if (scriptExecution.startedTesterPresent && testerPresentActive) {
         await requestTesterPresent('stop');
       }
