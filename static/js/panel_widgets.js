@@ -1033,7 +1033,9 @@ export class PanelWidgetManager {
     return element;
   }
 
-  renderAll() {
+  // TRONG FILE: panel_widgets.js
+
+renderAll() {
     if (!this.canvas) return;
 
     const nodes = [];
@@ -1044,20 +1046,29 @@ export class PanelWidgetManager {
         element = this._createElement(widget);
         this.elements.set(widget.id, element);
       }
-      this._renderWidget(widget, element);
+      
+      // XÓA DÒNG NÀY Ở ĐÂY: this._renderWidget(widget, element);
+      
+      // Chỉ tính toán vị trí Grid (CSS)
       this.grid?.applyPosition(widget, element);
       nodes.push(element);
     });
 
+    // 1. Gắn khung (container) vào DOM trước
     if (typeof this.canvas.replaceChildren === 'function') {
       this.canvas.replaceChildren(...nodes);
     } else {
-      while (this.canvas.firstChild) this.canvas.removeChild(this.canvas.firstChild);
-      nodes.forEach((n) => this.canvas.appendChild(n));
+      this.canvas.innerHTML = '';
+      nodes.forEach(node => this.canvas.appendChild(node));
     }
 
-    this._refreshCanvasSpace();
-    this._purgeOrphanDom();
-    this.onRender?.();
+    // 2. Bây giờ DOM đã có, width/height đã thực tế -> Mới tiến hành vẽ nội dung bên trong
+    // Điều này đảm bảo element.clientWidth/clientHeight trả về đúng giá trị
+    this.widgets.forEach((widget) => {
+        const element = this.elements.get(widget.id);
+        if (element) {
+            this._renderWidget(widget, element);
+        }
+    });
   }
 }
