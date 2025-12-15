@@ -434,7 +434,6 @@ export class PanelWidgetManager {
     this.widgets.clear();
     this.signalIndex.clear();
     this.renderAll();
-    this._purgeOrphanDom();
   }
 
   setMode(mode) {
@@ -1168,7 +1167,6 @@ export class PanelWidgetManager {
       this._updateSignalIndex(data);
     });
     this.renderAll();
-    this._purgeOrphanDom();
   }
 
   removeWidget(id) {
@@ -1187,7 +1185,6 @@ export class PanelWidgetManager {
       }
     }
     this.renderAll();
-    this._purgeOrphanDom();
     if (typeof this.onRemove === 'function') {
       this.onRemove(id, widget);
     }
@@ -1310,47 +1307,25 @@ export class PanelWidgetManager {
     }
   }
 
-  _purgeOrphanDom() {
-    if (!this.canvas) return;
-    requestAnimationFrame(() => {
-      const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
-      nodes.forEach((node) => {
-        const widgetId = node.dataset?.widgetId;
-        if (!widgetId || !this.widgets.has(widgetId)) {
-          this.elements.delete(widgetId);
-          node.remove();
-        }
-      });
-    });
-  }
-
-  _createElement(widget) {
-    const element = document.createElement('div');
-    element.setAttribute('role', 'group');
-    element.style.touchAction = 'none';
-    element.dataset.widgetId = widget.id;
-    element.__widgetId = widget.id;
-    element.dataset.widgetType = widget.type;
-    element.classList.add('panel-widget');
-    return element;
-  }
-
   renderAll() {
     if (!this.canvas) return;
     const nodes = [];
+    this.elements = new Map();
 
     this.widgets.forEach((widget) => {
-      console.debug('[panel] render widget', widget.id, widget.type);
-      let element = this.elements.get(widget.id);
-      const isNew = !element;
-      if (!element) {
-        element = this._createElement(widget);
-        this.elements.set(widget.id, element);
-        this._createWidgetDOM(widget, element);
-      }
+      const element = document.createElement('div');
+      element.setAttribute('role', 'group');
+      element.style.touchAction = 'none';
+      element.dataset.widgetId = widget.id;
+      element.dataset.widgetType = widget.type;
+      element.classList.add('panel-widget');
+
       this._renderWidget(widget, element);
+      this._registerInteractionHandlers(widget, element);
       this.grid?.applyPosition(widget, element);
+
       nodes.push(element);
+      this.elements.set(widget.id, element);
     });
 
     if (typeof this.canvas.replaceChildren === 'function') {
@@ -1361,7 +1336,6 @@ export class PanelWidgetManager {
     }
 
     this._refreshCanvasSpace();
-    this._purgeOrphanDom();
     this.onRender?.();
   }
 }
