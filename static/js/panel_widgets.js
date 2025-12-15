@@ -83,7 +83,7 @@ export const PANEL_WIDGET_LIBRARY = [
     description: 'Two-state toggle that flips values on click and sends mapped on/off values.',
     defaultSize: { w: 2, h: 1 },
     defaults: {
-      label: 'Toggle',
+      label: '',
       mapping: { ...defaultMapping(), onValue: 1, offValue: 0 },
     },
     supportsScript: true,
@@ -107,7 +107,7 @@ export const PANEL_WIDGET_LIBRARY = [
     description: 'Receive-only indicator that turns on when the mapped signal matches the configured value.',
     defaultSize: { w: 2, h: 1 },
     defaults: {
-      label: 'Lamp',
+      label: '',
       mapping: { ...defaultMapping(), onValue: 1, onNamedValue: '' },
     },
     acceptsRx: true,
@@ -132,7 +132,7 @@ export const PANEL_WIDGET_LIBRARY = [
     description: 'Receive-only bar that tracks the mapped signal as a percentage.',
     defaultSize: { w: 4, h: 1 },
     defaults: {
-      label: 'Progress',
+      label: '',
       mapping: { ...defaultMapping(), min: 0, max: 100 },
     },
     acceptsRx: true,
@@ -157,7 +157,7 @@ export const PANEL_WIDGET_LIBRARY = [
     description: 'Receive-only text label that shows numeric and named values from the mapped signal.',
     defaultSize: { w: 3, h: 2 },
     defaults: {
-      label: 'Label',
+      label: '',
       mapping: { ...defaultMapping(), unit: '' },
     },
     acceptsRx: true,
@@ -185,7 +185,7 @@ export const PANEL_WIDGET_LIBRARY = [
     description: 'Transmit text or numeric values to the mapped signal when edited.',
     defaultSize: { w: 3, h: 1 },
     defaults: {
-      label: 'Input',
+      label: '',
       mapping: { ...defaultMapping(), submitOnEnter: true },
       options: { placeholder: '' },
     },
@@ -212,7 +212,7 @@ export const PANEL_WIDGET_LIBRARY = [
     description: 'Editable input with an explicit send button for mapped signals.',
     defaultSize: { w: 3, h: 1 },
     defaults: {
-      label: 'Input',
+      label: '',
       mapping: { ...defaultMapping() },
       options: { placeholder: '', buttonLabel: 'Send' },
     },
@@ -403,7 +403,14 @@ export const createWidgetData = (type, overrides = {}) => {
     delete extras.script;
     deepMerge(base, extras);
   }
-  return deepMerge(base, overrides);
+  const merged = deepMerge(base, overrides);
+  const minHeightTypes = new Set(['toggle', 'lamp', 'progress', 'label', 'input', 'input_button']);
+  if (minHeightTypes.has(merged.type)) {
+    const currentHeight = Number(merged.size?.h) || 1;
+    merged.size = merged.size || {};
+    merged.size.h = Math.max(currentHeight, 2);
+  }
+  return merged;
 };
 
 export class PanelWidgetManager {
@@ -475,6 +482,11 @@ export class PanelWidgetManager {
 
   _renderWidget(widget, element) {
     if (!widget || !element) return;
+    const activeEl = document.activeElement;
+    const shouldRestoreFocus =
+      activeEl && element.contains(activeEl) && activeEl.tagName === 'INPUT';
+    const selectionStart = shouldRestoreFocus ? activeEl.selectionStart : null;
+    const selectionEnd = shouldRestoreFocus ? activeEl.selectionEnd : null;
     element.className = `panel-widget panel-widget--${widget.type}`;
     const simpleTypes = new Set(['button', 'toggle', 'lamp']);
     const formTypes = new Set(['input', 'input_button', 'progress', 'label']);
@@ -531,6 +543,16 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || '';
     }
+
+    if (shouldRestoreFocus) {
+      const restoredInput = element.querySelector('input');
+      if (restoredInput) {
+        restoredInput.focus();
+        if (selectionStart !== null && selectionEnd !== null) {
+          restoredInput.setSelectionRange(selectionStart, selectionEnd);
+        }
+      }
+    }
   }
 
   _renderButton(widget, element) {
@@ -538,36 +560,41 @@ export class PanelWidgetManager {
     body.className = 'panel-widget-body';
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = widget.label ?? '';
+    btn.className = 'diag-send-btn panel-button';
+    const label = widget.label && widget.label.trim();
+    btn.textContent = label || 'Button';
+    btn.toggleAttribute('disabled', this.mode !== 'run');
     body.appendChild(btn);
     element.appendChild(body);
   }
 
   _renderToggle(widget, element) {
-    element.classList.add('panel-widget-with-caption');
+    element.classList.add('panel-widget--with-title');
     const body = document.createElement('div');
     body.className = 'panel-widget-body';
-    const toggle = document.createElement('div');
-    toggle.className = 'panel-toggle-switch';
-    const thumb = document.createElement('div');
-    thumb.className = 'panel-toggle-thumb';
-    toggle.appendChild(thumb);
-    if (widget.runtime?.isOn) {
-      toggle.classList.add('is-on');
-    }
+    const toggle = document.createElement('label');
+    toggle.className = 'settings-toggle panel-toggle';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = Boolean(widget.runtime?.isOn);
+    input.setAttribute('aria-checked', String(Boolean(widget.runtime?.isOn)));
+    input.disabled = this.mode !== 'run';
+    const track = document.createElement('span');
+    track.className = 'settings-toggle-track panel-toggle-track';
+    const thumb = document.createElement('span');
+    thumb.className = 'settings-toggle-thumb panel-toggle-thumb';
+    track.appendChild(thumb);
+    toggle.append(input, track);
+    toggle.toggleAttribute('disabled', this.mode !== 'run');
     body.appendChild(toggle);
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption';
-    if (widget.label) {
-      caption.textContent = widget.label;
-      element.append(body, caption);
-    } else {
-      element.append(body);
-    }
+    const title = document.createElement('div');
+    title.className = 'panel-widget-title';
+    title.textContent = (widget.label && widget.label.trim()) || '';
+    element.append(body, title);
   }
 
   _renderLamp(widget, element) {
-    element.classList.add('panel-widget-with-caption');
+    element.classList.add('panel-widget--with-title');
     const body = document.createElement('div');
     body.className = 'panel-widget-body';
     const lamp = document.createElement('div');
@@ -576,18 +603,14 @@ export class PanelWidgetManager {
       lamp.classList.add('is-on');
     }
     body.appendChild(lamp);
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption';
-    if (widget.label) {
-      caption.textContent = widget.label;
-      element.append(body, caption);
-    } else {
-      element.append(body);
-    }
+    const title = document.createElement('div');
+    title.className = 'panel-widget-title';
+    title.textContent = (widget.label && widget.label.trim()) || '';
+    element.append(body, title);
   }
 
   _renderProgress(widget, element) {
-    element.classList.add('panel-widget-with-caption');
+    element.classList.add('panel-widget--with-title');
     const body = document.createElement('div');
     body.className = 'panel-widget-body';
     const shell = document.createElement('div');
@@ -597,49 +620,39 @@ export class PanelWidgetManager {
     fill.style.width = `${widget.runtime?.percent ?? 0}%`;
     shell.appendChild(fill);
     body.appendChild(shell);
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption';
-    if (widget.label) {
-      caption.textContent = widget.label;
-      element.append(body, caption);
-    } else {
-      element.append(body);
-    }
+    const title = document.createElement('div');
+    title.className = 'panel-widget-title';
+    title.textContent = (widget.label && widget.label.trim()) || '';
+    element.append(body, title);
   }
 
   _renderLabel(widget, element) {
+    element.classList.add('panel-widget--with-title');
     const body = document.createElement('div');
     body.className = 'panel-widget-body panel-widget-label';
-    const title = document.createElement('div');
-    title.textContent = widget.label ?? '';
     const valueEl = document.createElement('span');
     valueEl.className = 'panel-label-value';
     valueEl.textContent = widget.runtime?.displayValue ?? '—';
     const namedEl = document.createElement('span');
     namedEl.className = 'panel-label-named';
     namedEl.textContent = widget.runtime?.namedValue ?? '';
-    if (widget.label) {
-      body.append(title, valueEl, namedEl);
-    } else {
-      body.append(valueEl, namedEl);
-    }
-    element.appendChild(body);
+    body.append(valueEl, namedEl);
+    const title = document.createElement('div');
+    title.className = 'panel-widget-title';
+    title.textContent = (widget.label && widget.label.trim()) || '';
+    element.append(body, title);
   }
 
   _renderInput(widget, element) {
-    element.classList.add('panel-widget-with-caption', 'panel-widget-input');
+    element.classList.add('panel-widget--with-title', 'panel-widget-input');
     const body = document.createElement('div');
     body.className = 'panel-widget-body';
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption';
-    if (widget.label) {
-      caption.textContent = widget.label;
-    }
+    const label = widget.label && widget.label.trim();
     const row = document.createElement('div');
     row.className = 'panel-input-row';
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = widget.options?.placeholder || widget.label || 'Value';
+    input.placeholder = widget.options?.placeholder || '';
     const currentValue = widget.runtime?.inputValue ?? '';
     input.value = currentValue;
     input.addEventListener('input', (event) => {
@@ -654,27 +667,22 @@ export class PanelWidgetManager {
     }
     row.append(input);
     body.append(row);
-    if (widget.label) {
-      element.append(body, caption);
-    } else {
-      element.append(body);
-    }
+    const title = document.createElement('div');
+    title.className = 'panel-widget-title';
+    title.textContent = label || '';
+    element.append(body, title);
   }
 
   _renderInputButton(widget, element) {
-    element.classList.add('panel-widget-with-caption', 'panel-widget-input', 'panel-widget-input-button');
+    element.classList.add('panel-widget--with-title', 'panel-widget-input', 'panel-widget-input-button');
     const body = document.createElement('div');
     body.className = 'panel-widget-body';
-    const caption = document.createElement('div');
-    caption.className = 'panel-widget-caption';
-    if (widget.label) {
-      caption.textContent = widget.label;
-    }
+    const label = widget.label && widget.label.trim();
     const row = document.createElement('div');
     row.className = 'panel-input-row';
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = widget.options?.placeholder || widget.label || 'Value';
+    input.placeholder = widget.options?.placeholder || '';
     input.value = widget.runtime?.inputValue ?? '';
     input.addEventListener('input', (event) => {
       widget.runtime = widget.runtime || {};
@@ -688,15 +696,15 @@ export class PanelWidgetManager {
     }
     const button = document.createElement('button');
     button.type = 'button';
+    button.className = 'diag-send-btn panel-button';
     button.textContent = widget.options?.buttonLabel || 'Send';
     button.toggleAttribute('disabled', this.mode !== 'run');
     row.append(input, button);
     body.append(row);
-    if (widget.label) {
-      element.append(body, caption);
-    } else {
-      element.append(body);
-    }
+    const title = document.createElement('div');
+    title.className = 'panel-widget-title';
+    title.textContent = label || '';
+    element.append(body, title);
   }
 
   _renderScript(widget, element) {
@@ -707,6 +715,8 @@ export class PanelWidgetManager {
   }
 
   _renderImageButton(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const normal = document.createElement('img');
     normal.src = widget.images?.normal || '';
     normal.alt = widget.label || 'Button';
@@ -715,10 +725,13 @@ export class PanelWidgetManager {
     pressed.alt = (widget.label || 'Button') + ' pressed';
     pressed.style.display = widget.runtime?.isPressed ? 'block' : 'none';
     normal.style.display = widget.runtime?.isPressed ? 'none' : 'block';
-    element.append(normal, pressed);
+    body.append(normal, pressed);
+    element.appendChild(body);
   }
 
   _renderImageIndicator(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const offImg = document.createElement('img');
     offImg.src = widget.images?.off || '';
     const onImg = document.createElement('img');
@@ -726,32 +739,43 @@ export class PanelWidgetManager {
     const isOn = widget.runtime?.isOn;
     offImg.style.display = isOn ? 'none' : 'block';
     onImg.style.display = isOn ? 'block' : 'none';
-    element.append(offImg, onImg);
+    body.append(offImg, onImg);
+    element.appendChild(body);
   }
 
   _renderStaticImage(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const img = document.createElement('img');
     img.src = widget.images?.src || '';
     img.alt = widget.label || 'Image';
     element.classList.add('panel-widget-static');
-    element.appendChild(img);
+    body.appendChild(img);
+    element.appendChild(body);
   }
 
   _renderImageSwitch(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const img = document.createElement('img');
     img.src = widget.runtime?.activeImage || widget.images?.states?.[0]?.src || '';
     img.alt = widget.label || 'Image';
     element.classList.add('panel-widget-image-switch');
-    element.appendChild(img);
+    body.appendChild(img);
+    element.appendChild(body);
   }
 
   _registerInteractionHandlers(widget, element) {
     if (!element) return;
     const type = widget.type;
     if (type === 'button' || type === 'image_button' || type === 'script') {
+      const targetButton = element.querySelector('button') || element;
       const pointerDown = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
+        if (event.pointerId && targetButton.setPointerCapture) {
+          targetButton.setPointerCapture(event.pointerId);
+        }
         if (widget.runtime) widget.runtime.isPressed = true;
         this._renderWidget(widget, element);
         this._emitAction('press', widget, { value: widget.mapping?.pressValue });
@@ -759,15 +783,24 @@ export class PanelWidgetManager {
       const pointerUp = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
+        if (event.pointerId && targetButton.releasePointerCapture) {
+          try {
+            targetButton.releasePointerCapture(event.pointerId);
+          } catch (err) {
+            // ignore
+          }
+        }
         if (widget.runtime) widget.runtime.isPressed = false;
         this._renderWidget(widget, element);
         this._emitAction('release', widget, { value: widget.mapping?.releaseValue });
       };
-      element.addEventListener('pointerdown', pointerDown);
-      element.addEventListener('pointerup', pointerUp);
-      element.addEventListener('pointerleave', pointerUp);
+      targetButton.addEventListener('pointerdown', pointerDown);
+      targetButton.addEventListener('pointerup', pointerUp);
+      targetButton.addEventListener('pointerleave', pointerUp);
+      targetButton.addEventListener('pointercancel', pointerUp);
     } else if (type === 'toggle') {
       element.addEventListener('click', (event) => {
+        if (event.target.closest('.panel-widget-title')) return;
         if (this.mode !== 'run') return;
         event.preventDefault();
         widget.runtime = widget.runtime || {};
@@ -775,6 +808,24 @@ export class PanelWidgetManager {
         this._renderWidget(widget, element);
         const value = widget.runtime.isOn ? widget.mapping?.onValue : widget.mapping?.offValue;
         this._emitAction('toggle', widget, { value, active: widget.runtime.isOn });
+      });
+    } else if (type === 'image_switch') {
+      element.addEventListener('click', (event) => {
+        if (this.mode !== 'run') return;
+        const states = widget.images?.states || [];
+        if (!states.length) return;
+        widget.runtime = widget.runtime || {};
+        const currentValue = widget.runtime.activeValue;
+        let index = states.findIndex((state) => state && state.value === currentValue);
+        index = index >= 0 ? index : -1;
+        const nextIndex = (index + 1) % states.length;
+        const nextState = states[nextIndex] || {};
+        widget.runtime.activeValue = nextState.value;
+        widget.runtime.activeImage = nextState.src || '';
+        this._renderWidget(widget, element);
+        if (nextState.value !== undefined) {
+          this._emitAction('toggle', widget, { value: nextState.value, active: true });
+        }
       });
     } else if (type === 'input') {
       element.addEventListener('keydown', (event) => {
