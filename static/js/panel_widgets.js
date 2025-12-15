@@ -545,7 +545,7 @@ export class PanelWidgetManager {
     body.className = 'panel-widget-body';
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'diag-static-btn';
+    btn.className = 'diag-send-btn panel-button';
     const label = widget.label && widget.label.trim();
     btn.textContent = label || 'Button';
     btn.toggleAttribute('disabled', this.mode !== 'run');
@@ -558,16 +558,16 @@ export class PanelWidgetManager {
     const body = document.createElement('div');
     body.className = 'panel-widget-body';
     const toggle = document.createElement('label');
-    toggle.className = 'settings-toggle';
+    toggle.className = 'settings-toggle panel-toggle';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = Boolean(widget.runtime?.isOn);
     input.setAttribute('aria-checked', String(Boolean(widget.runtime?.isOn)));
     input.disabled = this.mode !== 'run';
     const track = document.createElement('span');
-    track.className = 'settings-toggle-track';
+    track.className = 'settings-toggle-track panel-toggle-track';
     const thumb = document.createElement('span');
-    thumb.className = 'settings-toggle-thumb';
+    thumb.className = 'settings-toggle-thumb panel-toggle-thumb';
     track.appendChild(thumb);
     toggle.append(input, track);
     toggle.toggleAttribute('disabled', this.mode !== 'run');
@@ -681,7 +681,7 @@ export class PanelWidgetManager {
     }
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'diag-send-btn';
+    button.className = 'diag-send-btn panel-button';
     button.textContent = widget.options?.buttonLabel || 'Send';
     button.toggleAttribute('disabled', this.mode !== 'run');
     row.append(input, button);
