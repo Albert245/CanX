@@ -665,15 +665,26 @@ export class PanelWidgetManager {
     if (!widget || !element) return;
     console.debug('[panel] update widget DOM', widget.id, widget.type, updateSource);
     const refs = this._ensureRefs(element);
-    element.className = `panel-widget panel-widget--${widget.type}`;
+    const classes = new Set(['panel-widget', `panel-widget--${widget.type}`]);
     const simpleTypes = new Set(['button', 'toggle', 'lamp']);
     const formTypes = new Set(['input', 'input_button', 'progress', 'label']);
+    const titleTypes = new Set(['toggle', 'lamp', 'progress', 'label', 'input', 'input_button']);
     if (simpleTypes.has(widget.type)) {
-      element.classList.add('panel-widget--simple');
+      classes.add('panel-widget--simple');
     }
     if (formTypes.has(widget.type)) {
-      element.classList.add('panel-widget--form');
+      classes.add('panel-widget--form');
     }
+    if (titleTypes.has(widget.type)) {
+      classes.add('panel-widget--with-title');
+    }
+    if (widget.type === 'static_image') {
+      classes.add('panel-widget-static');
+    }
+    if (widget.type === 'image_switch') {
+      classes.add('panel-widget-image-switch');
+    }
+    element.className = Array.from(classes).join(' ');
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.setAttribute('data-widget-id', widget.id);
@@ -1358,6 +1369,10 @@ renderAll() {
         this.canvas.appendChild(node);
       }
     });
+
+    if (typeof this.onRender === 'function') {
+      this.onRender();
+    }
 
   }
 }
