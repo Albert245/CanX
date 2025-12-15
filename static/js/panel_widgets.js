@@ -1307,21 +1307,43 @@ export class PanelWidgetManager {
     }
   }
 
+  _purgeOrphanDom() {
+    if (!this.canvas) return;
+    requestAnimationFrame(() => {
+      const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
+      nodes.forEach((node) => {
+        const widgetId = node.dataset?.widgetId;
+        if (!widgetId || !this.widgets.has(widgetId)) {
+          this.elements.delete(widgetId);
+          node.remove();
+        }
+      });
+    });
+  }
+
+  _createElement(widget) {
+    const element = document.createElement('div');
+    element.setAttribute('role', 'group');
+    element.style.touchAction = 'none';
+    element.dataset.widgetId = widget.id;
+    element.dataset.widgetType = widget.type;
+    element.classList.add('panel-widget');
+    this._registerInteractionHandlers(widget, element);
+    return element;
+  }
+
   renderAll() {
     if (!this.canvas) return;
     const nodes = [];
     this.elements = new Map();
 
     this.widgets.forEach((widget) => {
-      const element = document.createElement('div');
-      element.setAttribute('role', 'group');
-      element.style.touchAction = 'none';
-      element.dataset.widgetId = widget.id;
-      element.dataset.widgetType = widget.type;
-      element.classList.add('panel-widget');
-
+      let element = this.elements.get(widget.id);
+      if (!element) {
+        element = this._createElement(widget);
+        this.elements.set(widget.id, element);
+      }
       this._renderWidget(widget, element);
-      this._registerInteractionHandlers(widget, element);
       this.grid?.applyPosition(widget, element);
 
       nodes.push(element);
@@ -1336,6 +1358,7 @@ export class PanelWidgetManager {
     }
 
     this._refreshCanvasSpace();
+    this._purgeOrphanDom();
     this.onRender?.();
   }
 }
