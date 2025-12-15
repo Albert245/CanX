@@ -1335,8 +1335,6 @@ export class PanelWidgetManager {
     return element;
   }
 
-  // TRONG FILE: panel_widgets.js
-
   renderAll() {
     if (!this.canvas) return;
     const nodes = [];
@@ -1350,18 +1348,20 @@ export class PanelWidgetManager {
         this.elements.set(widget.id, element);
         this._createWidgetDOM(widget, element);
       }
-
-      console.assert(widget.id === element.dataset.widgetId, 'widget id mismatch', widget.id, element.dataset.widgetId);
-      this._updateWidgetDOM(widget, element, isNew ? 'create' : 'render');
+      this._renderWidget(widget, element);
       this.grid?.applyPosition(widget, element);
       nodes.push(element);
     });
 
-    this.canvas.replaceChildren(...nodes);
-
-    if (typeof this.onRender === 'function') {
-      this.onRender();
+    if (typeof this.canvas.replaceChildren === 'function') {
+      this.canvas.replaceChildren(...nodes);
+    } else {
+      while (this.canvas.firstChild) this.canvas.removeChild(this.canvas.firstChild);
+      nodes.forEach((n) => this.canvas.appendChild(n));
     }
 
+    this._refreshCanvasSpace();
+    this._purgeOrphanDom();
+    this.onRender?.();
   }
 }
