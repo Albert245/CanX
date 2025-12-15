@@ -259,6 +259,7 @@ const initPanel = () => {
   };
 
   const selectWidget = (id) => {
+    console.debug('[panel] select widget', id);
     state.selectedId = id;
     widgetManager.elements.forEach((el, widgetId) => {
       el.classList.toggle('is-selected', widgetId === id);
