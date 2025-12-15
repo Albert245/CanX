@@ -485,15 +485,38 @@ export class PanelWidgetManager {
     }
     return element.__panelRefs;
   }
+  
+  // --- ADDED: The missing glue function ---
+  _renderWidget(widget, element) {
+    if (!widget || !element) return;
+    
+    // 1. If element is empty, create the structure
+    // Check refs or child nodes to decide if we need to create
+    const refs = element.__panelRefs;
+    if (!refs || Object.keys(refs).length === 0 || !element.hasChildNodes()) {
+       this._createWidgetDOM(widget, element);
+    }
+    
+    // 2. Always update values and visual state
+    this._updateWidgetDOM(widget, element, 'render');
+  }
 
   _createWidgetDOM(widget, element) {
     if (!widget || !element) return;
+    // Ensure we start clean so we don't duplicate if called incorrectly
+    element.innerHTML = ''; 
+    element.__panelRefs = {}; // Reset refs
+
     console.debug('[panel] create widget DOM', widget.id, widget.type);
     const refs = this._ensureRefs(element);
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.setAttribute('data-widget-id', widget.id);
     element.setAttribute('data-widget-type', widget.type);
+    
+    // Base classes
+    element.className = `panel-widget panel-widget--${widget.type}`;
+
     switch (widget.type) {
       case 'button':
         refs.body = document.createElement('div');
@@ -657,13 +680,27 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || '';
     }
+    
+    // Register handlers here, once DOM is created
     this._registerInteractionHandlers(widget, element);
   }
 
   _updateWidgetDOM(widget, element, updateSource = 'system') {
     if (!widget || !element) return;
-    console.debug('[panel] update widget DOM', widget.id, widget.type, updateSource);
+    // console.debug('[panel] update widget DOM', widget.id, widget.type, updateSource);
     const refs = this._ensureRefs(element);
+    
+    // Restore selection range for inputs if updating
+    let selectionStart = null;
+    let selectionEnd = null;
+    let shouldRestoreFocus = false;
+    const activeEl = document.activeElement;
+    if (activeEl && element.contains(activeEl) && activeEl.tagName === 'INPUT') {
+        shouldRestoreFocus = true;
+        selectionStart = activeEl.selectionStart;
+        selectionEnd = activeEl.selectionEnd;
+    }
+
     const classes = new Set(['panel-widget', `panel-widget--${widget.type}`]);
     const simpleTypes = new Set(['button', 'toggle', 'lamp']);
     const formTypes = new Set(['input', 'input_button', 'progress', 'label']);
@@ -684,16 +721,19 @@ export class PanelWidgetManager {
       classes.add('panel-widget-image-switch');
     }
     element.className = Array.from(classes).join(' ');
+    
+    // Attributes
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.setAttribute('data-widget-id', widget.id);
     element.setAttribute('data-widget-type', widget.type);
+    
     const label = widget.label && widget.label.trim();
     switch (widget.type) {
       case 'button': {
         if (!refs.button) return;
         refs.button.textContent = label || 'Button';
-        refs.button.toggleAttribute('disabled', this.mode !== 'run');
+        refs.button.disabled = this.mode !== 'run';
         break;
       }
       case 'toggle': {
@@ -701,7 +741,7 @@ export class PanelWidgetManager {
         refs.toggleInput.checked = Boolean(widget.runtime?.isOn);
         refs.toggleInput.setAttribute('aria-checked', String(Boolean(widget.runtime?.isOn)));
         refs.toggleInput.disabled = this.mode !== 'run';
-        refs.toggle.toggleAttribute('disabled', this.mode !== 'run');
+        refs.toggle.toggleAttribute('disabled', this.mode !== 'run'); // Apply disabled to label wrapper too
         refs.title.textContent = label || '';
         break;
       }
@@ -730,7 +770,11 @@ export class PanelWidgetManager {
         if (updateSource !== 'user') {
           refs.input.value = widget.runtime?.inputValue ?? '';
         }
-        refs.input.toggleAttribute('readonly', this.mode !== 'run');
+        if (this.mode !== 'run') {
+           refs.input.setAttribute('readonly', 'readonly');
+        } else {
+           refs.input.removeAttribute('readonly');
+        }
         refs.title.textContent = label || '';
         break;
       }
@@ -740,9 +784,13 @@ export class PanelWidgetManager {
         if (updateSource !== 'user') {
           refs.input.value = widget.runtime?.inputValue ?? '';
         }
-        refs.input.toggleAttribute('readonly', this.mode !== 'run');
+        if (this.mode !== 'run') {
+           refs.input.setAttribute('readonly', 'readonly');
+        } else {
+           refs.input.removeAttribute('readonly');
+        }
         refs.button.textContent = widget.options?.buttonLabel || 'Send';
-        refs.button.toggleAttribute('disabled', this.mode !== 'run');
+        refs.button.disabled = this.mode !== 'run';
         refs.title.textContent = label || '';
         break;
       }
@@ -783,9 +831,6 @@ export class PanelWidgetManager {
         refs.img.alt = widget.label || 'Image';
         break;
       }
-      default:
-        console.warn('[panel] unsupported widget type', widget.type);
-        element.textContent = widget.label || '';
     }
 
     if (shouldRestoreFocus) {
@@ -799,221 +844,17 @@ export class PanelWidgetManager {
     }
   }
 
-  _renderButton(widget, element) {
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'diag-send-btn panel-button';
-    const label = widget.label && widget.label.trim();
-    btn.textContent = label || 'Button';
-    btn.toggleAttribute('disabled', this.mode !== 'run');
-    body.appendChild(btn);
-    element.appendChild(body);
-  }
-
-  _renderToggle(widget, element) {
-    element.classList.add('panel-widget--with-title');
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const toggle = document.createElement('label');
-    toggle.className = 'settings-toggle panel-toggle';
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.checked = Boolean(widget.runtime?.isOn);
-    input.setAttribute('aria-checked', String(Boolean(widget.runtime?.isOn)));
-    input.disabled = this.mode !== 'run';
-    const track = document.createElement('span');
-    track.className = 'settings-toggle-track panel-toggle-track';
-    const thumb = document.createElement('span');
-    thumb.className = 'settings-toggle-thumb panel-toggle-thumb';
-    track.appendChild(thumb);
-    toggle.append(input, track);
-    toggle.toggleAttribute('disabled', this.mode !== 'run');
-    body.appendChild(toggle);
-    const title = document.createElement('div');
-    title.className = 'panel-widget-title';
-    title.textContent = (widget.label && widget.label.trim()) || '';
-    element.append(body, title);
-  }
-
-  _renderLamp(widget, element) {
-    element.classList.add('panel-widget--with-title');
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const lamp = document.createElement('div');
-    lamp.className = 'panel-lamp-indicator';
-    if (widget.runtime?.isOn) {
-      lamp.classList.add('is-on');
-    }
-    body.appendChild(lamp);
-    const title = document.createElement('div');
-    title.className = 'panel-widget-title';
-    title.textContent = (widget.label && widget.label.trim()) || '';
-    element.append(body, title);
-  }
-
-  _renderProgress(widget, element) {
-    element.classList.add('panel-widget--with-title');
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const shell = document.createElement('div');
-    shell.className = 'panel-progress-shell';
-    const fill = document.createElement('div');
-    fill.className = 'panel-progress-fill';
-    fill.style.width = `${widget.runtime?.percent ?? 0}%`;
-    shell.appendChild(fill);
-    body.appendChild(shell);
-    const title = document.createElement('div');
-    title.className = 'panel-widget-title';
-    title.textContent = (widget.label && widget.label.trim()) || '';
-    element.append(body, title);
-  }
-
-  _renderLabel(widget, element) {
-    element.classList.add('panel-widget--with-title');
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body panel-widget-label';
-    const valueEl = document.createElement('span');
-    valueEl.className = 'panel-label-value';
-    valueEl.textContent = widget.runtime?.displayValue ?? '—';
-    const namedEl = document.createElement('span');
-    namedEl.className = 'panel-label-named';
-    namedEl.textContent = widget.runtime?.namedValue ?? '';
-    body.append(valueEl, namedEl);
-    const title = document.createElement('div');
-    title.className = 'panel-widget-title';
-    title.textContent = (widget.label && widget.label.trim()) || '';
-    element.append(body, title);
-  }
-
-  _renderInput(widget, element) {
-    element.classList.add('panel-widget--with-title', 'panel-widget-input');
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const label = widget.label && widget.label.trim();
-    const row = document.createElement('div');
-    row.className = 'panel-input-row';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = widget.options?.placeholder || '';
-    const currentValue = widget.runtime?.inputValue ?? '';
-    input.value = currentValue;
-    input.addEventListener('input', (event) => {
-      widget.runtime = widget.runtime || {};
-      widget.runtime.inputValue = event.target.value;
-    });
-    input.addEventListener('focus', () => {
-      input.select();
-    });
-    if (this.mode !== 'run') {
-      input.setAttribute('readonly', 'readonly');
-    }
-    row.append(input);
-    body.append(row);
-    const title = document.createElement('div');
-    title.className = 'panel-widget-title';
-    title.textContent = label || '';
-    element.append(body, title);
-  }
-
-  _renderInputButton(widget, element) {
-    element.classList.add('panel-widget--with-title', 'panel-widget-input', 'panel-widget-input-button');
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const label = widget.label && widget.label.trim();
-    const row = document.createElement('div');
-    row.className = 'panel-input-row';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = widget.options?.placeholder || '';
-    input.value = widget.runtime?.inputValue ?? '';
-    input.addEventListener('input', (event) => {
-      widget.runtime = widget.runtime || {};
-      widget.runtime.inputValue = event.target.value;
-    });
-    input.addEventListener('focus', () => {
-      input.select();
-    });
-    if (this.mode !== 'run') {
-      input.setAttribute('readonly', 'readonly');
-    }
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'diag-send-btn panel-button';
-    button.textContent = widget.options?.buttonLabel || 'Send';
-    button.toggleAttribute('disabled', this.mode !== 'run');
-    row.append(input, button);
-    body.append(row);
-    const title = document.createElement('div');
-    title.className = 'panel-widget-title';
-    title.textContent = label || '';
-    element.append(body, title);
-  }
-
-  _renderScript(widget, element) {
-    const block = document.createElement('div');
-    block.className = 'panel-script-block';
-    block.textContent = widget.script || 'on press {\n  // script\n}';
-    element.appendChild(block);
-  }
-
-  _renderImageButton(widget, element) {
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const normal = document.createElement('img');
-    normal.src = widget.images?.normal || '';
-    normal.alt = widget.label || 'Button';
-    const pressed = document.createElement('img');
-    pressed.src = widget.images?.pressed || widget.images?.normal || '';
-    pressed.alt = (widget.label || 'Button') + ' pressed';
-    pressed.style.display = widget.runtime?.isPressed ? 'block' : 'none';
-    normal.style.display = widget.runtime?.isPressed ? 'none' : 'block';
-    body.append(normal, pressed);
-    element.appendChild(body);
-  }
-
-  _renderImageIndicator(widget, element) {
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const offImg = document.createElement('img');
-    offImg.src = widget.images?.off || '';
-    const onImg = document.createElement('img');
-    onImg.src = widget.images?.on || '';
-    const isOn = widget.runtime?.isOn;
-    offImg.style.display = isOn ? 'none' : 'block';
-    onImg.style.display = isOn ? 'block' : 'none';
-    body.append(offImg, onImg);
-    element.appendChild(body);
-  }
-
-  _renderStaticImage(widget, element) {
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const img = document.createElement('img');
-    img.src = widget.images?.src || '';
-    img.alt = widget.label || 'Image';
-    element.classList.add('panel-widget-static');
-    body.appendChild(img);
-    element.appendChild(body);
-  }
-
-  _renderImageSwitch(widget, element) {
-    const body = document.createElement('div');
-    body.className = 'panel-widget-body';
-    const img = document.createElement('img');
-    img.src = widget.runtime?.activeImage || widget.images?.states?.[0]?.src || '';
-    img.alt = widget.label || 'Image';
-    element.classList.add('panel-widget-image-switch');
-    body.appendChild(img);
-    element.appendChild(body);
-  }
-
   _registerInteractionHandlers(widget, element) {
     if (!element) return;
     const type = widget.type;
+    
+    // Important: We need to find the interactive target inside the element
+    // because _createWidgetDOM creates structure like wrapper -> button
+    
     if (type === 'button' || type === 'image_button' || type === 'script') {
+      // For button/script widgets, it might be the element itself or a button inside
       const targetButton = element.querySelector('button') || element;
+      
       const pointerDown = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
@@ -1044,9 +885,12 @@ export class PanelWidgetManager {
       targetButton.addEventListener('pointerup', pointerUp);
       targetButton.addEventListener('pointerleave', pointerUp);
       targetButton.addEventListener('pointercancel', pointerUp);
+      
     } else if (type === 'toggle') {
       element.addEventListener('click', (event) => {
+        // Prevent toggling when clicking the title/caption if desired
         if (event.target.closest('.panel-widget-title')) return;
+        
         if (this.mode !== 'run') return;
         event.preventDefault();
         widget.runtime = widget.runtime || {};
@@ -1055,6 +899,7 @@ export class PanelWidgetManager {
         const value = widget.runtime.isOn ? widget.mapping?.onValue : widget.mapping?.offValue;
         this._emitAction('toggle', widget, { value, active: widget.runtime.isOn });
       });
+      
     } else if (type === 'image_switch') {
       element.addEventListener('click', (event) => {
         if (this.mode !== 'run') return;
@@ -1073,6 +918,7 @@ export class PanelWidgetManager {
           this._emitAction('toggle', widget, { value: nextState.value, active: true });
         }
       });
+      
     } else if (type === 'input') {
       element.addEventListener('keydown', (event) => {
         if (this.mode !== 'run') return;
@@ -1083,7 +929,9 @@ export class PanelWidgetManager {
         widget.runtime.inputValue = value;
         this._emitAction('input', widget, { value });
       });
+      
     } else if (type === 'input_button') {
+      // Handle Enter key on input
       element.addEventListener('keydown', (event) => {
         if (this.mode !== 'run') return;
         if (event.key !== 'Enter') return;
@@ -1093,6 +941,7 @@ export class PanelWidgetManager {
         widget.runtime.inputValue = value;
         this._emitAction('submit', widget, { value });
       });
+      // Handle click on the Send button
       element.addEventListener('click', (event) => {
         if (this.mode !== 'run') return;
         const button = event.target.closest('button');
@@ -1329,7 +1178,7 @@ export class PanelWidgetManager {
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.classList.add('panel-widget');
-    this._registerInteractionHandlers(widget, element);
+    // Removed _registerInteractionHandlers here because inner DOM is not ready
     return element;
   }
 
@@ -1337,19 +1186,21 @@ export class PanelWidgetManager {
     console.debug('[panel] renderAll widgets=', this.widgets.size);
     if (!this.canvas) return;
     const nodes = [];
-    this.elements = new Map();
+    this.elements = new Map(); // Rebuild element map based on fresh creation or existing
 
     this.widgets.forEach((widget) => {
-      let element = this.elements.get(widget.id);
+      // Try to find existing element in DOM first to preserve state if possible, 
+      // or use the one we tracked.
+      let element = this.canvas.querySelector(`[data-widget-id="${widget.id}"]`);
       if (!element) {
         element = this._createElement(widget);
-        this.elements.set(widget.id, element);
       }
+      this.elements.set(widget.id, element);
+      
       this._renderWidget(widget, element);
       this.grid?.applyPosition(widget, element);
 
       nodes.push(element);
-      this.elements.set(widget.id, element);
     });
 
     if (typeof this.canvas.replaceChildren === 'function') {
