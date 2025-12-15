@@ -1338,10 +1338,10 @@ export class PanelWidgetManager {
 
 renderAll() {
     if (!this.canvas) return;
-
     const nodes = [];
 
     this.widgets.forEach((widget) => {
+      console.debug('[panel] render widget', widget.id, widget.type);
       let element = this.elements.get(widget.id);
       const isNew = !element;
       if (!element) {
@@ -1351,24 +1351,11 @@ renderAll() {
       }
 
       this._updateWidgetDOM(widget, element, isNew ? 'create' : 'render');
-
-      // Chỉ tính toán vị trí Grid (CSS)
       this.grid?.applyPosition(widget, element);
       nodes.push(element);
     });
 
-    // 1. Gắn khung (container) vào DOM trước mà không phá bỏ root hiện tại
-    const desired = new Set(nodes);
-    Array.from(this.canvas.children).forEach((child) => {
-      if (child.classList?.contains('panel-widget') && !desired.has(child)) {
-        child.remove();
-      }
-    });
-    nodes.forEach((node) => {
-      if (node.parentElement !== this.canvas) {
-        this.canvas.appendChild(node);
-      }
-    });
+    this.canvas.replaceChildren(...nodes);
 
     if (typeof this.onRender === 'function') {
       this.onRender();

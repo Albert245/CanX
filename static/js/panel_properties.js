@@ -151,6 +151,8 @@ export class PanelPropertiesPanel {
       return;
     }
 
+    console.debug('[panel] properties render', this.widget.id);
+
     const definition = getWidgetDefinition(this.widget.type) || {};
     const title = createElement('h3', 'panel-properties-title', `${definition.label || this.widget.type} Properties`);
     this.container.appendChild(title);
