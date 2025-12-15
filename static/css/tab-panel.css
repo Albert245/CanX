@@ -445,6 +445,23 @@
 
 .panel-widget--form .panel-input-row input { width: 100%; }
 
+.panel-widget--image_button .panel-widget-body,
+.panel-widget--image_indicator .panel-widget-body,
+.panel-widget--static_image .panel-widget-body,
+.panel-widget--image_switch .panel-widget-body {
+  justify-content: center;
+  align-items: center;
+}
+
+.panel-widget--image_button .panel-widget-body img,
+.panel-widget--image_indicator .panel-widget-body img,
+.panel-widget--static_image .panel-widget-body img,
+.panel-widget--image_switch .panel-widget-body img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 .panel-input-row .panel-button,
 .panel-widget--simple .panel-button {
   min-width: 74px;

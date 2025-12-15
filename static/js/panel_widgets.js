@@ -482,6 +482,11 @@ export class PanelWidgetManager {
 
   _renderWidget(widget, element) {
     if (!widget || !element) return;
+    const activeEl = document.activeElement;
+    const shouldRestoreFocus =
+      activeEl && element.contains(activeEl) && activeEl.tagName === 'INPUT';
+    const selectionStart = shouldRestoreFocus ? activeEl.selectionStart : null;
+    const selectionEnd = shouldRestoreFocus ? activeEl.selectionEnd : null;
     element.className = `panel-widget panel-widget--${widget.type}`;
     const simpleTypes = new Set(['button', 'toggle', 'lamp']);
     const formTypes = new Set(['input', 'input_button', 'progress', 'label']);
@@ -537,6 +542,16 @@ export class PanelWidgetManager {
         break;
       default:
         element.textContent = widget.label || '';
+    }
+
+    if (shouldRestoreFocus) {
+      const restoredInput = element.querySelector('input');
+      if (restoredInput) {
+        restoredInput.focus();
+        if (selectionStart !== null && selectionEnd !== null) {
+          restoredInput.setSelectionRange(selectionStart, selectionEnd);
+        }
+      }
     }
   }
 
@@ -700,6 +715,8 @@ export class PanelWidgetManager {
   }
 
   _renderImageButton(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const normal = document.createElement('img');
     normal.src = widget.images?.normal || '';
     normal.alt = widget.label || 'Button';
@@ -708,10 +725,13 @@ export class PanelWidgetManager {
     pressed.alt = (widget.label || 'Button') + ' pressed';
     pressed.style.display = widget.runtime?.isPressed ? 'block' : 'none';
     normal.style.display = widget.runtime?.isPressed ? 'none' : 'block';
-    element.append(normal, pressed);
+    body.append(normal, pressed);
+    element.appendChild(body);
   }
 
   _renderImageIndicator(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const offImg = document.createElement('img');
     offImg.src = widget.images?.off || '';
     const onImg = document.createElement('img');
@@ -719,23 +739,30 @@ export class PanelWidgetManager {
     const isOn = widget.runtime?.isOn;
     offImg.style.display = isOn ? 'none' : 'block';
     onImg.style.display = isOn ? 'block' : 'none';
-    element.append(offImg, onImg);
+    body.append(offImg, onImg);
+    element.appendChild(body);
   }
 
   _renderStaticImage(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const img = document.createElement('img');
     img.src = widget.images?.src || '';
     img.alt = widget.label || 'Image';
     element.classList.add('panel-widget-static');
-    element.appendChild(img);
+    body.appendChild(img);
+    element.appendChild(body);
   }
 
   _renderImageSwitch(widget, element) {
+    const body = document.createElement('div');
+    body.className = 'panel-widget-body';
     const img = document.createElement('img');
     img.src = widget.runtime?.activeImage || widget.images?.states?.[0]?.src || '';
     img.alt = widget.label || 'Image';
     element.classList.add('panel-widget-image-switch');
-    element.appendChild(img);
+    body.appendChild(img);
+    element.appendChild(body);
   }
 
   _registerInteractionHandlers(widget, element) {
@@ -746,6 +773,9 @@ export class PanelWidgetManager {
       const pointerDown = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
+        if (event.pointerId && targetButton.setPointerCapture) {
+          targetButton.setPointerCapture(event.pointerId);
+        }
         if (widget.runtime) widget.runtime.isPressed = true;
         this._renderWidget(widget, element);
         this._emitAction('press', widget, { value: widget.mapping?.pressValue });
@@ -753,6 +783,13 @@ export class PanelWidgetManager {
       const pointerUp = (event) => {
         if (this.mode !== 'run') return;
         event.preventDefault();
+        if (event.pointerId && targetButton.releasePointerCapture) {
+          try {
+            targetButton.releasePointerCapture(event.pointerId);
+          } catch (err) {
+            // ignore
+          }
+        }
         if (widget.runtime) widget.runtime.isPressed = false;
         this._renderWidget(widget, element);
         this._emitAction('release', widget, { value: widget.mapping?.releaseValue });
@@ -760,6 +797,7 @@ export class PanelWidgetManager {
       targetButton.addEventListener('pointerdown', pointerDown);
       targetButton.addEventListener('pointerup', pointerUp);
       targetButton.addEventListener('pointerleave', pointerUp);
+      targetButton.addEventListener('pointercancel', pointerUp);
     } else if (type === 'toggle') {
       element.addEventListener('click', (event) => {
         if (event.target.closest('.panel-widget-title')) return;
@@ -770,6 +808,24 @@ export class PanelWidgetManager {
         this._renderWidget(widget, element);
         const value = widget.runtime.isOn ? widget.mapping?.onValue : widget.mapping?.offValue;
         this._emitAction('toggle', widget, { value, active: widget.runtime.isOn });
+      });
+    } else if (type === 'image_switch') {
+      element.addEventListener('click', (event) => {
+        if (this.mode !== 'run') return;
+        const states = widget.images?.states || [];
+        if (!states.length) return;
+        widget.runtime = widget.runtime || {};
+        const currentValue = widget.runtime.activeValue;
+        let index = states.findIndex((state) => state && state.value === currentValue);
+        index = index >= 0 ? index : -1;
+        const nextIndex = (index + 1) % states.length;
+        const nextState = states[nextIndex] || {};
+        widget.runtime.activeValue = nextState.value;
+        widget.runtime.activeImage = nextState.src || '';
+        this._renderWidget(widget, element);
+        if (nextState.value !== undefined) {
+          this._emitAction('toggle', widget, { value: nextState.value, active: true });
+        }
       });
     } else if (type === 'input') {
       element.addEventListener('keydown', (event) => {
