@@ -784,6 +784,7 @@ export class PanelWidgetManager {
         break;
       }
       default:
+        console.warn('[panel] unsupported widget type', widget.type);
         element.textContent = widget.label || '';
     }
 
@@ -1333,6 +1334,7 @@ export class PanelWidgetManager {
   }
 
   renderAll() {
+    console.debug('[panel] renderAll widgets=', this.widgets.size);
     if (!this.canvas) return;
     const nodes = [];
     this.elements = new Map();
