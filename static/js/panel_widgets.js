@@ -787,6 +787,16 @@ export class PanelWidgetManager {
       default:
         element.textContent = widget.label || '';
     }
+
+    if (shouldRestoreFocus) {
+      const restoredInput = element.querySelector('input');
+      if (restoredInput) {
+        restoredInput.focus();
+        if (selectionStart !== null && selectionEnd !== null) {
+          restoredInput.setSelectionRange(selectionStart, selectionEnd);
+        }
+      }
+    }
   }
 
   _renderButton(widget, element) {
