@@ -480,13 +480,191 @@ export class PanelWidgetManager {
     return data;
   }
 
-  _renderWidget(widget, element) {
+  _ensureRefs(element) {
+    if (!element.__panelRefs) {
+      element.__panelRefs = {};
+    }
+    return element.__panelRefs;
+  }
+
+  _createWidgetDOM(widget, element) {
     if (!widget || !element) return;
-    const activeEl = document.activeElement;
-    const shouldRestoreFocus =
-      activeEl && element.contains(activeEl) && activeEl.tagName === 'INPUT';
-    const selectionStart = shouldRestoreFocus ? activeEl.selectionStart : null;
-    const selectionEnd = shouldRestoreFocus ? activeEl.selectionEnd : null;
+    console.debug('[panel] create widget DOM', widget.id, widget.type);
+    const refs = this._ensureRefs(element);
+    element.dataset.widgetId = widget.id;
+    element.dataset.widgetType = widget.type;
+    element.setAttribute('data-widget-id', widget.id);
+    element.setAttribute('data-widget-type', widget.type);
+    switch (widget.type) {
+      case 'button':
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.button = document.createElement('button');
+        refs.button.type = 'button';
+        refs.button.className = 'diag-send-btn panel-button';
+        refs.body.appendChild(refs.button);
+        element.appendChild(refs.body);
+        break;
+      case 'toggle': {
+        element.classList.add('panel-widget--with-title');
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.toggle = document.createElement('label');
+        refs.toggle.className = 'settings-toggle panel-toggle';
+        refs.toggleInput = document.createElement('input');
+        refs.toggleInput.type = 'checkbox';
+        refs.track = document.createElement('span');
+        refs.track.className = 'settings-toggle-track panel-toggle-track';
+        refs.thumb = document.createElement('span');
+        refs.thumb.className = 'settings-toggle-thumb panel-toggle-thumb';
+        refs.track.appendChild(refs.thumb);
+        refs.toggle.append(refs.toggleInput, refs.track);
+        refs.body.appendChild(refs.toggle);
+        refs.title = document.createElement('div');
+        refs.title.className = 'panel-widget-title';
+        element.append(refs.body, refs.title);
+        break;
+      }
+      case 'lamp': {
+        element.classList.add('panel-widget--with-title');
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.lamp = document.createElement('div');
+        refs.lamp.className = 'panel-lamp-indicator';
+        refs.body.appendChild(refs.lamp);
+        refs.title = document.createElement('div');
+        refs.title.className = 'panel-widget-title';
+        element.append(refs.body, refs.title);
+        break;
+      }
+      case 'progress': {
+        element.classList.add('panel-widget--with-title');
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.shell = document.createElement('div');
+        refs.shell.className = 'panel-progress-shell';
+        refs.fill = document.createElement('div');
+        refs.fill.className = 'panel-progress-fill';
+        refs.shell.appendChild(refs.fill);
+        refs.body.appendChild(refs.shell);
+        refs.title = document.createElement('div');
+        refs.title.className = 'panel-widget-title';
+        element.append(refs.body, refs.title);
+        break;
+      }
+      case 'label': {
+        element.classList.add('panel-widget--with-title');
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body panel-widget-label';
+        refs.value = document.createElement('span');
+        refs.value.className = 'panel-label-value';
+        refs.named = document.createElement('span');
+        refs.named.className = 'panel-label-named';
+        refs.body.append(refs.value, refs.named);
+        refs.title = document.createElement('div');
+        refs.title.className = 'panel-widget-title';
+        element.append(refs.body, refs.title);
+        break;
+      }
+      case 'input': {
+        element.classList.add('panel-widget--with-title', 'panel-widget-input');
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.row = document.createElement('div');
+        refs.row.className = 'panel-input-row';
+        refs.input = document.createElement('input');
+        refs.input.type = 'text';
+        refs.input.addEventListener('input', (event) => {
+          widget.runtime = widget.runtime || {};
+          widget.runtime.inputValue = event.target.value;
+        });
+        refs.input.addEventListener('focus', () => {
+          refs.input.select();
+        });
+        refs.row.append(refs.input);
+        refs.body.append(refs.row);
+        refs.title = document.createElement('div');
+        refs.title.className = 'panel-widget-title';
+        element.append(refs.body, refs.title);
+        break;
+      }
+      case 'input_button': {
+        element.classList.add('panel-widget--with-title', 'panel-widget-input', 'panel-widget-input-button');
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.row = document.createElement('div');
+        refs.row.className = 'panel-input-row';
+        refs.input = document.createElement('input');
+        refs.input.type = 'text';
+        refs.input.addEventListener('input', (event) => {
+          widget.runtime = widget.runtime || {};
+          widget.runtime.inputValue = event.target.value;
+        });
+        refs.input.addEventListener('focus', () => {
+          refs.input.select();
+        });
+        refs.button = document.createElement('button');
+        refs.button.type = 'button';
+        refs.button.className = 'diag-send-btn panel-button';
+        refs.row.append(refs.input, refs.button);
+        refs.body.append(refs.row);
+        refs.title = document.createElement('div');
+        refs.title.className = 'panel-widget-title';
+        element.append(refs.body, refs.title);
+        break;
+      }
+      case 'script': {
+        refs.block = document.createElement('div');
+        refs.block.className = 'panel-script-block';
+        element.appendChild(refs.block);
+        break;
+      }
+      case 'image_button': {
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.normal = document.createElement('img');
+        refs.pressed = document.createElement('img');
+        refs.body.append(refs.normal, refs.pressed);
+        element.appendChild(refs.body);
+        break;
+      }
+      case 'image_indicator': {
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.offImg = document.createElement('img');
+        refs.onImg = document.createElement('img');
+        refs.body.append(refs.offImg, refs.onImg);
+        element.appendChild(refs.body);
+        break;
+      }
+      case 'static_image': {
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.img = document.createElement('img');
+        refs.body.appendChild(refs.img);
+        element.classList.add('panel-widget-static');
+        element.appendChild(refs.body);
+        break;
+      }
+      case 'image_switch': {
+        refs.body = document.createElement('div');
+        refs.body.className = 'panel-widget-body';
+        refs.img = document.createElement('img');
+        refs.body.appendChild(refs.img);
+        element.classList.add('panel-widget-image-switch');
+        element.appendChild(refs.body);
+        break;
+      }
+      default:
+        element.textContent = widget.label || '';
+    }
+    this._registerInteractionHandlers(widget, element);
+  }
+
+  _updateWidgetDOM(widget, element, updateSource = 'system') {
+    if (!widget || !element) return;
+    console.debug('[panel] update widget DOM', widget.id, widget.type, updateSource);
+    const refs = this._ensureRefs(element);
     element.className = `panel-widget panel-widget--${widget.type}`;
     const simpleTypes = new Set(['button', 'toggle', 'lamp']);
     const formTypes = new Set(['input', 'input_button', 'progress', 'label']);
@@ -500,46 +678,101 @@ export class PanelWidgetManager {
     element.dataset.widgetType = widget.type;
     element.setAttribute('data-widget-id', widget.id);
     element.setAttribute('data-widget-type', widget.type);
-    while (element.firstChild) {
-      element.removeChild(element.firstChild);
-    }
+    const label = widget.label && widget.label.trim();
     switch (widget.type) {
-      case 'button':
-        this._renderButton(widget, element);
+      case 'button': {
+        if (!refs.button) return;
+        refs.button.textContent = label || 'Button';
+        refs.button.toggleAttribute('disabled', this.mode !== 'run');
         break;
-      case 'toggle':
-        this._renderToggle(widget, element);
+      }
+      case 'toggle': {
+        if (!refs.toggleInput || !refs.title) return;
+        refs.toggleInput.checked = Boolean(widget.runtime?.isOn);
+        refs.toggleInput.setAttribute('aria-checked', String(Boolean(widget.runtime?.isOn)));
+        refs.toggleInput.disabled = this.mode !== 'run';
+        refs.toggle.toggleAttribute('disabled', this.mode !== 'run');
+        refs.title.textContent = label || '';
         break;
-      case 'lamp':
-        this._renderLamp(widget, element);
+      }
+      case 'lamp': {
+        if (!refs.lamp || !refs.title) return;
+        refs.lamp.classList.toggle('is-on', Boolean(widget.runtime?.isOn));
+        refs.title.textContent = label || '';
         break;
-      case 'progress':
-        this._renderProgress(widget, element);
+      }
+      case 'progress': {
+        if (!refs.fill || !refs.title) return;
+        refs.fill.style.width = `${widget.runtime?.percent ?? 0}%`;
+        refs.title.textContent = label || '';
         break;
-      case 'label':
-        this._renderLabel(widget, element);
+      }
+      case 'label': {
+        if (!refs.value || !refs.named || !refs.title) return;
+        refs.value.textContent = widget.runtime?.displayValue ?? '—';
+        refs.named.textContent = widget.runtime?.namedValue ?? '';
+        refs.title.textContent = label || '';
         break;
-      case 'input':
-        this._renderInput(widget, element);
+      }
+      case 'input': {
+        if (!refs.input || !refs.title) return;
+        refs.input.placeholder = widget.options?.placeholder || '';
+        if (updateSource !== 'user') {
+          refs.input.value = widget.runtime?.inputValue ?? '';
+        }
+        refs.input.toggleAttribute('readonly', this.mode !== 'run');
+        refs.title.textContent = label || '';
         break;
-      case 'input_button':
-        this._renderInputButton(widget, element);
+      }
+      case 'input_button': {
+        if (!refs.input || !refs.button || !refs.title) return;
+        refs.input.placeholder = widget.options?.placeholder || '';
+        if (updateSource !== 'user') {
+          refs.input.value = widget.runtime?.inputValue ?? '';
+        }
+        refs.input.toggleAttribute('readonly', this.mode !== 'run');
+        refs.button.textContent = widget.options?.buttonLabel || 'Send';
+        refs.button.toggleAttribute('disabled', this.mode !== 'run');
+        refs.title.textContent = label || '';
         break;
-      case 'script':
-        this._renderScript(widget, element);
+      }
+      case 'script': {
+        if (!refs.block) return;
+        refs.block.textContent = widget.script || 'on press {\n  // script\n}';
         break;
-      case 'image_button':
-        this._renderImageButton(widget, element);
+      }
+      case 'image_button': {
+        if (!refs.normal || !refs.pressed) return;
+        const isPressed = Boolean(widget.runtime?.isPressed);
+        refs.normal.src = widget.images?.normal || '';
+        refs.normal.alt = widget.label || 'Button';
+        refs.pressed.src = widget.images?.pressed || widget.images?.normal || '';
+        refs.pressed.alt = (widget.label || 'Button') + ' pressed';
+        refs.pressed.style.display = isPressed ? 'block' : 'none';
+        refs.normal.style.display = isPressed ? 'none' : 'block';
         break;
-      case 'image_indicator':
-        this._renderImageIndicator(widget, element);
+      }
+      case 'image_indicator': {
+        if (!refs.offImg || !refs.onImg) return;
+        const isOn = Boolean(widget.runtime?.isOn);
+        refs.offImg.src = widget.images?.off || '';
+        refs.onImg.src = widget.images?.on || '';
+        refs.offImg.style.display = isOn ? 'none' : 'block';
+        refs.onImg.style.display = isOn ? 'block' : 'none';
         break;
-      case 'static_image':
-        this._renderStaticImage(widget, element);
+      }
+      case 'static_image': {
+        if (!refs.img) return;
+        refs.img.src = widget.images?.src || '';
+        refs.img.alt = widget.label || 'Image';
         break;
-      case 'image_switch':
-        this._renderImageSwitch(widget, element);
+      }
+      case 'image_switch': {
+        if (!refs.img) return;
+        refs.img.src = widget.runtime?.activeImage || widget.images?.states?.[0]?.src || '';
+        refs.img.alt = widget.label || 'Image';
         break;
+      }
       default:
         element.textContent = widget.label || '';
     }
@@ -776,8 +1009,9 @@ export class PanelWidgetManager {
         if (event.pointerId && targetButton.setPointerCapture) {
           targetButton.setPointerCapture(event.pointerId);
         }
-        if (widget.runtime) widget.runtime.isPressed = true;
-        this._renderWidget(widget, element);
+        widget.runtime = widget.runtime || {};
+        widget.runtime.isPressed = true;
+        this._updateWidgetDOM(widget, element, 'user');
         this._emitAction('press', widget, { value: widget.mapping?.pressValue });
       };
       const pointerUp = (event) => {
@@ -790,8 +1024,9 @@ export class PanelWidgetManager {
             // ignore
           }
         }
-        if (widget.runtime) widget.runtime.isPressed = false;
-        this._renderWidget(widget, element);
+        widget.runtime = widget.runtime || {};
+        widget.runtime.isPressed = false;
+        this._updateWidgetDOM(widget, element, 'user');
         this._emitAction('release', widget, { value: widget.mapping?.releaseValue });
       };
       targetButton.addEventListener('pointerdown', pointerDown);
@@ -805,7 +1040,7 @@ export class PanelWidgetManager {
         event.preventDefault();
         widget.runtime = widget.runtime || {};
         widget.runtime.isOn = !widget.runtime.isOn;
-        this._renderWidget(widget, element);
+        this._updateWidgetDOM(widget, element, 'user');
         const value = widget.runtime.isOn ? widget.mapping?.onValue : widget.mapping?.offValue;
         this._emitAction('toggle', widget, { value, active: widget.runtime.isOn });
       });
@@ -822,7 +1057,7 @@ export class PanelWidgetManager {
         const nextState = states[nextIndex] || {};
         widget.runtime.activeValue = nextState.value;
         widget.runtime.activeImage = nextState.src || '';
-        this._renderWidget(widget, element);
+        this._updateWidgetDOM(widget, element, 'user');
         if (nextState.value !== undefined) {
           this._emitAction('toggle', widget, { value: nextState.value, active: true });
         }
@@ -957,19 +1192,18 @@ export class PanelWidgetManager {
     const ids = this.signalIndex.get(key);
     if (!ids || !ids.size) return [];
     const results = [];
-    let needsRender = false;
     ids.forEach((id) => {
       const widget = this.widgets.get(id);
       if (!widget) return;
       const didChange = this._applyRx(widget, payload);
       if (didChange) {
-        needsRender = true;
+        const element = this.elements.get(id);
+        if (element) {
+          this._updateWidgetDOM(widget, element, 'signal');
+        }
       }
       results.push({ widget, changed: didChange });
     });
-    if (needsRender) {
-      this.renderAll();
-    }
     return results;
   }
 
@@ -1047,7 +1281,10 @@ export class PanelWidgetManager {
       if (!target) return;
       target.runtime = target.runtime || {};
       target.runtime.isOn = action.state === 'on';
-      this.renderAll();
+      const element = this.elements.get(target.id);
+      if (element) {
+        this._updateWidgetDOM(target, element, 'script');
+      }
       return;
     }
     if (action.type === 'widget_state') {
@@ -1055,7 +1292,10 @@ export class PanelWidgetManager {
       if (!target) return;
       target.runtime = target.runtime || {};
       Object.assign(target.runtime, action.state || {});
-      this.renderAll();
+      const element = this.elements.get(target.id);
+      if (element) {
+        this._updateWidgetDOM(target, element, 'script');
+      }
     }
   }
 
@@ -1080,7 +1320,6 @@ export class PanelWidgetManager {
     element.dataset.widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.classList.add('panel-widget');
-    this._registerInteractionHandlers(widget, element);
     return element;
   }
 
@@ -1093,33 +1332,32 @@ renderAll() {
 
     this.widgets.forEach((widget) => {
       let element = this.elements.get(widget.id);
+      const isNew = !element;
       if (!element) {
         element = this._createElement(widget);
         this.elements.set(widget.id, element);
+        this._createWidgetDOM(widget, element);
       }
-      
-      // XÓA DÒNG NÀY Ở ĐÂY: this._renderWidget(widget, element);
-      
+
+      this._updateWidgetDOM(widget, element, isNew ? 'create' : 'render');
+
       // Chỉ tính toán vị trí Grid (CSS)
       this.grid?.applyPosition(widget, element);
       nodes.push(element);
     });
 
-    // 1. Gắn khung (container) vào DOM trước
-    if (typeof this.canvas.replaceChildren === 'function') {
-      this.canvas.replaceChildren(...nodes);
-    } else {
-      this.canvas.innerHTML = '';
-      nodes.forEach(node => this.canvas.appendChild(node));
-    }
-
-    // 2. Bây giờ DOM đã có, width/height đã thực tế -> Mới tiến hành vẽ nội dung bên trong
-    // Điều này đảm bảo element.clientWidth/clientHeight trả về đúng giá trị
-    this.widgets.forEach((widget) => {
-        const element = this.elements.get(widget.id);
-        if (element) {
-            this._renderWidget(widget, element);
-        }
+    // 1. Gắn khung (container) vào DOM trước mà không phá bỏ root hiện tại
+    const desired = new Set(nodes);
+    Array.from(this.canvas.children).forEach((child) => {
+      if (child.classList?.contains('panel-widget') && !desired.has(child)) {
+        child.remove();
+      }
     });
+    nodes.forEach((node) => {
+      if (node.parentElement !== this.canvas) {
+        this.canvas.appendChild(node);
+      }
+    });
+
   }
 }
