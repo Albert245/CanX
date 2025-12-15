@@ -1329,6 +1329,7 @@ export class PanelWidgetManager {
     element.setAttribute('role', 'group');
     element.style.touchAction = 'none';
     element.dataset.widgetId = widget.id;
+    element.__widgetId = widget.id;
     element.dataset.widgetType = widget.type;
     element.classList.add('panel-widget');
     return element;
@@ -1336,7 +1337,7 @@ export class PanelWidgetManager {
 
   // TRONG FILE: panel_widgets.js
 
-renderAll() {
+  renderAll() {
     if (!this.canvas) return;
     const nodes = [];
 
@@ -1350,6 +1351,7 @@ renderAll() {
         this._createWidgetDOM(widget, element);
       }
 
+      console.assert(widget.id === element.dataset.widgetId, 'widget id mismatch', widget.id, element.dataset.widgetId);
       this._updateWidgetDOM(widget, element, isNew ? 'create' : 'render');
       this.grid?.applyPosition(widget, element);
       nodes.push(element);
