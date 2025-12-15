@@ -259,29 +259,39 @@ const initPanel = () => {
   };
 
   const selectWidget = (id) => {
+    console.debug('[panel] select widget', id);
     state.selectedId = id;
     widgetManager.elements.forEach((el, widgetId) => {
       el.classList.toggle('is-selected', widgetId === id);
     });
     const widget = id ? widgetManager.getWidget(id) : null;
+    console.debug('[panel] widget exists', Boolean(widget));
+    console.debug('[panel] properties render', widget?.id);
+    console.assert(!id || widget, 'Selected widget missing');
     propertiesPanel.setWidget(widget || null);
     setScriptMode(Boolean(widget?.useScript), false);
     window.currentSelectedWidget = id ? widgetManager.elements.get(id) || null : null;
   };
 
   const handleCanvasClick = (event) => {
+    console.debug('[panel] click target', event.target);
     if (state.mode === 'run') return;
-    const widgetEl = event.target.closest('.panel-widget');
-    if (widgetEl) {
+
+    let widgetEl = event.target;
+    while (widgetEl && widgetEl !== canvas) {
+      if (widgetEl.classList?.contains('panel-widget')) break;
+      widgetEl = widgetEl.parentElement;
+    }
+
+    if (widgetEl && widgetEl.classList?.contains('panel-widget')) {
       const widgetId = widgetEl.dataset?.widgetId;
-      if (!widgetId || !widgetManager.getWidget(widgetId)) {
-        widgetEl.remove();
-        widgetManager.renderAll();
-        return;
+      if (widgetId && widgetManager.getWidget(widgetId)) {
+        console.debug('[panel] selectedId', widgetId);
+        selectWidget(widgetId);
       }
-      selectWidget(widgetId);
       return;
     }
+
     if (!state.pendingTool) {
       selectWidget(null);
       return;
@@ -289,7 +299,9 @@ const initPanel = () => {
     const coords = grid.getCellFromEvent(event);
     if (!coords) return;
     const widget = widgetManager.addWidget({ type: state.pendingTool, pos: coords });
-    selectWidget(widget?.id || null);
+    if (widget?.id) {
+      selectWidget(widget.id);
+    }
     if (!state.restoring) {
       scheduleSave();
     }
@@ -440,7 +452,8 @@ const initPanel = () => {
       grid.setConfig(layout.grid);
     }
     widgetManager.loadWidgets(layout.widgets || []);
-    selectWidget(null);
+    const firstWidgetId = layout.widgets?.[0]?.id || null;
+    selectWidget(firstWidgetId);
     state.restoring = false;
   };
 
