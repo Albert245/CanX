@@ -427,7 +427,6 @@ export class PanelWidgetManager {
     this.widgets.clear();
     this.signalIndex.clear();
     this.renderAll();
-    this._purgeOrphanDom();
   }
 
   setMode(mode) {
@@ -871,7 +870,6 @@ export class PanelWidgetManager {
       this._updateSignalIndex(data);
     });
     this.renderAll();
-    this._purgeOrphanDom();
   }
 
   removeWidget(id) {
@@ -890,7 +888,6 @@ export class PanelWidgetManager {
       }
     }
     this.renderAll();
-    this._purgeOrphanDom();
     if (typeof this.onRemove === 'function') {
       this.onRemove(id, widget);
     }
@@ -1008,67 +1005,36 @@ export class PanelWidgetManager {
     }
   }
 
-  _purgeOrphanDom() {
-    if (!this.canvas) return;
-    requestAnimationFrame(() => {
-      const nodes = Array.from(this.canvas.querySelectorAll('.panel-widget'));
-      nodes.forEach((node) => {
-        const widgetId = node.dataset?.widgetId;
-        if (!widgetId || !this.widgets.has(widgetId)) {
-          this.elements.delete(widgetId);
-          node.remove();
-        }
-      });
-    });
-  }
-
-  _createElement(widget) {
-    const element = document.createElement('div');
-    element.setAttribute('role', 'group');
-    element.style.touchAction = 'none';
-    element.dataset.widgetId = widget.id;
-    element.dataset.widgetType = widget.type;
-    element.classList.add('panel-widget');
-    this._registerInteractionHandlers(widget, element);
-    return element;
-  }
-
-  // TRONG FILE: panel_widgets.js
-
-renderAll() {
+  renderAll() {
     if (!this.canvas) return;
 
     const nodes = [];
+    this.elements = new Map();
 
     this.widgets.forEach((widget) => {
-      let element = this.elements.get(widget.id);
-      if (!element) {
-        element = this._createElement(widget);
-        this.elements.set(widget.id, element);
-      }
-      
-      // XÓA DÒNG NÀY Ở ĐÂY: this._renderWidget(widget, element);
-      
-      // Chỉ tính toán vị trí Grid (CSS)
+      const element = document.createElement('div');
+      element.setAttribute('role', 'group');
+      element.style.touchAction = 'none';
+      element.dataset.widgetId = widget.id;
+      element.dataset.widgetType = widget.type;
+      element.classList.add('panel-widget');
+
+      this._renderWidget(widget, element);
+      this._registerInteractionHandlers(widget, element);
       this.grid?.applyPosition(widget, element);
+
       nodes.push(element);
+      this.elements.set(widget.id, element);
     });
 
-    // 1. Gắn khung (container) vào DOM trước
     if (typeof this.canvas.replaceChildren === 'function') {
       this.canvas.replaceChildren(...nodes);
     } else {
-      this.canvas.innerHTML = '';
-      nodes.forEach(node => this.canvas.appendChild(node));
+      while (this.canvas.firstChild) this.canvas.removeChild(this.canvas.firstChild);
+      nodes.forEach((n) => this.canvas.appendChild(n));
     }
 
-    // 2. Bây giờ DOM đã có, width/height đã thực tế -> Mới tiến hành vẽ nội dung bên trong
-    // Điều này đảm bảo element.clientWidth/clientHeight trả về đúng giá trị
-    this.widgets.forEach((widget) => {
-        const element = this.elements.get(widget.id);
-        if (element) {
-            this._renderWidget(widget, element);
-        }
-    });
+    this._refreshCanvasSpace();
+    this.onRender?.();
   }
 }
